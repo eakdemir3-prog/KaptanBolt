@@ -45,8 +45,8 @@ with sync_playwright() as p:
     for m in seq: pg.keyboard.press(KEY[m]); idle()
     pg.wait_for_timeout(900)
     pg.screenshot(path=OUT+"s4_lose.png")
-    pg.click("#card [data-act=undo]"); pg.wait_for_timeout(600)
-    check("yakalanıp Geri Al yapınca enerji gitmedi", pg.evaluate("KB.data().energy")==e0)
+    pg.click("#card [data-act=adContinue]"); pg.wait_for_timeout(2800)
+    check("reklam izleyip devam: oyun sürüyor, Geri Al hakkı azalmadı, enerji gitmedi", st("status")=="play" and pg.evaluate("KB.data().energy")==e0 and pg.locator("#undoCount").inner_text()=="3")
     pg.keyboard.press(KEY[seq[-1]]); idle(); pg.wait_for_timeout(900)
     pg.click("#card [data-act=restart]"); pg.wait_for_timeout(800)
     check("kaybedip yeniden başlayınca 1 enerji gitti", pg.evaluate("KB.data().energy")==e0-1)
@@ -58,6 +58,7 @@ with sync_playwright() as p:
     check("enerji yokken 'Enerjin Bitti' ekranı çıkıyor", pg.is_visible("text=Enerjin Bitti"))
     pg.click("#card [data-act=refill]"); pg.wait_for_timeout(1500)
     check("altınla doldurunca enerji 5 oldu ve bölüm açıldı", pg.evaluate("KB.data().energy")==5 and pg.evaluate("KB.screen")=="game")
+    check("enerji asla 5'i geçmiyor", pg.evaluate("(KB.data().energy=5, KB.data().coins=0, KB.data().energy)")==5)
     # görevler
     pg.keyboard.press("Escape"); pg.wait_for_timeout(500); pg.keyboard.press("Escape"); pg.wait_for_timeout(500); pg.keyboard.press("Escape"); pg.wait_for_timeout(800)
     pg.evaluate("for (const q of KB.data().quests.list) { q.have=q.n; q.done=true; }")

@@ -1,90 +1,97 @@
-// Sentezlenmiş ses efektleri ve müzik (dosya gerekmez, çevrimdışı)
+// Ses: oyuna özel bestelenmiş müzik ve ses efektleri (public/audio/*.ogg, tools/audio/synth.py ile üretilir)
 let ctx = null, master = null, sfxGain = null, musicGain = null;
-let soundOn = true, musicOn = true, musicTimer = null;
+let soundOn = true, musicOn = true;
+const buffers = new Map();
+const loading = new Map();
+let wantTrack = 'music_menu', curTrack = null, curSrc = null, curGain = null;
+
+const SFX = ['step', 'slide', 'collapse', 'crack', 'key', 'door', 'win', 'lose', 'click', 'star0', 'star1', 'star2', 'bump', 'teleport',
+  'bridge', 'stomp', 'bossFall', 'enemyFall', 'caught', 'undo', 'hint', 'wake', 'coin'];
+const VOL = { step: 0.55, slide: 0.6, collapse: 0.55, click: 0.4, bump: 0.5, crack: 0.8, door: 0.8, key: 0.9, win: 0.85, star0: 0.7, star1: 0.7, star2: 0.7 };
 
 function ensure() {
   if (ctx) return ctx;
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return null;
   ctx = new AC();
-  master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
-  sfxGain = ctx.createGain(); sfxGain.gain.value = 0.55; sfxGain.connect(master);
-  musicGain = ctx.createGain(); musicGain.gain.value = 0.0; musicGain.connect(master);
+  master = ctx.createGain(); master.gain.value = 0.95; master.connect(ctx.destination);
+  sfxGain = ctx.createGain(); sfxGain.gain.value = 0.9; sfxGain.connect(master);
+  musicGain = ctx.createGain(); musicGain.gain.value = 0.45; musicGain.connect(master);
+  SFX.forEach((n) => load(n));
   return ctx;
 }
+
+function load(name) {
+  if (buffers.has(name)) return Promise.resolve(buffers.get(name));
+  if (loading.has(name)) return loading.get(name);
+  const p = fetch(`audio/${name}.ogg`).then((r) => r.arrayBuffer()).then((a) => new Promise((res, rej) => ctx.decodeAudioData(a, res, rej)))
+    .then((b) => { buffers.set(name, b); return b; }).catch(() => null);
+  loading.set(name, p);
+  return p;
+}
+
+function play(name, { vol = 1, rate = 1 } = {}) {
+  if (!soundOn || !ensure()) return;
+  const b = buffers.get(name);
+  if (!b) { load(name); return; }
+  const src = ctx.createBufferSource(); src.buffer = b;
+  src.playbackRate.value = rate;
+  const g = ctx.createGain(); g.gain.value = vol * (VOL[name] ?? 0.75);
+  src.connect(g); g.connect(sfxGain); src.start();
+}
+
 export function unlock() { const c = ensure(); if (c && c.state === 'suspended') c.resume(); if (musicOn) startMusic(); }
 export function setSound(on) { soundOn = on; }
 export function setMusic(on) { musicOn = on; if (on) startMusic(); else stopMusic(); }
 export function suspend() { if (ctx) ctx.suspend(); }
 export function resume() { if (ctx) ctx.resume(); }
 
-function tone(freq, dur, { type = 'sine', vol = 0.3, slide = 0, delay = 0, out } = {}) {
-  if (!ctx) return;
-  const t = ctx.currentTime + delay;
-  const o = ctx.createOscillator(), g = ctx.createGain();
-  o.type = type; o.frequency.setValueAtTime(freq, t);
-  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g); g.connect(out || sfxGain);
-  o.start(t); o.stop(t + dur + 0.05);
-}
-function noise(dur, { vol = 0.3, freq = 800, q = 1, delay = 0, type = 'lowpass' } = {}) {
-  if (!ctx) return;
-  const t = ctx.currentTime + delay;
-  const len = Math.floor(ctx.sampleRate * dur);
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
-  const src = ctx.createBufferSource(); src.buffer = buf;
-  const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
-  const g = ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  src.connect(f); f.connect(g); g.connect(sfxGain);
-  src.start(t);
+/** Çalınacak parça: 'menu' | 'boss' | dünya numarası */
+export function setTrack(which) {
+  wantTrack = which === 'menu' ? 'music_menu' : which === 'boss' ? 'music_boss' : `music_w${which}`;
+  if (musicOn && ctx) startMusic();
 }
 
-export const sfx = {
-  step() { if (!soundOn || !ensure()) return; tone(520, 0.08, { type: 'triangle', vol: 0.18, slide: 180 }); },
-  slide() { if (!soundOn || !ensure()) return; noise(0.22, { vol: 0.12, freq: 3000, type: 'bandpass', q: 2 }); tone(900, 0.2, { vol: 0.05, slide: 600 }); },
-  collapse() { if (!soundOn || !ensure()) return; tone(110, 0.35, { type: 'sine', vol: 0.3, slide: -60, delay: 0.08 }); noise(0.4, { vol: 0.22, freq: 500, delay: 0.08 }); },
-  bump() { if (!soundOn || !ensure()) return; tone(140, 0.09, { type: 'square', vol: 0.06, slide: -40 }); },
-  key() { if (!soundOn || !ensure()) return; [988, 1319, 1568, 1976].forEach((f, i) => tone(f, 0.25, { type: 'triangle', vol: 0.16, delay: i * 0.06 })); },
-  door() { if (!soundOn || !ensure()) return; tone(220, 0.8, { type: 'sawtooth', vol: 0.06, slide: 440 }); tone(330, 0.8, { type: 'sine', vol: 0.15, slide: 660, delay: 0.05 }); },
-  win() { if (!soundOn || !ensure()) return; [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, i > 3 ? 0.45 : 0.18, { type: 'triangle', vol: 0.18, delay: i * 0.11 })); },
-  lose() { if (!soundOn || !ensure()) return; [392, 330, 262, 196].forEach((f, i) => tone(f, 0.3, { type: 'triangle', vol: 0.15, delay: i * 0.14 })); },
-  click() { if (!soundOn || !ensure()) return; tone(660, 0.05, { type: 'triangle', vol: 0.12 }); },
-  star(i) { if (!soundOn || !ensure()) return; tone(880 + i * 220, 0.3, { type: 'triangle', vol: 0.18 }); tone(1760 + i * 440, 0.2, { vol: 0.06, delay: 0.03 }); },
-  crack() { if (!soundOn || !ensure()) return; noise(0.15, { vol: 0.2, freq: 2500, type: 'highpass' }); tone(300, 0.12, { type: 'square', vol: 0.05, slide: -120 }); },
-  teleport() { if (!soundOn || !ensure()) return; tone(400, 0.35, { type: 'sine', vol: 0.15, slide: 1400 }); tone(1800, 0.3, { type: 'triangle', vol: 0.06, slide: -1200, delay: 0.15 }); },
-  stomp() { if (!soundOn || !ensure()) return; tone(70, 0.3, { type: 'sine', vol: 0.4, slide: -30 }); noise(0.2, { vol: 0.15, freq: 300 }); },
-  enemyFall() { if (!soundOn || !ensure()) return; tone(700, 0.5, { type: 'square', vol: 0.06, slide: -600 }); },
-  bossFall() { if (!soundOn || !ensure()) return; tone(200, 1.2, { type: 'sawtooth', vol: 0.12, slide: -170 }); noise(1.0, { vol: 0.3, freq: 400, delay: 0.6 }); },
-  caught() { if (!soundOn || !ensure()) return; tone(180, 0.4, { type: 'square', vol: 0.1, slide: -100 }); noise(0.25, { vol: 0.2, freq: 900 }); },
-  bridge() { if (!soundOn || !ensure()) return; tone(300, 0.15, { type: 'square', vol: 0.08 }); [392, 523, 659].forEach((f, i) => tone(f, 0.25, { type: 'triangle', vol: 0.12, delay: 0.1 + i * 0.09 })); noise(0.5, { vol: 0.12, freq: 600, delay: 0.1 }); },
-  wake() { if (!soundOn || !ensure()) return; tone(220, 0.2, { type: 'sawtooth', vol: 0.06, slide: 220 }); },
-  undo() { if (!soundOn || !ensure()) return; tone(900, 0.12, { type: 'triangle', vol: 0.12, slide: -500 }); },
-  hint() { if (!soundOn || !ensure()) return; tone(1200, 0.15, { vol: 0.12 }); tone(1600, 0.2, { vol: 0.1, delay: 0.08 }); },
-};
-
-// Sakin zindan müziği: yumuşak akorlar + arpej
-const CHORDS = [[220, 261.6, 329.6], [174.6, 220, 261.6], [196, 246.9, 293.7], [164.8, 207.7, 246.9]];
-function startMusic() {
-  if (!musicOn || !ensure() || musicTimer) return;
-  musicGain.gain.cancelScheduledValues(ctx.currentTime);
-  musicGain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 2);
-  let bar = 0;
-  const play = () => {
-    const ch = CHORDS[bar % CHORDS.length];
-    ch.forEach((f) => tone(f / 2, 3.8, { type: 'sine', vol: 0.05, out: musicGain }));
-    for (let i = 0; i < 8; i++) tone(ch[i % 3] * (i % 4 === 3 ? 2 : 1), 0.4, { type: 'triangle', vol: 0.025, delay: i * 0.5, out: musicGain });
-    bar++;
-  };
-  play();
-  musicTimer = setInterval(play, 4000);
+async function startMusic() {
+  if (!musicOn || !ensure()) return;
+  if (curTrack === wantTrack && curSrc) return;
+  const name = wantTrack;
+  const b = await load(name);
+  if (!b || name !== wantTrack || !musicOn || (curTrack === name && curSrc)) return;
+  const now = ctx.currentTime;
+  if (curSrc) { const g = curGain, s = curSrc; g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.linearRampToValueAtTime(0, now + 1.2); s.stop(now + 1.3); }
+  const src = ctx.createBufferSource(); src.buffer = b; src.loop = true;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(1, now + 1.5);
+  src.connect(g); g.connect(musicGain); src.start(now);
+  curSrc = src; curGain = g; curTrack = name;
 }
 function stopMusic() {
-  if (musicTimer) clearInterval(musicTimer);
-  musicTimer = null;
-  if (ctx && musicGain) musicGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
+  if (!curSrc || !ctx) return;
+  const now = ctx.currentTime; curGain.gain.setValueAtTime(curGain.gain.value, now); curGain.gain.linearRampToValueAtTime(0, now + 0.5);
+  curSrc.stop(now + 0.6); curSrc = null; curTrack = null;
 }
+
+const r = (a, b) => a + Math.random() * (b - a);
+export const sfx = {
+  step() { play('step', { rate: r(0.92, 1.08) }); },
+  slide() { play('slide', { rate: r(0.95, 1.05) }); },
+  collapse() { play('collapse', { rate: r(0.9, 1.1) }); },
+  crack() { play('crack'); },
+  bump() { play('bump'); },
+  key() { play('key'); },
+  door() { play('door'); },
+  win() { play('win'); },
+  lose() { play('lose'); },
+  click() { play('click', { rate: r(0.97, 1.03) }); },
+  star(i) { play('star' + Math.min(2, i)); },
+  hint() { play('hint'); },
+  teleport() { play('teleport'); },
+  stomp() { play('stomp'); },
+  enemyFall() { play('enemyFall'); },
+  bossFall() { play('bossFall'); },
+  caught() { play('caught'); },
+  bridge() { play('bridge'); },
+  wake() { play('wake'); },
+  undo() { play('undo'); },
+  coin() { play('coin'); },
+};

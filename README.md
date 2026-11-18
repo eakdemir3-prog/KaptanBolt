@@ -36,3 +36,13 @@ APK, GitHub'a her gönderimde `.github/workflows/android.yml` ile otomatik üret
 - `tools/generate.mjs`, `tools/validate.mjs` – bölüm üretici ve doğrulayıcı
 - `src/game/` – 3D sahne, modeller, animasyon
 - `android/` – Android projesi (paket: com.eavisionlabs.kaptanbolt)
+
+## Ses ve müzik
+Tüm müzik ve sesler `tools/audio/synth.py` ile kodla bestelenir/sentezlenir (telifli örnek yok): `python3 tools/audio/synth.py` → `public/audio/*.ogg`.
+Menü teması, boss parçası ve her dünya için ayrı oyun teması varyasyonu var.
+
+## Reklamlar (AdMob)
+`src/ads.js` içinde şimdilik Google TEST kimlikleri kullanılıyor. Yayından önce:
+1. `src/ads.js` → `testing: false`, kendi ödüllü ve geçiş reklamı birim kimlikleri
+2. `android/app/src/main/AndroidManifest.xml` → `com.google.android.gms.ads.APPLICATION_ID` kendi uygulama kimliğin
+Yerleşimler: enerji (+1, günde 5), bölüm sonu altın x2, ipucu, kaybedince devam; geçiş reklamı bölüm 11'den sonra her 4 bölümde bir.

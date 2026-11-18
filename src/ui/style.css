@@ -233,3 +233,19 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   .menu-row .btn { height: 50px; }
   .hero img { max-height: 220px; }
 }
+
+/* ---------- ayarlar: tek ekran ---------- */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+.set-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
+.set-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 14px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .12); font-size: 15px; font-weight: 700; text-align: left; }
+.set-tile .si { font-size: 18px; }
+.set-tile .toggle { margin-top: 2px; width: 40px; height: 22px; border-radius: 11px; flex: none; }
+.set-tile .toggle::after { width: 16px; height: 16px; } .set-tile .toggle.on::after { left: 21px; }
+.set-tile.q { grid-column: 1 / -1; flex-direction: row; }
+.set-tile.q .seg { margin-left: auto; } .set-tile.q .seg button { padding: 5px 10px; font-size: 13px; }
+.set-test { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; opacity: .9; flex-wrap: wrap; justify-content: center; }
+.set-test .mini { padding: 6px 9px; border-radius: 12px; font-size: 12px; font-weight: 700; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .15); }
+.set-test .mini.on { background: #1fb9dd; color: #062038; border-color: #1fb9dd; }
+.set-row { display: flex; gap: 8px; }
+.set-row .btn { flex: 1; margin-top: 10px !important; height: 46px !important; font-size: 15px !important; }
+.card .btn small { font-weight: 500; }

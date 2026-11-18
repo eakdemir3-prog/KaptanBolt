@@ -272,26 +272,50 @@ export function makeEnemy(type) {
   return root;
 }
 
-export function makeBoss(world) {
+// Boss: Bolt ile aynı yumuşak, yuvarlak tarz; koyu metal gövde, altın süsler, tek geniş vizör ve kızgın kırmızı gözler
+export const BOSS_COLORS = { 1: 0x5a4aa0, 2: 0x7a4a2a, 3: 0x3a7ab0, 4: 0xa03a2a, 5: 0x3a7a4a, 6: 0x8a2aa0, 7: 0x8a2a2a, 8: 0x8a5a2a, 9: 0x2a8a8a, 10: 0x4a2a5a };
+export function makeBoss(world = 10) {
+  const tint = BOSS_COLORS[world] || BOSS_COLORS[10];
   const M = {
-    body: std(0x2a2f45, { roughness: 0.35, metalness: 0.55 }),
-    plate: std(0x4a516e, { roughness: 0.3, metalness: 0.7 }),
-    eye: new THREE.MeshBasicMaterial({ color: 0xff2a2a }),
-    horn: std(0xffc531, { metalness: 0.8, roughness: 0.25, emissive: 0x6a3a00, emissiveIntensity: 0.5 }),
-    dark: std(0x10121c),
+    body: std(0x2b2e44, { roughness: 0.32, metalness: 0.45 }),
+    accent: std(tint, { roughness: 0.35, metalness: 0.4, emissive: tint, emissiveIntensity: 0.12 }),
+    gold: std(0xffc531, { metalness: 0.8, roughness: 0.25, emissive: 0x6a3a00, emissiveIntensity: 0.45 }),
+    visor: std(0x0a0c18, { roughness: 0.1, metalness: 0.4 }),
+    eye: new THREE.MeshBasicMaterial({ color: 0xff3a3a }),
+    dark: std(0x161827, { roughness: 0.5 }),
   };
   const root = new THREE.Group(), body = new THREE.Group(), turn = new THREE.Group();
   root.add(turn); turn.add(body);
-  for (const sx of [-1, 1]) body.add(mesh(new RoundedBoxGeometry(0.42, 0.5, 0.5, 3, 0.1), M.dark, [sx * 0.42, 0.25, 0]));
-  body.add(mesh(new RoundedBoxGeometry(1.5, 0.9, 1.2, 5, 0.25), M.body, [0, 0.95, 0]));
-  body.add(mesh(new RoundedBoxGeometry(1.1, 0.5, 0.1, 3, 0.08), M.plate, [0, 1.0, 0.6]));
-  const head = new THREE.Group(); head.position.y = 1.65; body.add(head);
-  head.add(mesh(new RoundedBoxGeometry(1.1, 0.6, 0.9, 5, 0.2), M.body));
-  head.add(mesh(new RoundedBoxGeometry(0.86, 0.26, 0.08, 3, 0.08), M.dark, [0, 0.02, 0.44]));
+  // ayaklar
+  for (const sx of [-1, 1]) {
+    body.add(mesh(new RoundedBoxGeometry(0.5, 0.42, 0.62, 4, 0.16), M.dark, [sx * 0.42, 0.21, 0.02]));
+    body.add(mesh(new RoundedBoxGeometry(0.52, 0.1, 0.64, 2, 0.04), M.accent, [sx * 0.42, 0.38, 0.02]));
+  }
+  // gövde: büyük yuvarlak blok
+  body.add(mesh(new RoundedBoxGeometry(1.45, 0.95, 1.15, 6, 0.4), M.body, [0, 0.98, 0]));
+  body.add(mesh(new RoundedBoxGeometry(1.0, 0.42, 0.12, 4, 0.12), M.accent, [0, 0.95, 0.56]));
+  const core = mesh(new THREE.SphereGeometry(0.13, 20, 16), M.eye, [0, 0.95, 0.63], false); body.add(core);
+  // omuz zırhları ve kollar
+  for (const sx of [-1, 1]) {
+    body.add(mesh(new THREE.SphereGeometry(0.3, 20, 16), M.accent, [sx * 0.8, 1.28, 0]));
+    const arm = mesh(new THREE.CapsuleGeometry(0.17, 0.42, 6, 14), M.dark, [sx * 0.88, 0.85, 0.08]); arm.rotation.z = sx * 0.18; body.add(arm);
+    body.add(mesh(new THREE.SphereGeometry(0.21, 18, 14), M.body, [sx * 0.95, 0.55, 0.12]));
+  }
+  // kafa
+  const head = new THREE.Group(); head.position.y = 1.72; body.add(head);
+  head.add(mesh(new RoundedBoxGeometry(1.12, 0.72, 0.95, 6, 0.3), M.body));
+  head.add(mesh(new RoundedBoxGeometry(0.92, 0.34, 0.1, 4, 0.13), M.visor, [0, -0.02, 0.45]));
   const eyes = [];
-  for (const sx of [-1, 1]) { const e = mesh(new THREE.BoxGeometry(0.22, 0.09, 0.03), M.eye, [sx * 0.2, 0.02, 0.49], false); e.rotation.z = sx * -0.25; head.add(e); eyes.push(e); }
-  for (const sx of [-1, 1]) { const h = mesh(new THREE.ConeGeometry(0.1, 0.42, 10), M.horn, [sx * 0.42, 0.42, 0]); h.rotation.z = sx * -0.5; head.add(h); }
-  for (const sx of [-1, 1]) { const arm = mesh(new RoundedBoxGeometry(0.3, 0.75, 0.36, 3, 0.1), M.plate, [sx * 0.95, 0.85, 0.05]); arm.rotation.z = sx * 0.15; body.add(arm); }
+  for (const sx of [-1, 1]) {
+    const e = mesh(new THREE.CapsuleGeometry(0.06, 0.16, 6, 12), M.eye, [sx * 0.2, -0.01, 0.51], false);
+    e.rotation.z = Math.PI / 2 + sx * 0.32; head.add(e); eyes.push(e);
+  }
+  // taç ve boynuzlar
+  const crown = new THREE.Group(); crown.position.y = 0.4; head.add(crown);
+  crown.add(mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.12, 24), M.gold));
+  for (let k = 0; k < 5; k++) { const a = (k / 5) * Math.PI * 2; const sp = mesh(new THREE.ConeGeometry(0.07, 0.2, 8), M.gold, [Math.cos(a) * 0.32, 0.14, Math.sin(a) * 0.32]); crown.add(sp); }
+  crown.add(mesh(new THREE.OctahedronGeometry(0.08), M.eye, [0, 0.03, 0.38], false));
+  for (const sx of [-1, 1]) { const h = mesh(new THREE.ConeGeometry(0.1, 0.38, 12), M.accent, [sx * 0.5, 0.36, -0.05]); h.rotation.z = sx * -0.55; head.add(h); }
   const l = new THREE.PointLight(0xff3a2a, 10, 4); l.position.set(0, 1.7, 1.2); root.add(l);
   root.userData = { body, turn, head, eyes, eyeMat: M.eye, light: l };
   return root;

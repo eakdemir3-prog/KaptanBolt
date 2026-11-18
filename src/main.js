@@ -8,7 +8,8 @@ import { THEMES, SKINS } from './game/models.js';
 import { skinImg, boltHead, bossImg, worldIcon } from './game/thumbs.js';
 import * as Save from './save.js';
 import * as Eco from './economy.js';
-import { sfx, unlock as audioUnlock, setSound, setMusic, suspend, resume } from './audio.js';
+import { sfx, unlock as audioUnlock, setSound, setMusic, setTrack, suspend, resume } from './audio.js';
+import { initAds, showRewarded, maybeInterstitial } from './ads.js';
 import { vibrate, setVibration, onBack, exitApp, onPause } from './platform.js';
 
 const MAX = LEVELS.length;
@@ -54,6 +55,7 @@ function show(name) {
   for (const s of $$('.screen')) s.classList.toggle('on', s.id === name);
   closeModal();
   stage.paused = !(name === 'menu' || name === 'game');
+  if (name !== 'game') setTrack('menu');
   if (name === 'menu') { showcase(); renderMenu(); }
   if (name === 'worlds') renderWorlds();
   if (name === 'map') renderMap();
@@ -113,11 +115,12 @@ function renderWorlds() {
       <img src="${worldIcon(w)}" alt=""><div class="num">DÜNYA ${w}</div><div class="nm">${th.name}</div>
       <div class="bar"><i style="width:${pct}%"></i></div>
       <div class="meta"><span>⭐ ${worldStars(w)}/${WORLD_SIZE * 3}</span><span>${!open ? `⭐ ${Eco.WORLD_STARS(w)} veya önceki boss` : done === WORLD_SIZE ? '✔ Tamamlandı' : `Bölüm ${next}`}</span></div>
-      <div class="boss">${bossDone ? '💥 Boss yenildi' : '👹 Boss'}</div>${open ? '' : '<span class="lockic">🔒</span>'}</button>`;
+      <div class="boss">${bossDone ? '💥 Boss yenildi' : MECH_TAG[w]}</div>${open ? '' : '<span class="lockic">🔒</span>'}</button>`;
   }
   $('worldList').innerHTML = html;
 }
 
+const MECH_TAG = { 1: '🧱 Çöken kare', 2: '🔑 Anahtarlar', 3: '❄ Buz', 4: '🚨 Devriye', 5: '🛡 Sağlam taş', 6: '🌀 Portal', 7: '👁 Takipçi', 8: '🌉 Köprü', 9: '➡ Ok kare', 10: '🏰 Karışık' };
 const MECH = { 1: 'Çöken kareler', 2: '🔑 Birden çok anahtar', 3: '❄ Buzda kayma', 4: '🚨 Devriye robotları', 5: '🛡 Sağlam taşlar', 6: '🌀 Portallar', 7: '👁 Takipçi robotlar', 8: '🌉 Düğme ve köprü', 9: '➡ Ok kareler', 10: '🏰 Hepsi karışık' };
 function renderMap() {
   const w = currentWorld, th = THEMES[w];
@@ -134,7 +137,7 @@ function renderMap() {
     const id = first + i, st = data.stars[id] || 0, open = Save.isUnlocked(data, id), boss = LEVELS[id - 1].final;
     const cls = st ? 'done' : open ? 'cur' : 'lock';
     const stars = st ? `<span class="st">${'★'.repeat(st)}${'☆'.repeat(3 - st)}</span>` : '';
-    if (boss) nodes += `<button class="node boss ${cls}" data-lv="${id}" ${open ? '' : 'data-locked="1"'} style="left:${x}px;top:${y}px"><img src="${bossImg()}" alt="">${stars}</button>`;
+    if (boss) nodes += `<button class="node boss ${cls}" data-lv="${id}" ${open ? '' : 'data-locked="1"'} style="left:${x}px;top:${y}px"><img src="${bossImg(w)}" alt="">${stars}</button>`;
     else nodes += `<button class="node ${cls}" data-lv="${id}" ${open ? '' : 'data-locked="1"'} style="left:${x}px;top:${y}px">${id}${stars}</button>`;
     if (cls === 'cur' && curY === null) { nodes += `<img class="bolthead" src="${head}" style="left:${x}px;top:${y - (boss ? 22 : 0)}px" alt="">`; curY = y; }
   });
@@ -214,11 +217,12 @@ function renderEnergyModal(first) {
   const dd = data.daily || {};
   const html = `<div style="margin:4px 0">${BOLT().replace('class="ic "', 'style="width:64px;height:84px;filter:drop-shadow(0 0 14px #ffd54a)"')}</div>
     <h2>${data.energy > 0 ? 'Enerji' : 'Enerjin Bitti'}</h2>
-    <p>Kaybettiğin her bölüm 1 enerji harcar. Kazandığın bölümler enerji harcamaz.</p>
+    <p>Kaybettiğin her bölüm 1 enerji harcar. Kazandığın bölümler enerji harcamaz. En fazla ${Eco.ENERGY_MAX} enerji birikir.</p>
     <div class="bolts">${Array.from({ length: Eco.ENERGY_MAX }, (_, i) => BOLT(i < data.energy ? '' : 'off')).join('')}</div>
     <div class="stat"><div><b>${next ? Eco.fmtTime(next) : '—'}</b>sonraki enerji</div><div><b>${full ? Eco.fmtTime(full) : 'Dolu'}</b>tamamı dolar</div></div>
+    ${data.energy < Eco.ENERGY_MAX && Eco.adCount(data, 'energy', dateKey()) < Eco.AD_ENERGY_PER_DAY ? `<button class="btn primary" data-act="adEnergy">📺 Reklam izle: ${BOLT()} +1 <small style="opacity:.75;font-size:12px">(${Eco.AD_ENERGY_PER_DAY - Eco.adCount(data, 'energy', dateKey())} hak)</small></button>` : ''}
     ${data.energy < Eco.ENERGY_MAX ? `<button class="btn gold" data-act="refill">${COIN} ${Eco.REFILL_COST} ile doldur</button>` : ''}
-    ${dd.lastDone !== dateKey() ? '<button class="btn primary" data-act="daily">🧩 Günlük bulmacayı çöz (+1)</button>' : ''}
+    ${dd.lastDone !== dateKey() ? '<button class="btn" data-act="daily">🧩 Günlük bulmacayı çöz (+1)</button>' : ''}
     <button class="linkbtn" data-act="closeEnergy">Kapat</button>`;
   if (first) openModal(html, 'fail'); else if (!$('modal').classList.contains('hidden')) $('card').innerHTML = html;
 }
@@ -231,11 +235,12 @@ function startLevel(id) {
   settleLoss();
   if (!lv.daily && !Eco.hasEnergy(data)) return energyModal(() => startLevel(id));
   game.level = lv;
-  game.history = []; game.undos = UNDOS; game.lossPending = false;
+  game.history = []; game.undos = UNDOS; game.lossPending = false; game.adContinueUsed = false;
   const board = parseLevel(lv);
   game.state = newState(board);
   game.busy = false; game.queued = null; clearTimeout(game.deadTimer);
   stage.menuMode = false;
+  setTrack(lv.boss ? 'boss' : lv.world);
   stage.setTheme(lv.world);
   stage.build(board, game.state);
   show('game');
@@ -287,10 +292,10 @@ function updateDanger() {
   stage.setDanger(cells);
 }
 
-function undo() {
+function undo(free = false) {
   if (game.busy || !game.history.length) return toast('Geri alınacak hamle yok.');
-  if (game.undos <= 0) return toast('Bu bölümde geri alma hakkın bitti.');
-  game.undos--;
+  if (!free && game.undos <= 0) return toast('Bu bölümde geri alma hakkın bitti.');
+  if (!free) game.undos--;
   game.lossPending = false;
   game.state = game.history.pop();
   game.state.status = 'play';
@@ -360,7 +365,8 @@ function onWin() {
   Eco.stat(data, 'wins');
   if (stars === 3) Eco.stat(data, 'stars3');
   if (lv.final) Eco.stat(data, 'bosses');
-  if (stars === 3 && prev < 3) Eco.addEnergy(data, 1);
+  let overflow = 0;
+  if (stars === 3 && prev < 3) overflow = Eco.addEnergy(data, 1);
   save();
   sfx.win(); vibrate('heavy');
   if (id === MAX) return finishScreen(stars);
@@ -372,7 +378,8 @@ function onWin() {
     <p>${lv.final ? 'Boss yenildi, Kaptan Bolt kapıdan geçti!' : 'Kaptan Bolt kapıdan geçti.'}</p>
     ${starsHtml(stars)}
     <div class="stat"><div><b>${s.moves}</b>hamle</div>${s.board.stars.mode === 'moves' ? `<div><b>≤${s.board.stars.par[0]}</b>hedef</div>` : `<div><b>${cnt}/${tgt}</b>çöken kare</div>`}<div><b>+${coins}</b>altın</div></div>
-    ${stars < 3 ? `<div class="tip">${s.board.stars.mode === 'moves' ? `⭐⭐⭐ için en fazla <b>${s.board.stars.par[0]} hamlede</b> bitir!` : `⭐⭐⭐ için kapıya girmeden önce <b>bütün kareleri</b> çökert!`}</div>` : (res.bonusHint ? `<div class="tip">💎 Kusursuz! +1 ipucu ve +1 enerji kazandın.</div>` : '')}
+    ${stars < 3 ? `<div class="tip">${s.board.stars.mode === 'moves' ? `⭐⭐⭐ için en fazla <b>${s.board.stars.par[0]} hamlede</b> bitir!` : `⭐⭐⭐ için kapıya girmeden önce <b>bütün kareleri</b> çökert!`}</div>` : (res.bonusHint ? `<div class="tip">💎 Kusursuz! +1 ipucu ve ${overflow ? `+${overflow} altın (enerjin dolu)` : '+1 enerji'} kazandın.</div>` : '')}
+    <button class="btn gold" data-act="adDouble" data-c="${coins}">📺 Reklam izle: altını 2 katına çıkar (+${coins})</button>
     ${nextOpen ? '<button class="btn primary" data-act="next">Sonraki Bölüm →</button>' : `<div class="tip">🔒 Dünya ${Save.worldOf(id + 1)} için ⭐ ${Eco.WORLD_STARS(Save.worldOf(id + 1))} gerekiyor. Yıldızları artırmak için bölümleri tekrar oyna!</div>`}
     <button class="btn" data-act="restart"><span class="i-restart"></span>Tekrar Oyna</button>
     <button class="linkbtn" data-act="map">Haritaya dön</button>`);
@@ -385,7 +392,7 @@ function onDailyWin(stars) {
   if (d.lastDone !== key) {
     d.streak = d.lastDone === yesterdayKey() ? (d.streak || 0) + 1 : 1; d.lastDone = key; d.total = (d.total || 0) + 1; first = true;
     d.best = Math.max(d.best || 0, d.streak);
-    data.coins += 50; Eco.addEnergy(data, 1); Eco.stat(data, 'daily');
+    data.coins += 50; d.overflow = Eco.addEnergy(data, 1); Eco.stat(data, 'daily');
   }
   d.stars = Math.max(d.date === key ? d.stars || 0 : 0, stars); d.date = key;
   data.daily = d; save();
@@ -395,7 +402,7 @@ function onDailyWin(stars) {
     <h2>Günün Bulmacası Tamam!</h2>
     <p>Seri: <b>${d.streak} gün</b>. Yarın yeni bulmaca seni bekliyor.</p>
     ${starsHtml(stars)}
-    ${first ? `<div class="energy-pill">${COIN} +50 &nbsp; ${BOLT()} +1</div>` : ''}
+    ${first ? `<div class="energy-pill">${COIN} +${50 + (d.overflow || 0)} &nbsp; ${d.overflow ? '' : BOLT() + ' +1'}</div>` : ''}
     ${stars < 3 ? `<div class="tip">⭐⭐⭐ için kapıya girmeden önce <b>bütün kareleri</b> çökert!</div>` : ''}
     <button class="btn" data-act="restart"><span class="i-restart"></span>Tekrar Oyna</button>
     <button class="btn primary" data-act="menu">Ana Menü</button>`);
@@ -416,6 +423,7 @@ function onLose(kind) {
     <h2>${caught ? 'Yakalandın!' : 'Yol Kapandı'}</h2>
     <p>${caught ? 'Bir düşman robot Kaptan Bolt\'a yetişti. Kırmızı X olan karelere gitme!' : 'Gidecek kare kalmadı. Rotanı yeniden planla, Kaptan!'}</p>
     ${cost}
+    ${game.history.length && !game.adContinueUsed ? '<button class="btn primary" data-act="adContinue">📺 Reklam izle, kaldığın yerden devam et</button>' : ''}
     ${undoBtnHtml()}
     <button class="btn primary" data-act="restart"><span class="i-restart"></span>Yeniden Başla</button>
     <button class="btn purple" data-act="${daily ? 'menu' : 'map'}">${daily ? 'Ana Menü' : 'Haritaya dön'}</button>`, 'fail');
@@ -437,6 +445,7 @@ function useHint() {
   if (screen !== 'game' || game.busy || game.state.status !== 'play') return;
   if (data.hints <= 0) {
     return openModal(`<div class="emoji">💡</div><h2>İpucun kalmadı</h2><p>Her yeni ⭐⭐⭐ +1 ipucu verir. İstersen altınla alabilirsin.</p>
+      <button class="btn primary" data-act="adHint">📺 Reklam izle: 💡 +1</button>
       <button class="btn gold" data-act="buyhint">${COIN} ${Eco.HINT_COST} ile 1 ipucu al</button><button class="btn" data-act="close">Vazgeç</button>`);
   }
   const r = shortest(game.state, 400000, 2500);
@@ -486,19 +495,18 @@ function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.rem
 
 function settingsModal() {
   const s = data.settings;
-  const tg = (k) => `<button class="toggle ${s[k] ? 'on' : ''}" data-toggle="${k}" aria-label="${k}"></button>`;
+  const tile = (k, ic, label) => `<button class="set-tile ${s[k] ? 'on' : ''}" data-toggle="${k}"><span class="si">${ic}</span>${label}<i class="toggle ${s[k] ? 'on' : ''}"></i></button>`;
   openModal(`
     <h2>Ayarlar</h2>
-    <div class="rows">
-      <div class="row">🔊 Ses efektleri ${tg('sound')}</div>
-      <div class="row">🎵 Müzik ${tg('music')}</div>
-      <div class="row">📳 Titreşim ${tg('vibration')}</div>
-      <div class="row">✨ Grafik <div class="seg"><button class="${s.quality === 'high' ? 'on' : ''}" data-quality="high">Yüksek</button><button class="${s.quality !== 'high' ? 'on' : ''}" data-quality="low">Dengeli</button></div></div>
-      <div class="row">🔓 Tüm bölümler açık (test) ${tg('unlockAll')}</div>
-      <div class="row">⚡ Sınırsız enerji (test) ${tg('infiniteEnergy')}</div>
+    <div class="set-grid">
+      ${tile('sound', '🔊', 'Ses')}${tile('music', '🎵', 'Müzik')}
+      ${tile('vibration', '📳', 'Titreşim')}
+      <div class="set-tile q"><span class="si">✨</span>Grafik<div class="seg"><button class="${s.quality === 'high' ? 'on' : ''}" data-quality="high">Yüksek</button><button class="${s.quality !== 'high' ? 'on' : ''}" data-quality="low">Dengeli</button></div></div>
     </div>
-    <button class="btn" data-act="howto">Nasıl Oynanır?</button>
-    <button class="btn purple" data-act="resetask">İlerlemeyi Sıfırla</button>
+    <div class="set-test"><span>🧪 Test</span>
+      <button class="mini ${s.unlockAll ? 'on' : ''}" data-toggle="unlockAll">🔓 Tüm bölümler</button>
+      <button class="mini ${s.infiniteEnergy ? 'on' : ''}" data-toggle="infiniteEnergy">⚡ Sınırsız enerji</button></div>
+    <div class="set-row"><button class="btn small" data-act="howto">❔ Yardım</button><button class="btn small purple" data-act="resetask">♻ Sıfırla</button></div>
     <button class="btn primary" data-act="close">Kapat</button>
     <div class="foot">Kaptan Bolt v1.0 • EA Vision Labs</div>`);
 }
@@ -539,7 +547,7 @@ document.addEventListener('click', (e) => {
     if (!Save.worldUnlocked(data, w)) { vibrate('light'); return toast(`Dünya ${w - 1}'in boss'unu yen ya da ⭐ ${Eco.WORLD_STARS(w)} topla.`); }
     currentWorld = w; return show('map');
   }
-  if (el.dataset.toggle) { const k = el.dataset.toggle; data.settings[k] = !data.settings[k]; save(); applySettings(); el.classList.toggle('on', data.settings[k]); renderRes(); return; }
+  if (el.dataset.toggle) { const k = el.dataset.toggle; data.settings[k] = !data.settings[k]; save(); applySettings(); renderRes(); if ($('card').querySelector('.set-grid')) return settingsModal(); el.classList.toggle('on', data.settings[k]); return; }
   if (el.dataset.quality) { data.settings.quality = el.dataset.quality; save(); applySettings(); return settingsModal(); }
   switch (el.dataset.act) {
     case 'continue': { const n = Save.continueLevel(data, MAX); currentWorld = Save.worldOf(n); return startLevel(n); }
@@ -552,7 +560,7 @@ document.addEventListener('click', (e) => {
     case 'close': return closeModal();
     case 'closeEnergy': closeModal(); renderRes(); return;
     case 'restart': return startLevel(game.level.daily ? game.level : game.level.id);
-    case 'next': return startLevel(game.level.id + 1);
+    case 'next': { const id = game.level.id; closeModal(); return maybeInterstitial(id).then(() => startLevel(id + 1)); }
     case 'undo': return undo();
     case 'hint': return useHint();
     case 'buyhint': if (data.coins < Eco.HINT_COST) return toast('Yeterli altının yok.'); data.coins -= Eco.HINT_COST; data.hints++; save(); closeModal(); updateHud(); return useHint();
@@ -561,10 +569,14 @@ document.addEventListener('click', (e) => {
     case 'garage': return show('garage');
     case 'ach': return show('ach');
     case 'quests': return questsModal();
-    case 'claimq': { const r = Eco.claimQuest(data, +el.dataset.i); if (r) { save(); sfx.key(); toast('Ödül alındı: ' + Eco.rewardText(r)); renderRes(); renderMenu(); } return questsModal(); }
+    case 'claimq': { const r = Eco.claimQuest(data, +el.dataset.i); if (r) { save(); sfx.coin(); toast('Ödül alındı: ' + Eco.rewardText(r)); renderRes(); renderMenu(); } return questsModal(); }
     case 'claimbonus': if (Eco.claimBonus(data)) { save(); sfx.win(); renderRes(); renderMenu(); } return questsModal();
-    case 'claimach': { const c = Eco.claimAch(data, el.dataset.id); if (c) { save(); sfx.key(); toast(`+${c} altın!`); renderRes(); } return renderAch(); }
+    case 'claimach': { const c = Eco.claimAch(data, el.dataset.id); if (c) { save(); sfx.coin(); toast(`+${c} altın!`); renderRes(); } return renderAch(); }
     case 'buyskin': return buySkin(el.dataset.id);
+    case 'adEnergy': return showRewarded().then((ok) => { if (!ok) return toast('Reklam şu an yüklenemedi, biraz sonra tekrar dene.'); Eco.adUsed(data, 'energy', dateKey()); Eco.addEnergy(data, 1); save(); sfx.coin(); renderRes(); toast('+1 enerji!'); renderEnergyModal(energyThen ? false : true); });
+    case 'adDouble': { const c = +el.dataset.c; el.disabled = true; return showRewarded().then((ok) => { if (!ok) { el.disabled = false; return toast('Reklam şu an yüklenemedi.'); } data.coins += c; save(); sfx.coin(); el.outerHTML = `<div class="tip">${COIN} +${c} altın daha kazandın!</div>`; }); }
+    case 'adHint': return showRewarded().then((ok) => { if (!ok) return toast('Reklam şu an yüklenemedi.'); data.hints++; save(); closeModal(); updateHud(); sfx.hint(); useHint(); });
+    case 'adContinue': return showRewarded().then((ok) => { if (!ok) return toast('Reklam şu an yüklenemedi.'); game.adContinueUsed = true; undo(true); });
     case 'refill': if (data.coins < Eco.REFILL_COST) return toast('Yeterli altının yok.'); data.coins -= Eco.REFILL_COST; data.energy = Eco.ENERGY_MAX; data.energyAt = Date.now(); save(); renderRes(); sfx.win(); return renderEnergyModal(false);
     case 'resetask': return openModal(`<div class="emoji">⚠️</div><h2>Emin misin?</h2><p>Tüm yıldızlar, altınlar ve kostümler silinecek. Bu işlem geri alınamaz.</p><button class="btn purple" data-act="reset">Evet, sıfırla</button><button class="btn primary" data-act="settings">Vazgeç</button>`, 'fail');
     case 'reset': data = Eco.ensure(Save.reset()); Eco.dailyQuests(data, dateKey()); save(); applySettings(); stage.setSkin(SKINS[0]); closeModal(); toast('İlerleme sıfırlandı.'); stage.board = null; return show('menu');
@@ -608,5 +620,6 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('resize', () => { if (screen === 'game') layoutGame(); else if (screen === 'menu') layoutMenu(); else if (screen === 'map') renderMap(); });
 
+initAds();
 show('menu');
 if (document.fonts) document.fonts.ready.then(() => { if (screen === 'game') layoutGame(); if (screen === 'menu') layoutMenu(); });

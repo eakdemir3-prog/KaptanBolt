@@ -1,6 +1,8 @@
 // Altın, enerji, günlük görevler, başarımlar ve istatistikler (tamamen cihazda, çevrimdışı)
 export const ENERGY_MAX = 5;
-export const ENERGY_MS = 20 * 60 * 1000;      // 20 dakikada 1 enerji
+export const ENERGY_MS = 25 * 60 * 1000;      // 25 dakikada 1 enerji
+export const OVERFLOW_COINS = 20;              // enerji doluyken gelen her enerji ödülü altına dönüşür
+export const AD_ENERGY_PER_DAY = 5;
 export const REFILL_COST = 200;
 export const HINT_COST = 100;
 export const SKIN_PRICES = { klasik: 0, altin: 500, korsan: 1000, ninja: 1500, buz: 2500, lav: 4000, neon: 6000, kral: 9000 };
@@ -21,6 +23,7 @@ export function ensure(d) {
 /** Zamanla dolan enerjiyi hesaplar ve günceller. */
 export function tickEnergy(d, now = Date.now()) {
   ensure(d);
+  if (d.energy > ENERGY_MAX) d.energy = ENERGY_MAX; // eski sürümden kalan fazlalık
   if (d.energy >= ENERGY_MAX) { d.energyAt = now; return d.energy; }
   const gained = Math.floor((now - d.energyAt) / ENERGY_MS);
   if (gained > 0) {
@@ -46,7 +49,16 @@ export function spendEnergy(d, now = Date.now()) {
   d.energy--;
   return true;
 }
-export function addEnergy(d, n) { tickEnergy(d); d.energy = Math.min(ENERGY_MAX + 5, d.energy + n); }
+/** Enerji ekler; asla ENERGY_MAX'ı geçmez. Taşan enerji altına dönüşür. Dönüş: dönüşen altın */
+export function addEnergy(d, n) {
+  tickEnergy(d);
+  const room = Math.max(0, ENERGY_MAX - d.energy);
+  const add = Math.min(room, n), over = n - add;
+  d.energy += add;
+  if (d.energy >= ENERGY_MAX) d.energyAt = Date.now();
+  const coins = over * OVERFLOW_COINS; d.coins = (d.coins || 0) + coins;
+  return coins;
+}
 export const hasEnergy = (d) => !!(d.settings && d.settings.infiniteEnergy) || tickEnergy(d) > 0;
 export function fmtTime(ms) {
   const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
@@ -138,3 +150,7 @@ export function claimAch(d, id) {
   if (!a || !a.done || a.claimed) return 0;
   d.ach[id] = true; d.coins += a.coins; return a.coins;
 }
+
+// ---------------- Reklam ödülleri (günlük sınır) ----------------
+export function adCount(d, kind, day) { ensure(d); if (!d.ads || d.ads.day !== day) d.ads = { day }; return d.ads[kind] || 0; }
+export function adUsed(d, kind, day) { adCount(d, kind, day); d.ads[kind] = (d.ads[kind] || 0) + 1; }

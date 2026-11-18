@@ -229,3 +229,11 @@ test('dünya kilidi: önceki boss veya yıldız eşiği açar', () => {
   const e = Save.load(); e.settings.unlockAll = false; e.stars = {}; for (let i = 1; i <= 9; i++) e.stars[i] = 3; // 27 yıldız
   assert.equal(Save.isUnlocked(e, 21), true);
 });
+
+test('enerji asla 5i geçmez, taşan ödül altına dönüşür', () => {
+  const d = Eco.ensure({ settings: {}, hints: 0, coins: 0 });
+  d.energy = 4;
+  assert.equal(Eco.addEnergy(d, 3), 2 * Eco.OVERFLOW_COINS);
+  assert.equal(d.energy, 5); assert.equal(d.coins, 40);
+  d.energy = 7; Eco.tickEnergy(d); assert.equal(d.energy, 5);
+});
