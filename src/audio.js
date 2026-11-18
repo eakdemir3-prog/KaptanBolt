@@ -55,6 +55,12 @@ export const sfx = {
   lose() { if (!soundOn || !ensure()) return; [392, 330, 262, 196].forEach((f, i) => tone(f, 0.3, { type: 'triangle', vol: 0.15, delay: i * 0.14 })); },
   click() { if (!soundOn || !ensure()) return; tone(660, 0.05, { type: 'triangle', vol: 0.12 }); },
   star(i) { if (!soundOn || !ensure()) return; tone(880 + i * 220, 0.3, { type: 'triangle', vol: 0.18 }); tone(1760 + i * 440, 0.2, { vol: 0.06, delay: 0.03 }); },
+  crack() { if (!soundOn || !ensure()) return; noise(0.15, { vol: 0.2, freq: 2500, type: 'highpass' }); tone(300, 0.12, { type: 'square', vol: 0.05, slide: -120 }); },
+  teleport() { if (!soundOn || !ensure()) return; tone(400, 0.35, { type: 'sine', vol: 0.15, slide: 1400 }); tone(1800, 0.3, { type: 'triangle', vol: 0.06, slide: -1200, delay: 0.15 }); },
+  stomp() { if (!soundOn || !ensure()) return; tone(70, 0.3, { type: 'sine', vol: 0.4, slide: -30 }); noise(0.2, { vol: 0.15, freq: 300 }); },
+  enemyFall() { if (!soundOn || !ensure()) return; tone(700, 0.5, { type: 'square', vol: 0.06, slide: -600 }); },
+  bossFall() { if (!soundOn || !ensure()) return; tone(200, 1.2, { type: 'sawtooth', vol: 0.12, slide: -170 }); noise(1.0, { vol: 0.3, freq: 400, delay: 0.6 }); },
+  caught() { if (!soundOn || !ensure()) return; tone(180, 0.4, { type: 'square', vol: 0.1, slide: -100 }); noise(0.25, { vol: 0.2, freq: 900 }); },
   hint() { if (!soundOn || !ensure()) return; tone(1200, 0.15, { vol: 0.12 }); tone(1600, 0.2, { vol: 0.1, delay: 0.08 }); },
 };
 

@@ -1,6 +1,6 @@
 // Kaptan Bolt — ana uygulama: ekranlar, giriş ve oyun akışı
 import LEVELS from './levels/levels.json';
-import { parseLevel, newState, move, canMove, starsFor, collapsedCount, coverTarget } from './logic/rules.js';
+import { parseLevel, newState, move, canMove, starsFor, collapsedCount, coverTarget, cloneState, validMoves } from './logic/rules.js';
 import { shortest, canWin } from './logic/solver.js';
 import { Stage } from './game/stage.js';
 import { THEMES } from './game/models.js';
@@ -13,11 +13,13 @@ const WORLD_SIZE = 20;
 const $ = (id) => document.getElementById(id);
 let data = Save.load();
 const stage = new Stage($('c'));
-stage.onSound = (k) => { if (k === 'collapse') { sfx.collapse(); vibrate('light'); } else if (k === 'key') { sfx.key(); vibrate('medium'); } else if (sfx[k]) sfx[k](); };
+stage.onSound = (k) => { if (k === 'collapse') { sfx.collapse(); vibrate('light'); } else if (k === 'key') { sfx.key(); vibrate('medium'); } else if (k === 'stomp' || k === 'bossFall') { sfx[k](); vibrate('heavy'); } else if (sfx[k]) sfx[k](); };
 applySettings();
 
 // Test ve hata ayıklama için dışarıdan erişim
-window.KB = { get state() { return game.state; }, get screen() { return screen; }, input: (d) => game.input(d), start: (id) => startLevel(id), data: () => data, idle: () => !game.busy };
+window.KB = { get state() { return game.state; }, get screen() { return screen; }, input: (d) => game.input(d), start: (id) => startLevel(id), data: () => data, idle: () => !game.busy, solve: () => (shortest(game.state, 800000, 20000) || {}).moves,
+  // test yardımcısı: düşmana yakalanan bir hamle dizisi bul
+  findCaught: () => { const q = [[cloneState(game.state), []]]; let n = 0; while (q.length && n++ < 20000) { const [s, p] = q.shift(); for (const d of validMoves(s)) { const c = cloneState(s); move(c, d); if (c.status === 'caught') return p.concat(d); if (c.status === 'play') q.push([c, p.concat(d)]); } } return null; } };
 
 let screen = 'menu';
 const game = { state: null, level: null, busy: false, queued: null, deadTimer: 0 };
@@ -52,7 +54,7 @@ let currentWorld = 1;
 function renderLevels() {
   $('starTotal').innerHTML = `⭐ ${Save.totalStars(data)}`;
   const worlds = Math.ceil(MAX / WORLD_SIZE);
-  $('worldTabs').innerHTML = Array.from({ length: worlds }, (_, i) => `<button class="${i + 1 === currentWorld ? 'on' : ''}" data-world="${i + 1}">${i * WORLD_SIZE + 1}–${(i + 1) * WORLD_SIZE}</button>`).join('');
+  $('worldTabs').innerHTML = Array.from({ length: worlds }, (_, i) => `<button class="${i + 1 === currentWorld ? 'on' : ''}" data-world="${i + 1}">${i + 1}</button>`).join('');
   const from = (currentWorld - 1) * WORLD_SIZE + 1, to = Math.min(MAX, currentWorld * WORLD_SIZE);
   let ws = 0; for (let i = from; i <= to; i++) ws += data.stars[i] || 0;
   $('worldHead').innerHTML = `<b>Dünya ${currentWorld}: ${THEMES[currentWorld].name}</b><span>⭐ ${ws}/${(to - from + 1) * 3}</span>`;
@@ -89,7 +91,9 @@ function startLevel(id) {
 
 function layoutGame() {
   const top = $('lvName').getBoundingClientRect().bottom + 10;
-  const bottom = innerHeight - $('moveInfo').getBoundingClientRect().top + 14;
+  const tut = $('tutorial');
+  const ref = tut.classList.contains('hidden') ? $('moveInfo') : tut;
+  const bottom = innerHeight - ref.getBoundingClientRect().top + 14;
   stage.setSafe(top, bottom);
 }
 
@@ -98,7 +102,10 @@ function updateHud() {
   const kt = s.keysTaken.filter(Boolean).length;
   const keyIcon = (on) => `<svg class="k" viewBox="0 0 60 80"><circle cx="30" cy="20" r="15" fill="${on ? '#ffcf3a' : '#4b4580'}"/><circle cx="30" cy="20" r="7" fill="#1a1250"/><rect x="26" y="32" width="8" height="34" rx="3" fill="${on ? '#ffcf3a' : '#4b4580'}"/><rect x="34" y="50" width="10" height="6" rx="2" fill="${on ? '#ffcf3a' : '#4b4580'}"/></svg>`;
   $('chipKeys').innerHTML = b.keys.map((_, k) => keyIcon(s.keysTaken[k])).join('') + `<span>${kt}/${b.keys.length}</span>`;
-  $('chipCollapse').innerHTML = `<span class="lbl">Çöken</span>${collapsedCount(s)}/${coverTarget(b)}`;
+  if (b.stars.mode === 'moves') $('chipCollapse').innerHTML = `<span class="lbl">Hedef</span>≤${b.stars.par[0]}`;
+  else $('chipCollapse').innerHTML = `<span class="lbl">Çöken</span>${collapsedCount(s)}/${coverTarget(b)}`;
+  const bc = $('chipBoss');
+  if (s.boss) { bc.classList.remove('hidden'); bc.innerHTML = s.boss.alive ? '👹 <span class="lbl">Boss</span>' : '💥 <span class="lbl">Yenildi</span>'; } else bc.classList.add('hidden');
   $('hintCount').textContent = data.hints;
   $('moveInfo').textContent = `Hamle: ${s.moves}` + (data.best[game.level.id] != null ? `  •  En iyi: ${data.best[game.level.id]}` : '');
 }
@@ -115,17 +122,18 @@ async function input(dir) {
   clearTimeout(game.deadTimer);
   const events = move(s, dir);
   game.busy = true;
-  const p = stage.play(events);
+  const p = stage.play(events, s);
   setTimeout(updateHud, 60);
   await p;
   updateHud();
   game.busy = false;
   if (s.status === 'win') return onWin();
   if (s.status === 'stuck') return onStuck();
+  if (s.status === 'caught') return onCaught();
   // Hamle var ama bölüm artık çözülemiyorsa uyar
   game.deadTimer = setTimeout(() => {
     if (game.state !== s || s.status !== 'play') return;
-    if (canWin(s, 60000) === false) { const bn = $('banner'); bn.innerHTML = '⚠️ Bu rota çıkmaza girdi'; bn.classList.remove('hidden'); vibrate('medium'); }
+    if (canWin(s, 60000, 60) === false) { const bn = $('banner'); bn.innerHTML = '⚠️ Bu rota çıkmaza girdi'; bn.classList.remove('hidden'); vibrate('medium'); }
   }, 30);
   if (game.queued) { const q = game.queued; game.queued = null; input(q); }
 }
@@ -139,12 +147,12 @@ function onWin() {
   if (id === MAX) return finishScreen(stars);
   const cnt = collapsedCount(s), tgt = coverTarget(s.board);
   openModal(`
-    <div class="emoji">🎉</div>
+    <div class="emoji">${game.level.final ? '🏆' : '🎉'}</div>
     <h2>Bölüm Tamamlandı!</h2>
-    <p>Kaptan Bolt kapıdan geçti.</p>
+    <p>${game.level.final ? 'Boss yenildi, Kaptan Bolt kapıdan geçti!' : 'Kaptan Bolt kapıdan geçti.'}</p>
     <div class="stars">${[0, 1, 2].map((i) => `<div class="s ${i < stars ? 'on' : ''}" style="animation-delay:${0.2 + i * 0.25}s"></div>`).join('')}</div>
-    <div class="stat"><div><b>${s.moves}</b>hamle</div><div><b>${cnt}/${tgt}</b>çöken kare</div></div>
-    ${stars < 3 ? `<div class="tip">⭐⭐⭐ için kapıya girmeden önce <b>bütün kareleri</b> çökert!</div>` : (res.bonusHint ? `<div class="tip">💡 Kusursuz! +1 ipucu kazandın.</div>` : '')}
+    <div class="stat"><div><b>${s.moves}</b>hamle</div>${s.board.stars.mode === 'moves' ? `<div><b>≤${s.board.stars.par[0]}</b>hedef</div>` : `<div><b>${cnt}/${tgt}</b>çöken kare</div>`}</div>
+    ${stars < 3 ? `<div class="tip">${s.board.stars.mode === 'moves' ? `⭐⭐⭐ için en fazla <b>${s.board.stars.par[0]} hamlede</b> bitir!` : `⭐⭐⭐ için kapıya girmeden önce <b>bütün kareleri</b> çökert!`}</div>` : (res.bonusHint ? `<div class="tip">💡 Kusursuz! +1 ipucu kazandın.</div>` : '')}
     <button class="btn primary" data-act="next">Sonraki Bölüm →</button>
     <button class="btn" data-act="restart"><span class="i-restart"></span>Tekrar Oyna</button>
     <button class="linkbtn" data-act="levels">Bölümler</button>`);
@@ -161,14 +169,24 @@ function onStuck() {
     <button class="btn purple" data-act="levels">Bölümler</button>`, 'fail');
 }
 
+function onCaught() {
+  sfx.lose(); vibrate('heavy');
+  openModal(`
+    <div class="emoji">🤖💥</div>
+    <h2>Yakalandın!</h2>
+    <p>Bir düşman robot Kaptan Bolt'a yetişti. Onların bir sonraki adımını hesaba kat!</p>
+    <button class="btn primary" data-act="restart"><span class="i-restart"></span>Yeniden Başla</button>
+    <button class="btn purple" data-act="levels">Bölümler</button>`, 'fail');
+}
+
 function finishScreen(stars) {
   openModal(`
     <div class="emoji">🏆</div>
     <h2>Tebrikler Kaptan!</h2>
-    <p>İlk 3 dünyanın ${MAX} bölümünü de bitirdin.</p>
+    <p>${Math.ceil(MAX / WORLD_SIZE)} dünyanın ${MAX} bölümünü de bitirdin.</p>
     <div class="stars">${[0, 1, 2].map((i) => `<div class="s ${i < stars ? 'on' : ''}" style="animation-delay:${0.2 + i * 0.25}s"></div>`).join('')}</div>
     <div class="stat"><div><b>⭐ ${Save.totalStars(data)}</b>toplam yıldız</div><div><b>${MAX * 3}</b>en fazla</div></div>
-    <div class="tip">Dünya 4–10 yakında geliyor: düşman robotlar ve boss savaşları! O zamana kadar eksik yıldızları topla.</div>
+    <div class="tip">Dünya 8–10 yakında geliyor: düğmeler, köprüler, ok kareler ve son kale! O zamana kadar eksik yıldızları topla.</div>
     <button class="btn gold" data-act="levels">Bölümler</button>
     <button class="btn" data-act="menu">Ana Menü</button>`);
 }
@@ -176,7 +194,7 @@ function finishScreen(stars) {
 function useHint() {
   if (screen !== 'game' || game.busy || game.state.status !== 'play') return;
   if (data.hints <= 0) return toast('İpucu kalmadı. Bölümleri ⭐⭐⭐ ile bitirerek ipucu kazanırsın.');
-  const r = shortest(game.state, 250000);
+  const r = shortest(game.state, 400000, 2500);
   if (!r) { const bn = $('banner'); bn.innerHTML = '⚠️ Bu rota çıkmaza girdi'; bn.classList.remove('hidden'); return toast('Buradan çıkış yok. Yeniden başla!'); }
   if (r.unknown || !r.moves.length) return toast('İpucu hesaplanamadı, biraz ilerleyip tekrar dene.');
   data.hints--; Save.save(data); updateHud();
@@ -188,20 +206,27 @@ function useHint() {
 const TUTORIALS = {
   swipe: '<span class="hand">👆</span><br>Robotu hareket ettirmek için ekranı <b>kaydır</b><small>Ayrıldığın kare çöker, geri dönemezsin! Anahtarı al, kapıya ulaş.</small>',
   keys: '🔑🔑 Bu bölümde <b>iki anahtar</b> var<small>Kapı tüm anahtarlar toplanınca açılır. Hangisine önce gideceğini iyi seç!</small><button class="btn small primary" data-act="tutok">Anladım</button>',
+  patrol: '🚨 <b>Devriye robotu!</b><small>Senin her hamlenden sonra okun gösterdiği yöne bir kare gider, önü kapanınca geri döner. Üstüne gelirse yakalanırsın!</small><button class="btn small primary" data-act="tutok">Anladım</button>',
+  strong: '🛡️ <b>Sağlam taş!</b><small>Metal kuşaklı taşlar ilk ayrılışta sadece çatlar, ikinci ayrılışta çöker. Üstünden iki kez geçebilirsin.</small><button class="btn small primary" data-act="tutok">Anladım</button>',
+  portal: '🌀 <b>Portallar!</b><small>Aynı renkli portala basınca diğerine ışınlanırsın. Girdiğin portal arkandan çöker.</small><button class="btn small primary" data-act="tutok">Anladım</button>',
+  chaser: '👁️ <b>Takipçi robot!</b><small>Her hamlende sana bir adım yaklaşır ama önüne bakmaz: onu çöken karelere ya da boşluklara çekip düşür!</small><button class="btn small primary" data-act="tutok">Anladım</button>',
+  boss: '👹 <b>BOSS!</b><small>Dev robot kapıyı kilitli tutuyor ve seni kovalıyor. Onu boşluklara ya da çöken karelere çekip düşür, sonra kapıya koş!</small><button class="btn small primary" data-act="tutok">Hazırım!</button>',
   ice: '❄️ <b>Buzlu kareler!</b><small>Buza basınca robot aynı yönde kaymaya devam eder. Kayarken geçtiği kareler de çöker.</small><button class="btn small primary" data-act="tutok">Anladım</button>',
 };
 function showTutorial(lv) {
   const t = $('tutorial');
   t.classList.add('hidden');
-  if (!lv.tutorial || data.seenTutorial[lv.tutorial] && lv.tutorial !== 'swipe') return;
+  if (!lv.tutorial || !TUTORIALS[lv.tutorial] || data.seenTutorial[lv.tutorial] && lv.tutorial !== 'swipe') return;
   if (lv.tutorial === 'swipe' && data.stars[1]) return;
   t.innerHTML = TUTORIALS[lv.tutorial]; t.dataset.kind = lv.tutorial; t.classList.remove('hidden');
+  requestAnimationFrame(layoutGame);
 }
 function hideTutorial(kind) {
   const t = $('tutorial');
   if (t.classList.contains('hidden') || (kind && t.dataset.kind !== kind)) return;
   t.classList.add('hidden');
   data.seenTutorial[t.dataset.kind] = true; Save.save(data);
+  layoutGame();
 }
 
 // ---------------- Modal / ayarlar ----------------
@@ -234,7 +259,10 @@ function howtoModal() {
       <li>Ayrıldığın kare <b>çöker</b>. Çöken karelere, boşluklara ve tahta dışına gidilemez.</li>
       <li>Tüm <b>🔑 anahtarları</b> topla, <b>kapı</b> açılsın. Kilitli kapı duvar gibidir.</li>
       <li><b>❄️ Buzda</b> robot aynı yönde kayar, buz olmayan karede ya da önü kapanınca durur.</li>
-      <li>⭐ Bitir • ⭐⭐ karelerin %70'ini çökert • ⭐⭐⭐ <b>hepsini</b> çökert.</li>
+      <li>🚨 Devriye ve 👁️ takipçi robotlar senin her hamlenden sonra hareket eder. Sana değerlerse yakalanırsın. Takipçileri boşluklara çekip düşürebilirsin.</li>
+      <li>🛡️ Sağlam taş iki kez geçilir. 🌀 Portal seni eşine ışınlar.</li>
+      <li>👹 Boss bölümlerinde kapı, boss düşmeden açılmaz.</li>
+      <li>⭐ Bitir • ⭐⭐ karelerin %70'ini çökert • ⭐⭐⭐ <b>hepsini</b> çökert. Düşmanlı bölümlerde yıldızlar hamle sayısına göredir.</li>
       <li>💡 İpucu bir sonraki doğru hamleyi gösterir. Her yeni ⭐⭐⭐ +1 ipucu verir.</li>
     </ul>
     <button class="btn primary" data-act="${screen === 'game' ? 'close' : 'settings'}">Tamam</button>`);
@@ -260,7 +288,7 @@ document.addEventListener('click', (e) => {
   if (el.dataset.quality) { data.settings.quality = el.dataset.quality; Save.save(data); applySettings(); return settingsModal(); }
   switch (el.dataset.act) {
     case 'continue': return startLevel(Save.continueLevel(data, MAX));
-    case 'levels': currentWorld = game.level ? game.level.world : Math.min(3, Math.ceil(Save.continueLevel(data, MAX) / WORLD_SIZE)); stage.menuMode = false; stage.board = null; return show('levels');
+    case 'levels': currentWorld = game.level ? game.level.world : Math.ceil(Save.continueLevel(data, MAX) / WORLD_SIZE); stage.menuMode = false; stage.board = null; return show('levels');
     case 'menu': stage.board = null; return show('menu');
     case 'back': return back();
     case 'settings': return settingsModal();

@@ -5,9 +5,9 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { THEMES, makeMaterials, makeTile, makePit, makeKey, makeDoor, makeRobot, setRobotFace } from './models.js';
+import { THEMES, PORTAL_COLORS, makeMaterials, makeTile, makeStrongTile, makePortalTile, makePit, makeKey, makeDoor, makeRobot, setRobotFace, makeEnemy, makeBoss } from './models.js';
 import { tween, ease, updateTweens, clearTweens, wait } from './tween.js';
-import { HOLE, ICE } from '../logic/rules.js';
+import { HOLE, ICE, STRONG, doorOpen } from '../logic/rules.js';
 
 const DIR_ANGLE = { down: 0, up: Math.PI, right: Math.PI / 2, left: -Math.PI / 2 };
 const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
@@ -123,18 +123,36 @@ export class Stage {
   build(board, state) {
     clearTweens();
     this.root.clear();
-    this.board = board;
+    this.board = board; this.state = state;
     this.hintMesh = null;
     const { w, h } = board;
     this.root.add(this._buildBackdrop(w, h));
-    this.tiles = new Map(); this.keys = new Map();
+    this.tiles = new Map(); this.keys = new Map(); this.portals = [];
+    const pairId = new Map(); let pc = 0;
+    for (let i = 0; i < board.cells.length; i++) if (board.portal[i] > i) pairId.set(i, pc++);
     for (let i = 0; i < board.cells.length; i++) {
       const p = this.cellPos(i);
       if (board.cells[i] === HOLE) { const pit = makePit(this.M); pit.position.copy(p); this.root.add(pit); continue; }
       const pit = makePit(this.M); pit.position.copy(p); this.root.add(pit);
       if (state.collapsed[i]) continue;
-      const t = makeTile(this.M, board.cells[i] === ICE, i * 7 + 3);
+      let t;
+      if (board.cells[i] === STRONG) { t = makeStrongTile(this.M); t.userData.cracks.visible = !!state.hits[i]; }
+      else if (board.portal[i] >= 0) { t = makePortalTile(this.M, PORTAL_COLORS[pairId.get(Math.min(i, board.portal[i])) % 4]); this.portals.push(t); }
+      else t = makeTile(this.M, board.cells[i] === ICE, i * 7 + 3);
       t.position.copy(p); this.root.add(t); this.tiles.set(i, t);
+    }
+    // düşmanlar ve boss
+    this.enemyMeshes = state.enemies.map((e) => {
+      if (!e.alive) return null;
+      const m = makeEnemy(e.type); m.position.copy(this.cellPos(e.pos)).add(new THREE.Vector3(0, 0.18, 0));
+      m.userData.turn.rotation.y = DIR_ANGLE[e.dir] ?? 0; m.userData.type = e.type; m.userData.phase = Math.random() * 6;
+      this.root.add(m);
+      if (e.type === 'patrol') { const a = makeArrow(0xffd23a); m.userData.arrow = a; this.root.add(a); this._placeArrow(m, e); }
+      return m;
+    });
+    this.bossMesh = null;
+    if (state.boss && state.boss.alive) {
+      const bm = makeBoss(this.world); bm.position.copy(this._bossPos(state.boss.pos)); this.root.add(bm); this.bossMesh = bm;
     }
     board.keys.forEach((ci, k) => {
       if (state.keysTaken[k]) return;
@@ -143,7 +161,7 @@ export class Stage {
     });
     this.door = makeDoor(); this.door.position.copy(this.cellPos(board.door)).add(new THREE.Vector3(0, 0.18, -0.12));
     this.root.add(this.door);
-    this._setDoorOpen(state.keysTaken.every(Boolean), false);
+    this._setDoorOpen(doorOpen(state), false);
     this.robot = makeRobot(); this.robot.position.copy(this.cellPos(state.pos)).add(new THREE.Vector3(0, 0.18, 0));
     this.robot.userData.turn.rotation.y = 0;
     this.root.add(this.robot);
@@ -184,15 +202,108 @@ export class Stage {
   }
 
   // ---------- Animasyonlar ----------
-  async play(events) {
+  async play(events, state) {
+    this.state = state;
+    const group = [];
+    const flush = async () => { if (group.length) { await Promise.all(group.splice(0)); } };
     for (const e of events) {
+      const enemyEv = ['enemyMove', 'enemyFall', 'enemyWait', 'bossMove', 'bossFall', 'bossWait', 'bossCharge'].includes(e.t);
+      if (enemyEv) { group.push(this._enemyEvent(e)); continue; }
+      await flush();
       if (e.t === 'collapse') this._collapse(e.cell);
+      else if (e.t === 'crack') this._crack(e.cell);
+      else if (e.t === 'teleport') await this._teleport(e);
+      else if (e.t === 'caught') await this._caughtAnim();
       else if (e.t === 'step') await this._step(e);
       else if (e.t === 'key') this._takeKey(e.index);
       else if (e.t === 'doorOpen') this._setDoorOpen(true, true);
       else if (e.t === 'win') await this._winAnim();
       else if (e.t === 'stuck') await this._stuckAnim();
     }
+    await flush();
+    if (state) this.enemyMeshes.forEach((m, k) => { if (m && m.userData.arrow) this._placeArrow(m, state.enemies[k]); });
+  }
+
+  _bossPos(pos) {
+    const a = this.cellPos(pos), b = this.cellPos(pos + this.board.w + 1);
+    return a.add(b).multiplyScalar(0.5).setY(0.18);
+  }
+  _placeArrow(m, e) {
+    const a = m.userData.arrow; if (!a) return;
+    if (!e.alive) { a.visible = false; return; }
+    // devriyenin bir sonraki adımı (önü kapalıysa geri döner)
+    const st = this.state, b = this.board;
+    let d = e.dir;
+    const free = (dir) => { const [dx, dz] = DIR_VEC[dir]; const x = e.pos % b.w + dx, y = Math.floor(e.pos / b.w) + dz; if (x < 0 || y < 0 || x >= b.w || y >= b.h) return false; const n = y * b.w + x; return b.cells[n] !== HOLE && !(st && st.collapsed[n]) && n !== b.door; };
+    const OPP = { up: 'down', down: 'up', left: 'right', right: 'left' };
+    if (!free(d)) d = free(OPP[d]) ? OPP[d] : null;
+    if (!d) { a.visible = false; return; }
+    const [dx, dz] = DIR_VEC[d];
+    a.visible = true; a.rotation.y = DIR_ANGLE[d];
+    a.position.copy(this.cellPos(e.pos)).add(new THREE.Vector3(dx * 0.55, 0.2, dz * 0.55));
+  }
+
+  async _enemyEvent(e) {
+    if (e.t === 'bossCharge') {
+      const bm = this.bossMesh; if (!bm) return;
+      const U = bm.userData;
+      return tween(260, (t) => { U.body.scale.y = 1 - Math.sin(Math.PI * t) * 0.08; U.light.intensity = 10 + Math.sin(Math.PI * t) * 25; });
+    }
+    if (e.t === 'enemyWait' || e.t === 'bossWait') return wait(120);
+    const isBoss = e.id === 'boss';
+    const m = isBoss ? this.bossMesh : this.enemyMeshes[e.id];
+    if (!m) return;
+    const U = m.userData;
+    const a = m.position.clone();
+    const b = isBoss ? this._bossPos(e.to) : this.cellPos(e.to).setY(0.18);
+    const turn = U.turn; const r0 = turn.rotation.y; let r1 = DIR_ANGLE[e.dir];
+    while (r1 - r0 > Math.PI) r1 -= 2 * Math.PI; while (r1 - r0 < -Math.PI) r1 += 2 * Math.PI;
+    await tween(isBoss ? 260 : 190, (t) => {
+      m.position.x = a.x + (b.x - a.x) * t; m.position.z = a.z + (b.z - a.z) * t;
+      m.position.y = 0.18 + Math.sin(Math.PI * t) * (isBoss ? 0.35 : 0.18);
+      turn.rotation.y = r0 + (r1 - r0) * Math.min(1, t * 2);
+    }, ease.inOutQuad);
+    if (isBoss) { this.shake(0.12, 220); if (this.onSound) this.onSound('stomp'); }
+    if (e.t === 'enemyFall' || e.t === 'bossFall') {
+      if (this.onSound) this.onSound(isBoss ? 'bossFall' : 'enemyFall');
+      if (U.arrow) U.arrow.visible = false;
+      this._burst(b.clone().add(new THREE.Vector3(0, 0.4, 0)), isBoss ? 0xff4a2a : 0xffd54a);
+      await tween(isBoss ? 900 : 600, (t) => { m.position.y = 0.18 - t * t * (isBoss ? 5 : 4); m.rotation.z = t * (isBoss ? 1.2 : 3); m.scale.setScalar((isBoss ? 1 : 1) * (1 - t * 0.6)); }, ease.linear);
+      if (isBoss) this.shake(0.3, 500);
+      this.root.remove(m);
+      if (isBoss) this.bossMesh = null; else this.enemyMeshes[e.id] = null;
+    }
+  }
+
+  shake(amp, ms) {
+    const cam = this.camera, base = cam.position.clone();
+    return tween(ms, (t) => { const k = amp * (1 - t); cam.position.set(base.x + (Math.random() - 0.5) * k, base.y + (Math.random() - 0.5) * k, base.z); }).then(() => cam.position.copy(base));
+  }
+
+  _crack(cell) {
+    const t = this.tiles.get(cell); if (!t) return;
+    if (this.onSound) this.onSound('crack');
+    const base = t.position.clone();
+    tween(160, (u) => { t.position.x = base.x + Math.sin(u * 50) * 0.03; }).then(() => { t.position.copy(base); });
+    if (t.userData.cracks) t.userData.cracks.visible = true;
+  }
+
+  async _teleport({ from, to }) {
+    const r = this.robot, U = r.userData;
+    if (this.onSound) this.onSound('teleport');
+    this._burst(this.cellPos(from).setY(0.6), 0xff6ae8);
+    await tween(200, (t) => { r.scale.setScalar(1.2 * (1 - t)); U.turn.rotation.y += 0.4; });
+    r.position.copy(this.cellPos(to)).setY(0.18);
+    this._burst(this.cellPos(to).setY(0.6), 0x6affe0);
+    await tween(220, (t) => { r.scale.setScalar(1.2 * t); }, ease.outBack);
+  }
+
+  async _caughtAnim() {
+    this.mood = 'sad'; setRobotFace(this.robot, 'sad');
+    if (this.onSound) this.onSound('caught');
+    this.shake(0.15, 300);
+    const r = this.robot;
+    await tween(450, (t) => { r.scale.set(1.2 * (1 + t * 0.3), 1.2 * (1 - t * 0.7), 1.2 * (1 + t * 0.3)); });
   }
 
   face(dir) {
@@ -351,11 +462,21 @@ export class Stage {
     }
     if (this.flames) for (const f of this.flames) { const k = 1 + Math.sin(t * 9 + f.seed) * 0.08 + Math.sin(t * 23 + f.seed) * 0.05; f.f.scale.set(k, 1.6 * k, k); f.tl.intensity = 14 * k; }
     if (this.particles) { this.particles.rotation.y = t * 0.03; this.particles.position.y = this.world === 3 ? -((t * 0.25) % 2) + 1 : Math.sin(t * 0.3) * 0.2; }
+    if (this.portals) for (const p of this.portals) if (p.userData.swirl) p.userData.swirl.rotation.y = -t * 2.5;
+    if (this.enemyMeshes) for (const m of this.enemyMeshes) if (m) { m.userData.body.position.y = Math.sin(t * 4 + m.userData.phase) * 0.03; if (m.userData.siren) m.userData.siren.scale.setScalar(0.8 + Math.abs(Math.sin(t * 6)) * 0.5); if (m.userData.arrow && m.userData.arrow.visible) m.userData.arrow.children[0].material.opacity = 0.5 + Math.abs(Math.sin(t * 4)) * 0.5; }
+    if (this.bossMesh) { const U = this.bossMesh.userData; U.head.rotation.y = Math.sin(t * 0.9) * 0.15; U.body.position.y = Math.sin(t * 1.8) * 0.03; U.eyes.forEach((e) => (e.scale.y = 1 + Math.abs(Math.sin(t * 3)) * 0.4)); }
     if (this.hintMesh) { const k = (Math.sin(t * 6) + 1) / 2; this.hintMesh.children.forEach((c) => (c.material.opacity = 0.5 + k * 0.5)); }
     if (this.door && this.doorOpen) this.door.userData.light.intensity = 9 + Math.sin(t * 3) * 2;
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
   }
 }
 
+function makeArrow(color) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false });
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.3, 3), mat); head.rotation.x = Math.PI / 2; g.add(head);
+  g.scale.set(1.2, 0.4, 1.2);
+  return g;
+}
 function mesh(g, m, p = [0, 0, 0], cast = true) { const o = new THREE.Mesh(g, m); o.position.set(...p); o.castShadow = cast; o.receiveShadow = true; return o; }
 function mulberry(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }

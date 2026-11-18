@@ -1,7 +1,10 @@
 // Kaptan Bolt — otomatik çözücü. Oyunla aynı rules.js'i kullanır.
 import { HOLE, DIR_LIST, newState, cloneState, move, validMoves, enterable, collapsedCount, coverTarget } from './rules.js';
 
-const keyOf = (s) => s.pos + ':' + s.collapsed.join('');
+const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+const keyOf = (s) => s.pos + ':' + s.collapsed.join('') + (s.board.strongCount ? ':' + s.hits.join('') : '')
+  + (s.enemies.length ? ':' + s.enemies.map((e) => (e.alive ? e.pos + e.dir[0] : 'x')).join(',') : '')
+  + (s.boss ? ':' + (s.boss.alive ? s.boss.pos + '/' + (s.boss.tick % s.boss.every) : 'x') : '');
 
 function neighbors(b, i) {
   const x = i % b.w, y = (i / b.w) | 0, out = [];
@@ -9,6 +12,7 @@ function neighbors(b, i) {
   if (x < b.w - 1) out.push(i + 1);
   if (y > 0) out.push(i - b.w);
   if (y < b.h - 1) out.push(i + b.w);
+  if (b.portal[i] >= 0) out.push(b.portal[i]);
   return out;
 }
 
@@ -32,7 +36,8 @@ function reachableOk(s) {
 }
 
 /** En kısa çözüm (BFS). { moves:[dir..] } veya null. limit aşılırsa {unknown:true} */
-export function shortest(state, limit = 400000) {
+export function shortest(state, limit = 400000, ms = 0) {
+  const deadline = ms ? now() + ms : 0;
   const start = cloneState(state);
   if (start.status === 'win') return { moves: [] };
   if (start.status !== 'play' || !reachableOk(start)) return null;
@@ -51,7 +56,7 @@ export function shortest(state, limit = 400000) {
         const k = keyOf(n);
         if (seen.has(k)) continue;
         seen.add(k);
-        if (++nodes > limit) return { unknown: true };
+        if (++nodes > limit || (deadline && (nodes & 127) === 0 && now() > deadline)) return { unknown: true };
         next.push({ s: n, path: p });
       }
     }
@@ -61,7 +66,8 @@ export function shortest(state, limit = 400000) {
 }
 
 /** Hızlı kazanılabilirlik kontrolü (DFS). true/false/null(bilinmiyor) */
-export function canWin(state, limit = 150000) {
+export function canWin(state, limit = 150000, ms = 0) {
+  const deadline = ms ? now() + ms : 0;
   const dead = new Set();
   let nodes = 0;
   function dfs(s) {
@@ -69,7 +75,7 @@ export function canWin(state, limit = 150000) {
     if (s.status !== 'play' || !reachableOk(s)) return false;
     const k = keyOf(s);
     if (dead.has(k)) return false;
-    if (++nodes > limit) throw 'limit';
+    if (++nodes > limit || (deadline && (nodes & 127) === 0 && now() > deadline)) throw 'limit';
     for (const d of validMoves(s)) {
       const n = cloneState(s); move(n, d);
       if (dfs(n)) return true;
