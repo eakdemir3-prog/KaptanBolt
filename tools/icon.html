@@ -1,0 +1,28 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent}canvas{display:block}</style></head><body>
+<script type="module">
+import * as THREE from 'three';
+import { makeRobot, setRobotFace, makeKey } from '/src/game/models.js';
+const mode = new URLSearchParams(location.search).get('m') || 'icon';
+const S = mode === 'splash' ? [1080, 1920] : [1024, 1024];
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: mode === 'fg', preserveDrawingBuffer: true });
+r.setSize(S[0], S[1]); r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 0.95;
+document.body.appendChild(r.domElement);
+const sc = new THREE.Scene();
+if (mode !== 'fg') {
+  const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#3a1f8a'); gr.addColorStop(0.55, '#1a1250'); gr.addColorStop(1, '#0b0820');
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 256); sc.background = new THREE.CanvasTexture(c);
+}
+sc.add(new THREE.HemisphereLight(0xc8bfff, 0x1a1040, 1.2));
+const d = new THREE.DirectionalLight(0xffffff, 2.2); d.position.set(-2, 4, 5); sc.add(d);
+const rim = new THREE.PointLight(0x3fe2ff, 30, 6); rim.position.set(1.4, 1.2, -1); sc.add(rim);
+const rim2 = new THREE.PointLight(0xb05cff, 25, 6); rim2.position.set(-1.6, 0.6, -0.8); sc.add(rim2);
+const bot = makeRobot(); setRobotFace(bot, 'happy'); bot.scale.setScalar(1); sc.add(bot);
+bot.userData.turn.rotation.y = -0.35;
+bot.userData.armR.rotation.z = -1.9;
+const cam = new THREE.PerspectiveCamera(30, S[0] / S[1], 0.1, 50);
+if (mode === 'splash') { cam.position.set(0, 1.0, 5.2); cam.lookAt(0, 0.95, 0); }
+else { cam.position.set(0, 0.9, mode === 'fg' ? 3.2 : 2.55); cam.lookAt(0, 0.62, 0); }
+r.render(sc, cam);
+window.DONE = true;
+</script></body></html>

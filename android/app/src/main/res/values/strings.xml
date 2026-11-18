@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Kaptan Bolt</string>
+    <string name="title_activity_main">Kaptan Bolt</string>
+    <string name="package_name">com.eavisionlabs.kaptanbolt</string>
+    <string name="custom_url_scheme">com.eavisionlabs.kaptanbolt</string>
+</resources>

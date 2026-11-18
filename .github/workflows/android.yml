@@ -1,0 +1,62 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Bağımlılıkları kur
+        run: npm ci
+
+      - name: Kural testleri ve bölüm çözücü kontrolü
+        run: npm test
+
+      - name: Oyunu derle
+        run: npm run build
+
+      - name: Android projesine kopyala
+        run: npx cap sync android
+
+      - name: Debug APK üret
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: APK'yı adlandır
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk KaptanBolt-debug.apk
+
+      - name: APK'yı iş akışına ekle
+        uses: actions/upload-artifact@v4
+        with:
+          name: KaptanBolt-debug-apk
+          path: KaptanBolt-debug.apk
+
+      - name: APK'yı "Releases" sayfasına koy (telefondan kolay indirme)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete son-surum -y --cleanup-tag || true
+          gh release create son-surum KaptanBolt-debug.apk \
+            --title "Kaptan Bolt – son debug APK" \
+            --notes "Otomatik üretildi: ${GITHUB_SHA::7}. Telefona indirip kurabilirsin." \
+            --prerelease

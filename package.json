@@ -1,0 +1,32 @@
+{
+  "name": "kaptan-bolt",
+  "version": "1.0.0",
+  "description": "Kaptan Bolt: Son Hamle — çevrimdışı 3D bulmaca oyunu",
+  "type": "module",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "node --test tests/rules.test.mjs && node tools/validate.mjs",
+    "generate": "node tools/generate.mjs",
+    "validate": "node tools/validate.mjs",
+    "android:sync": "vite build && npx cap sync android",
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@capacitor/android": "^6.2.3",
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/core": "^6.2.3",
+    "@capacitor/haptics": "^6.0.3",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.3",
+    "vite": "^5.4.21"
+  }
+}
