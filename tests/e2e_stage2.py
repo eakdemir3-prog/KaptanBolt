@@ -29,13 +29,16 @@ with sync_playwright() as p:
     for m in mv[:max(1,len(mv)//2)]: pg.keyboard.press(KEY[m]); pg.wait_for_function("KB.idle()",timeout=10000)
     pg.wait_for_timeout(400); pg.screenshot(path=OUT+"s2_100_mid.png")
     # yakalanma: düşmana yakalanan bir hamle dizisini oyna
-    pg.evaluate("KB.start(66)"); pg.wait_for_timeout(900)
-    seq=pg.evaluate("KB.findCaught()")
+    seq=None
+    for lv in [66,70,73,126,153]:
+        pg.evaluate(f"KB.start({lv})"); pg.wait_for_timeout(700)
+        seq=pg.evaluate("KB.findCaught()")
+        if seq: break
     for m in seq or []: pg.keyboard.press(KEY[m]); pg.wait_for_function("KB.idle()",timeout=10000)
     pg.wait_for_timeout(1200); pg.screenshot(path=OUT+"s2_caught.png")
     check("devriyeye yakalanınca 'Yakalandın' ekranı", pg.evaluate("KB.state.status")=="caught" and pg.is_visible("text=Yakalandın!"))
     pg.click("#card [data-act=levels]"); pg.wait_for_timeout(800); pg.click("[data-world='7']"); pg.wait_for_timeout(400); pg.screenshot(path=OUT+"s2_levels.png")
-    check("7 dünya sekmesi", pg.locator("[data-world]").count()==7)
+    check("10 dünya sekmesi", pg.locator("[data-world]").count()==10)
     check("hata yok", not errs); print(errs[:3])
     b.close()
 sys.exit(0 if all(res) else 1)

@@ -69,18 +69,32 @@ function buildPath(w, h, o) {
     if (b - a === c - b && rnd() < o.ice) put(b, 'i');
   }
   if (o.strong) for (let k = 1; k < path.length - 1; k++) if (get(path[k]) === '.' && rnd() < o.strong) put(path[k], 'o');
+  if (o.bridge) {
+    const bs = []; for (let k = 2; k < Math.floor(path.length / 2); k++) if (get(path[k]) === '.') bs.push(k);
+    if (!bs.length) return null;
+    const kb = pick(bs); put(path[kb], 'b');
+    let nb = 0;
+    for (let k = kb + 2; k < path.length - 1; k++) if (get(path[k]) === '.' && rnd() < 0.3) { put(path[k], '='); nb++; }
+    if (!nb) return null;
+  }
+  if (o.arrows) for (let k = 1; k < path.length - 1; k++) {
+    if (get(path[k]) !== '.' || rnd() >= o.arrows) continue;
+    const d = path[k + 1] - path[k];
+    put(path[k], d === 1 ? '>' : d === -1 ? '<' : d === w ? 'v' : '^');
+  }
   if (dist(w, path[0], path[path.length - 1]) < 2) return null;
   // dünyanın mekaniği bölümde mutlaka bulunsun
   const flat = g.map((r) => r.join('')).join('');
   if (o.ice && !flat.includes('i')) return null;
   if (o.strong && !flat.includes('o')) return null;
+  if (o.arrows && !/[<>^v]/.test(flat)) return null;
   const enemies = [];
   const occupiedCells = new Set();
   for (let n = 0; n < (o.patrols || 0); n++) {
     const cand = [];
     for (let k = 3; k < path.length - 1; k++) {
       const c = path[k];
-      if (get(c) !== '.' || occupiedCells.has(c) || dist(w, c, path[0]) < 3) continue;
+      if (get(c) !== '.' || occupiedCells.has(c) || dist(w, c, path[0]) < 4) continue;
       const d = path[k + 1] - c;
       const dir = d === 1 ? 'right' : d === -1 ? 'left' : d === w ? 'down' : 'up';
       cand.push({ c, dir });
@@ -90,7 +104,7 @@ function buildPath(w, h, o) {
     enemies.push({ type: 'patrol', at: [p.c % w, (p.c / w) | 0], dir: p.dir });
   }
   for (let n = 0; n < (o.chasers || 0); n++) {
-    const cand = path.filter((c) => get(c) === '.' && !occupiedCells.has(c) && dist(w, c, path[0]) >= 4);
+    const cand = path.filter((c) => get(c) === '.' && !occupiedCells.has(c) && dist(w, c, path[0]) >= 5);
     if (!cand.length) return null;
     const c = pick(cand); occupiedCells.add(c);
     enemies.push({ type: 'chaser', at: [c % w, (c / w) | 0] });
@@ -113,7 +127,7 @@ function buildBoss(w, h, o) {
   const bp = pick(bossOpts);
   const bcells = [bp, bp + 1, bp + w, bp + w + 1];
   const free = () => tiles.filter((i) => get(i) === '.' && !bcells.includes(i));
-  const far = free().filter((i) => bcells.every((c) => dist(w, i, c) >= 3));
+  const far = free().filter((i) => bcells.every((c) => dist(w, i, c) >= 4));
   if (!far.length) return null;
   const s = pick(far); put(s, 'S');
   const dCand = free().filter((i) => dist(w, i, s) >= 3);
@@ -122,10 +136,16 @@ function buildBoss(w, h, o) {
   for (let k = 0; k < o.keys; k++) { const f = free(); if (!f.length) return null; put(pick(f), 'K'); }
   if (o.ice) for (const i of free()) if (rnd() < o.ice) put(i, 'i');
   if (o.strong) for (const i of free()) if (rnd() < o.strong) put(i, 'o');
+  if (o.bridge) {
+    const hl = []; for (let i = 0; i < N; i++) if (get(i) === '#') hl.push(i);
+    let nb = 0; for (const i of hl) if (rnd() < 0.5) { put(i, '='); nb++; }
+    const f = free(); if (!nb || !f.length) return null; put(pick(f), 'b');
+  }
+  if (o.arrows) for (const i of free()) if (rnd() < o.arrows) put(i, pick(['<', '>', '^', 'v']));
   if (o.portal) { const f = free(); if (f.length < 2) return null; const a = pick(f); put(a, '1'); const f2 = free().filter((i) => dist(w, i, a) >= 3); if (!f2.length) return null; put(pick(f2), '1'); }
   const enemies = [];
-  for (let n = 0; n < (o.patrols || 0); n++) { const f = free().filter((i) => dist(w, i, s) >= 3); if (!f.length) return null; const c = pick(f); enemies.push({ type: 'patrol', at: [c % w, (c / w) | 0], dir: pick(['left', 'right', 'up', 'down']) }); }
-  for (let n = 0; n < (o.chasers || 0); n++) { const f = free().filter((i) => dist(w, i, s) >= 4 && !enemies.some((e) => e.at[0] === i % w && e.at[1] === ((i / w) | 0))); if (!f.length) return null; const c = pick(f); enemies.push({ type: 'chaser', at: [c % w, (c / w) | 0] }); }
+  for (let n = 0; n < (o.patrols || 0); n++) { const f = free().filter((i) => dist(w, i, s) >= 4); if (!f.length) return null; const c = pick(f); enemies.push({ type: 'patrol', at: [c % w, (c / w) | 0], dir: pick(['left', 'right', 'up', 'down']) }); }
+  for (let n = 0; n < (o.chasers || 0); n++) { const f = free().filter((i) => dist(w, i, s) >= 5 && !enemies.some((e) => e.at[0] === i % w && e.at[1] === ((i / w) | 0))); if (!f.length) return null; const c = pick(f); enemies.push({ type: 'chaser', at: [c % w, (c / w) | 0] }); }
   return { grid: g.map((r) => r.join('')), enemies, boss: { at: [bp % w, (bp / w) | 0], every: o.every } };
 }
 
@@ -136,15 +156,15 @@ function evaluate(id, cand, isBoss) {
   const sh = shortest(s, isBoss ? 600000 : 400000);
   if (!sh || sh.unknown) return null;
   let stars = { mode: 'cover' }, cover = null;
-  const special = board.enemies.length || board.strongCount || board.portal.some((p) => p >= 0);
+  const special = board.enemies.length || board.strongCount || board.portal.some((p) => p >= 0) || board.boss;
   if (!isBoss) {
     const fc = fullCover(s, special ? 300000 : 2000000);
     if (fc && fc.moves) cover = fc.moves.length;
     else if (!special) return null; // düz yol bölümünde 3 yıldız şart
   }
-  if (cover == null) { const m = sh.moves.length; stars = { mode: 'moves', par: [m + 1, m + Math.max(3, Math.ceil(m * 0.4))] }; }
+  if (cover == null) { const m = sh.moves.length; stars = { mode: 'moves', par: [m + 2, m + Math.max(4, Math.ceil(m * 0.5))] }; }
   const fr = failRate(s, 300, id * 7 + 3);
-  const extras = (cand.grid.join('').match(/[io1]/g) || []).length;
+  const extras = (cand.grid.join('').match(/[io1=b<>^v]/g) || []).length;
   const score = board.tileCount * 0.5 + sh.moves.length * 0.8 + fr * 12 + board.keys.length * 2 + extras * 0.5 + board.enemies.length * 2;
   return {
     lv: { grid: cand.grid, ...(cand.enemies.length ? { enemies: cand.enemies } : {}), ...(cand.boss ? { boss: cand.boss } : {}), ...(stars.mode !== 'cover' ? { stars } : {}) },
@@ -169,25 +189,39 @@ const SEG = [
   [61, 65, 4, 5, 5, { len: [12, 18], keys: [1, 1], patrols: 1 }, 'easy'],
   [66, 72, 4, 6, 6, { len: [16, 26], keys: [1, 2], patrols: 1 }],
   [73, 79, 4, 6, 6, { len: [20, 30], keys: [2, 2], patrols: 2 }],
-  [80, 80, 4, 6, 6, { boss: true, keys: 1, every: 1, patrols: 1 }],
+  [80, 80, 4, 6, 6, { boss: true, keys: 1, every: 2, patrols: 1 }],
   // Dünya 5: Sağlam Taş
   [81, 85, 5, 5, 5, { len: [10, 16], keys: [1, 1], strong: 0.2 }, 'easy'],
   [86, 92, 5, 6, 6, { len: [16, 26], keys: [1, 2], strong: 0.2 }],
   [93, 99, 5, 7, 7, { len: [22, 32], keys: [2, 2], strong: 0.18, patrols: 1 }],
-  [100, 100, 5, 7, 7, { boss: true, keys: 2, every: 1, strong: 0.12 }],
+  [100, 100, 5, 7, 7, { boss: true, keys: 2, every: 2, strong: 0.12 }],
   // Dünya 6: Işınlanma
   [101, 105, 6, 6, 6, { len: [12, 18], keys: [1, 1], portal: true }, 'easy'],
   [106, 112, 6, 7, 7, { len: [18, 28], keys: [1, 2], portal: true }],
   [113, 119, 6, 7, 7, { len: [24, 34], keys: [2, 3], portal: true, ice: 0.2 }],
-  [120, 120, 6, 7, 7, { boss: true, keys: 1, every: 1, portal: true }],
+  [120, 120, 6, 7, 7, { boss: true, keys: 1, every: 2, portal: true }],
   // Dünya 7: Takipçi
   [121, 125, 7, 6, 6, { len: [12, 18], keys: [1, 1], chasers: 1 }, 'easy'],
   [126, 132, 7, 6, 6, { len: [16, 26], keys: [1, 2], chasers: 1 }],
   [133, 139, 7, 7, 7, { len: [20, 32], keys: [2, 2], chasers: 1, patrols: 1 }],
-  [140, 140, 7, 7, 7, { boss: true, keys: 2, every: 1, chasers: 1 }],
+  [140, 140, 7, 7, 7, { boss: true, keys: 2, every: 2, chasers: 1 }],
+  // Dünya 8: Düğme ve Köprü
+  [141, 145, 8, 6, 6, { len: [12, 18], keys: [1, 1], bridge: true }, 'easy'],
+  [146, 152, 8, 7, 7, { len: [18, 28], keys: [1, 2], bridge: true }],
+  [153, 159, 8, 7, 7, { len: [22, 32], keys: [2, 2], bridge: true, patrols: 1 }],
+  [160, 160, 8, 7, 7, { boss: true, keys: 1, every: 2, bridge: true }],
+  // Dünya 9: Ok Labirenti
+  [161, 165, 9, 6, 6, { len: [12, 18], keys: [1, 1], arrows: 0.3 }, 'easy'],
+  [166, 172, 9, 7, 7, { len: [18, 28], keys: [1, 2], arrows: 0.3 }],
+  [173, 179, 9, 7, 7, { len: [22, 32], keys: [2, 2], arrows: 0.25, ice: 0.15 }],
+  [180, 180, 9, 7, 7, { boss: true, keys: 1, every: 2, arrows: 0.1 }],
+  // Dünya 10: Son Kale (karışık)
+  [181, 199, 10, 7, 7, { mix: true, len: [22, 34], keys: [2, 3] }],
+  [200, 200, 10, 7, 7, { boss: true, keys: 2, every: 1, chasers: 1, patrols: 1 }],
 ];
+const MIX = [{ ice: 0.25 }, { strong: 0.15 }, { portal: true }, { bridge: true }, { arrows: 0.2 }, { patrols: 1 }, { chasers: 1 }];
 
-const TUT = { 1: 'swipe', 20: 'boss', 21: 'keys', 41: 'ice', 61: 'patrol', 81: 'strong', 101: 'portal', 121: 'chaser' };
+const TUT = { 1: 'swipe', 20: 'boss', 21: 'keys', 41: 'ice', 61: 'patrol', 81: 'strong', 101: 'portal', 121: 'chaser', 141: 'bridge', 161: 'arrow', 181: 'castle' };
 
 const only = process.argv[2] ? +process.argv[2] : 0; // hızlı deneme: belirli bir segment
 const levels = [{ id: 1, world: 1, grid: ['#####', 'S...K', '####.', 'D....', '#####'] }];
@@ -201,7 +235,9 @@ for (const [a, b, world, w, h, o, tag] of SEG) {
   const target = isBoss ? 40 : need * 25, maxTries = isBoss ? 6000 : need * 2500;
   while (pool.length < target && tries < maxTries) {
     tries++;
-    const cand = isBoss ? buildBoss(w, h, o) : buildPath(w, h, { ...o, len: ri(...o.len), keys: ri(...o.keys) });
+    let oo = o;
+    if (o.mix) { const a2 = MIX.slice().sort(() => rnd() - 0.5).slice(0, 2); oo = Object.assign({}, o, ...a2); if (oo.patrols && oo.chasers) delete oo.chasers; }
+    const cand = isBoss ? buildBoss(w, h, oo) : buildPath(w, h, { ...oo, len: ri(...oo.len), keys: ri(...oo.keys) });
     if (!cand) continue;
     const k = cand.grid.join('/') + JSON.stringify(cand.enemies) + JSON.stringify(cand.boss || '');
     if (seen.has(k)) continue;
@@ -217,6 +253,7 @@ for (const [a, b, world, w, h, o, tag] of SEG) {
     let q;
     if (isBoss) q = 0.6;
     else if (tag === 'easy') q = 0.12 + (0.83 * k) / Math.max(1, need - 1);
+    else if (o.patrols || o.chasers) q = 0.15 + (0.65 * k) / Math.max(1, need - 1); // düşmanlı bölümler bir kademe kolay
     else q = 0.3 + (0.68 * k) / Math.max(1, need - 1);
     const ev = pool[Math.min(pool.length - 1, Math.floor(q * pool.length))];
     pool.splice(pool.indexOf(ev), 1);

@@ -3,7 +3,8 @@ import LEVELS from './levels/levels.json';
 import { parseLevel, newState, move, canMove, starsFor, collapsedCount, coverTarget, cloneState, validMoves } from './logic/rules.js';
 import { shortest, canWin } from './logic/solver.js';
 import { Stage } from './game/stage.js';
-import { THEMES } from './game/models.js';
+import { THEMES, SKINS } from './game/models.js';
+import { dailyLevel, dateKey, yesterdayKey } from './logic/daily.js';
 import * as Save from './save.js';
 import { sfx, unlock as audioUnlock, setSound, setMusic, suspend, resume } from './audio.js';
 import { vibrate, setVibration, onBack, exitApp, onPause } from './platform.js';
@@ -14,22 +15,26 @@ const $ = (id) => document.getElementById(id);
 let data = Save.load();
 const stage = new Stage($('c'));
 stage.onSound = (k) => { if (k === 'collapse') { sfx.collapse(); vibrate('light'); } else if (k === 'key') { sfx.key(); vibrate('medium'); } else if (k === 'stomp' || k === 'bossFall') { sfx[k](); vibrate('heavy'); } else if (sfx[k]) sfx[k](); };
+stage.skin = SKINS.find((k) => k.id === data.skin) || SKINS[0];
 applySettings();
 
 // Test ve hata ayıklama için dışarıdan erişim
 window.KB = { get state() { return game.state; }, get screen() { return screen; }, input: (d) => game.input(d), start: (id) => startLevel(id), data: () => data, idle: () => !game.busy, solve: () => (shortest(game.state, 800000, 20000) || {}).moves,
+  _clone: (s) => cloneState(s), _move: (s, d) => move(s, d), dangerCount: () => stage.dangerMarks.length,
   // test yardımcısı: düşmana yakalanan bir hamle dizisi bul
   findCaught: () => { const q = [[cloneState(game.state), []]]; let n = 0; while (q.length && n++ < 20000) { const [s, p] = q.shift(); for (const d of validMoves(s)) { const c = cloneState(s); move(c, d); if (c.status === 'caught') return p.concat(d); if (c.status === 'play') q.push([c, p.concat(d)]); } } return null; } };
 
 let screen = 'menu';
-const game = { state: null, level: null, busy: false, queued: null, deadTimer: 0 };
+const game = { state: null, level: null, busy: false, queued: null, deadTimer: 0, history: [], undos: 3 };
+const UNDOS = 3;
 
 // ---------------- Ekranlar ----------------
 function show(name) {
   screen = name;
   for (const s of document.querySelectorAll('.screen')) s.classList.toggle('on', s.id === name);
   closeModal();
-  if (name === 'menu' || name === 'levels') showcase();
+  if (name === 'menu' || name === 'levels' || name === 'garage') showcase();
+  if (name === 'garage') { renderGarage(); stage.setSafe(110, $('skinGrid').closest('.garage-panel').offsetHeight + 40); }
   if (name === 'menu') renderMenu();
   if (name === 'levels') renderLevels();
 }
@@ -44,9 +49,30 @@ function showcase() {
   stage.setSafe(innerHeight * 0.36, innerHeight * 0.3);
 }
 
+function renderGarage() {
+  const total = Save.totalStars(data);
+  $('garageStars').innerHTML = `⭐ ${total}`;
+  const cur = data.skin || 'klasik';
+  const hex = (c) => '#' + c.toString(16).padStart(6, '0');
+  $('skinGrid').innerHTML = SKINS.map((k) => {
+    const open = total >= k.stars || data.settings.unlockAll;
+    return `<button class="skin ${k.id === cur ? 'on' : ''} ${open ? '' : 'locked'}" data-skin="${k.id}">
+      <span class="sw" style="background:linear-gradient(135deg, ${hex(k.body)} 0 50%, ${hex(k.cap)} 50% 100%); box-shadow: 0 0 0 3px ${hex(k.band)}, 0 0 12px ${hex(k.eye)}"></span>
+      <b>${k.name}</b><small>${open ? (k.id === cur ? 'Seçili' : 'Seç') : `🔒 ⭐ ${k.stars}`}</small></button>`;
+  }).join('');
+}
+function pickSkin(id) {
+  const k = SKINS.find((x) => x.id === id); if (!k) return;
+  if (Save.totalStars(data) < k.stars && !data.settings.unlockAll) { vibrate('light'); return toast(`Bu kostüm ${k.stars} yıldızda açılır.`); }
+  data.skin = id; Save.save(data);
+  stage.setSkin(k); sfx.star(1);
+  renderGarage();
+}
 function renderMenu() {
   const n = Save.continueLevel(data, MAX);
   const done = Object.keys(data.stars).length;
+  const dd = data.daily || {};
+  $('dailyInfo').textContent = dd.lastDone === dateKey() ? `✔ Bugün tamam • 🔥 ${dd.streak}` : (dd.lastDone === yesterdayKey() ? `🔥 Seri: ${dd.streak} gün` : 'Yeni bulmaca!');
   $('menuSub').textContent = done >= MAX ? `Tüm bölümler tamamlandı • ⭐ ${Save.totalStars(data)}` : `Bölüm ${n} • ${done}/${MAX} tamamlandı • ⭐ ${Save.totalStars(data)}`;
 }
 
@@ -72,9 +98,11 @@ function renderLevels() {
 
 // ---------------- Oyun ----------------
 function startLevel(id) {
-  id = Math.max(1, Math.min(MAX, id));
-  const lv = LEVELS[id - 1];
+  let lv;
+  if (typeof id === 'object') lv = id;
+  else { id = Math.max(1, Math.min(MAX, id)); lv = LEVELS[id - 1]; }
   game.level = lv;
+  game.history = []; game.undos = UNDOS;
   const board = parseLevel(lv);
   game.state = newState(board);
   game.busy = false; game.queued = null; clearTimeout(game.deadTimer);
@@ -83,10 +111,34 @@ function startLevel(id) {
   stage.build(board, game.state);
   show('game');
   layoutGame();
-  $('lvName').innerHTML = `${lv.final ? '👑 ' : ''}Bölüm ${id}<small>${THEMES[lv.world].name.toLocaleUpperCase('tr')}</small>`;
+  $('lvName').innerHTML = lv.daily ? `📅 Günlük Bulmaca<small>${lv.dailyName.toLocaleUpperCase('tr')}</small>` : `${lv.final ? '👑 ' : ''}Bölüm ${lv.id}<small>${THEMES[lv.world].name.toLocaleUpperCase('tr')}</small>`;
   $('banner').classList.add('hidden');
   updateHud();
+  updateDanger();
   showTutorial(lv);
+}
+
+/** Gidince yakalanacağın kareleri kırmızı X ile göster */
+function updateDanger() {
+  const s = game.state;
+  if (!s || s.status !== 'play' || (!s.enemies.length && !s.boss)) return stage.setDanger([]);
+  const cells = [];
+  for (const d of validMoves(s)) { const c = cloneState(s); move(c, d); if (c.status === 'caught') cells.push(c.pos); }
+  stage.setDanger(cells);
+}
+
+function undo() {
+  if (game.busy || !game.history.length) return toast('Geri alınacak hamle yok.');
+  if (game.undos <= 0) return toast('Bu bölümde geri alma hakkın bitti.');
+  game.undos--;
+  game.state = game.history.pop();
+  game.state.status = 'play';
+  clearTimeout(game.deadTimer);
+  closeModal();
+  $('banner').classList.add('hidden');
+  sfx.undo();
+  stage.build(game.state.board, game.state);
+  updateHud(); updateDanger();
 }
 
 function layoutGame() {
@@ -107,6 +159,8 @@ function updateHud() {
   const bc = $('chipBoss');
   if (s.boss) { bc.classList.remove('hidden'); bc.innerHTML = s.boss.alive ? '👹 <span class="lbl">Boss</span>' : '💥 <span class="lbl">Yenildi</span>'; } else bc.classList.add('hidden');
   $('hintCount').textContent = data.hints;
+  $('undoCount').textContent = game.undos;
+  $('undoBtn').classList.toggle('off', !game.history.length || game.undos <= 0);
   $('moveInfo').textContent = `Hamle: ${s.moves}` + (data.best[game.level.id] != null ? `  •  En iyi: ${data.best[game.level.id]}` : '');
 }
 
@@ -120,13 +174,17 @@ async function input(dir) {
   stage.clearHint();
   $('banner').classList.add('hidden');
   clearTimeout(game.deadTimer);
+  game.history.push(cloneState(s));
+  if (game.history.length > 50) game.history.shift();
   const events = move(s, dir);
   game.busy = true;
+  stage.setDanger([]);
   const p = stage.play(events, s);
   setTimeout(updateHud, 60);
   await p;
   updateHud();
   game.busy = false;
+  updateDanger();
   if (s.status === 'win') return onWin();
   if (s.status === 'stuck') return onStuck();
   if (s.status === 'caught') return onCaught();
@@ -142,6 +200,7 @@ game.input = input;
 function onWin() {
   const s = game.state, id = game.level.id;
   const stars = starsFor(s);
+  if (game.level.daily) return onDailyWin(stars);
   const res = Save.recordWin(data, id, stars, s.moves, MAX);
   sfx.win(); vibrate('heavy');
   if (id === MAX) return finishScreen(stars);
@@ -159,12 +218,32 @@ function onWin() {
   for (let i = 0; i < stars; i++) setTimeout(() => sfx.star(i), 250 + i * 250);
 }
 
+function onDailyWin(stars) {
+  const key = game.level.daily, d = data.daily || {};
+  if (d.lastDone !== key) { d.streak = d.lastDone === yesterdayKey() ? (d.streak || 0) + 1 : 1; d.lastDone = key; d.total = (d.total || 0) + 1; }
+  d.stars = Math.max(d.lastDone === key && d.date === key ? d.stars || 0 : 0, stars); d.date = key;
+  data.daily = d; Save.save(data);
+  sfx.win(); vibrate('heavy');
+  openModal(`
+    <div class="emoji">📅🔥</div>
+    <h2>Günün Bulmacası Tamam!</h2>
+    <p>Seri: <b>${d.streak} gün</b>. Yarın yeni bulmaca seni bekliyor.</p>
+    <div class="stars">${[0, 1, 2].map((i) => `<div class="s ${i < stars ? 'on' : ''}" style="animation-delay:${0.2 + i * 0.25}s"></div>`).join('')}</div>
+    ${stars < 3 ? `<div class="tip">⭐⭐⭐ için kapıya girmeden önce <b>bütün kareleri</b> çökert!</div>` : ''}
+    <button class="btn" data-act="restart"><span class="i-restart"></span>Tekrar Oyna</button>
+    <button class="btn primary" data-act="menu">Ana Menü</button>`);
+  for (let i = 0; i < stars; i++) setTimeout(() => sfx.star(i), 250 + i * 250);
+}
+
+const undoBtnHtml = () => (game.undos > 0 && game.history.length ? `<button class="btn gold" data-act="undo">↶ Geri Al (${game.undos})</button>` : '');
+
 function onStuck() {
   sfx.lose(); vibrate('heavy');
   openModal(`
     <div class="emoji">🤖💤</div>
     <h2>Yol Kapandı</h2>
     <p>Gidecek kare kalmadı. Rotanı yeniden planla, Kaptan!</p>
+    ${undoBtnHtml()}
     <button class="btn primary" data-act="restart"><span class="i-restart"></span>Yeniden Başla</button>
     <button class="btn purple" data-act="levels">Bölümler</button>`, 'fail');
 }
@@ -174,7 +253,8 @@ function onCaught() {
   openModal(`
     <div class="emoji">🤖💥</div>
     <h2>Yakalandın!</h2>
-    <p>Bir düşman robot Kaptan Bolt'a yetişti. Onların bir sonraki adımını hesaba kat!</p>
+    <p>Bir düşman robot Kaptan Bolt'a yetişti. Kırmızı X olan karelere gitme!</p>
+    ${undoBtnHtml()}
     <button class="btn primary" data-act="restart"><span class="i-restart"></span>Yeniden Başla</button>
     <button class="btn purple" data-act="levels">Bölümler</button>`, 'fail');
 }
@@ -186,7 +266,7 @@ function finishScreen(stars) {
     <p>${Math.ceil(MAX / WORLD_SIZE)} dünyanın ${MAX} bölümünü de bitirdin.</p>
     <div class="stars">${[0, 1, 2].map((i) => `<div class="s ${i < stars ? 'on' : ''}" style="animation-delay:${0.2 + i * 0.25}s"></div>`).join('')}</div>
     <div class="stat"><div><b>⭐ ${Save.totalStars(data)}</b>toplam yıldız</div><div><b>${MAX * 3}</b>en fazla</div></div>
-    <div class="tip">Dünya 8–10 yakında geliyor: düğmeler, köprüler, ok kareler ve son kale! O zamana kadar eksik yıldızları topla.</div>
+    <div class="tip">Bütün dünyaları bitirdin! Eksik yıldızları toplayıp yeni kostümleri aç, günlük bulmacayı kaçırma.</div>
     <button class="btn gold" data-act="levels">Bölümler</button>
     <button class="btn" data-act="menu">Ana Menü</button>`);
 }
@@ -211,6 +291,9 @@ const TUTORIALS = {
   portal: '🌀 <b>Portallar!</b><small>Aynı renkli portala basınca diğerine ışınlanırsın. Girdiğin portal arkandan çöker.</small><button class="btn small primary" data-act="tutok">Anladım</button>',
   chaser: '👁️ <b>Takipçi robot!</b><small>Her hamlende sana bir adım yaklaşır ama önüne bakmaz: onu çöken karelere ya da boşluklara çekip düşür!</small><button class="btn small primary" data-act="tutok">Anladım</button>',
   boss: '👹 <b>BOSS!</b><small>Dev robot kapıyı kilitli tutuyor ve seni kovalıyor. Onu boşluklara ya da çöken karelere çekip düşür, sonra kapıya koş!</small><button class="btn small primary" data-act="tutok">Hazırım!</button>',
+  bridge: '🌉 <b>Düğme ve köprü!</b><small>Kırmızı düğmeye basınca soluk görünen köprüler açılır. Açılmadan önce oralar boşluktur. Takipçileri oraya çekebilirsin!</small><button class="btn small primary" data-act="tutok">Anladım</button>',
+  arrow: '➡️ <b>Ok kareler!</b><small>Ok kareye basınca robot okun yönüne itilir. Önü kapalıysa okun üstünde durur. Rotayı okları hesaba katarak planla.</small><button class="btn small primary" data-act="tutok">Anladım</button>',
+  castle: '🏰 <b>Son Kale!</b><small>Buradan sonra bütün mekanikler karışık geliyor. Son bölümde seni en güçlü boss bekliyor!</small><button class="btn small primary" data-act="tutok">Hazırım!</button>',
   ice: '❄️ <b>Buzlu kareler!</b><small>Buza basınca robot aynı yönde kaymaya devam eder. Kayarken geçtiği kareler de çöker.</small><button class="btn small primary" data-act="tutok">Anladım</button>',
 };
 function showTutorial(lv) {
@@ -262,7 +345,9 @@ function howtoModal() {
       <li><b>❄️ Buzda</b> robot aynı yönde kayar, buz olmayan karede ya da önü kapanınca durur.</li>
       <li>🚨 Devriye ve 👁️ takipçi robotlar senin her hamlenden sonra hareket eder. Sana değerlerse yakalanırsın. Takipçileri boşluklara çekip düşürebilirsin.</li>
       <li>🛡️ Sağlam taş iki kez geçilir. 🌀 Portal seni eşine ışınlar.</li>
-      <li>👹 Boss bölümlerinde kapı, boss düşmeden açılmaz.</li>
+      <li>👹 Boss bölümlerinde kapı, boss düşmeden açılmaz. Düşmanlar ilk hamlende uyanır, kırmızı X olan karelere gidersen yakalanırsın.</li>
+      <li>🌉 Düğme köprüleri açar. ➡️ Ok kareler robotu iter.</li>
+      <li>↶ Her bölümde 3 geri alma hakkın var.</li>
       <li>⭐ Bitir • ⭐⭐ karelerin %70'ini çökert • ⭐⭐⭐ <b>hepsini</b> çökert. Düşmanlı bölümlerde yıldızlar hamle sayısına göredir.</li>
       <li>💡 İpucu bir sonraki doğru hamleyi gösterir. Her yeni ⭐⭐⭐ +1 ipucu verir.</li>
     </ul>
@@ -280,6 +365,7 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('button'); if (!el) return;
   audioUnlock();
   sfx.click();
+  if (el.dataset.skin) return pickSkin(el.dataset.skin);
   if (el.dataset.lv) {
     if (el.dataset.locked) { vibrate('light'); return toast('Bu bölümü açmak için öncekini bitir.'); }
     return startLevel(+el.dataset.lv);
@@ -295,7 +381,11 @@ document.addEventListener('click', (e) => {
     case 'settings': return settingsModal();
     case 'howto': return howtoModal();
     case 'close': return closeModal();
-    case 'restart': return startLevel(game.level.id);
+    case 'restart': return startLevel(game.level.daily ? game.level : game.level.id);
+    case 'undo': return undo();
+    case 'daily': return startLevel(dailyLevel());
+    case 'garage': stage.board = null; return show('garage');
+    case 'skin': return pickSkin(el.dataset.skin);
     case 'next': return startLevel(game.level.id + 1);
     case 'hint': return useHint();
     case 'tutok': return hideTutorial();
@@ -306,8 +396,9 @@ document.addEventListener('click', (e) => {
 
 function back() {
   if (!$('modal').classList.contains('hidden')) { if (screen === 'game' && game.state && game.state.status !== 'play') { stage.board = null; return show('levels'); } return closeModal(); }
-  if (screen === 'game') { currentWorld = game.level.world; stage.board = null; return show('levels'); }
-  if (screen === 'levels') { stage.board = null; return show('menu'); }
+  if (screen === 'game' && !game.level.daily) { currentWorld = game.level.world; stage.board = null; return show('levels'); }
+  if (screen === 'levels' || screen === 'garage') { stage.board = null; return show('menu'); }
+  if (screen === 'game' && game.level.daily) { stage.board = null; return show('menu'); }
   exitApp();
 }
 onBack(back);
@@ -335,7 +426,7 @@ window.addEventListener('keydown', (e) => {
   if (m) { e.preventDefault(); input(m); }
   if (e.key === 'r' && screen === 'game') startLevel(game.level.id);
 });
-window.addEventListener('resize', () => { if (screen === 'game') layoutGame(); else if (stage.menuMode) stage.setSafe(innerHeight * 0.36, innerHeight * 0.3); });
+window.addEventListener('resize', () => { if (screen === 'game') layoutGame(); else if (screen === 'garage') stage.setSafe(110, $('skinGrid').closest('.garage-panel').offsetHeight + 40); else if (stage.menuMode) stage.setSafe(innerHeight * 0.36, innerHeight * 0.3); });
 
 show('menu');
 document.fonts && document.fonts.ready.then(() => { if (screen === 'game') layoutGame(); });

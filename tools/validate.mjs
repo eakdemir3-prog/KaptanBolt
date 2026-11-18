@@ -29,7 +29,7 @@ for (const lv of levels) {
   const ch = lv.grid.join('');
   rows.push({
     no: lv.id, dunya: lv.world, tahta: `${b.w}x${b.h}`, kare: b.tileCount, anahtar: b.keys.length,
-    ozel: [ch.includes('i') && 'buz', ch.includes('o') && 'sağlam', /[1-9]/.test(ch) && 'portal', b.enemies.some((e) => e.type === 'patrol') && 'devriye', b.enemies.some((e) => e.type === 'chaser') && 'takipçi', b.boss && 'BOSS'].filter(Boolean).join(' '),
+    ozel: [ch.includes('i') && 'buz', ch.includes('o') && 'sağlam', /[1-9]/.test(ch) && 'portal', ch.includes('=') && 'köprü', /[<>^v]/.test(ch) && 'ok', b.enemies.some((e) => e.type === 'patrol') && 'devriye', b.enemies.some((e) => e.type === 'chaser') && 'takipçi', b.boss && 'BOSS'].filter(Boolean).join(' '),
     enKisa: sh?.moves?.length ?? '-', ucYildiz: three, kaybetme: failRate(s, 300, lv.id).toFixed(2), durum: ok ? 'OK' : 'HATA',
   });
 }

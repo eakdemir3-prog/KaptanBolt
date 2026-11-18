@@ -4,7 +4,8 @@ import { HOLE, DIR_LIST, newState, cloneState, move, validMoves, enterable, coll
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 const keyOf = (s) => s.pos + ':' + s.collapsed.join('') + (s.board.strongCount ? ':' + s.hits.join('') : '')
   + (s.enemies.length ? ':' + s.enemies.map((e) => (e.alive ? e.pos + e.dir[0] : 'x')).join(',') : '')
-  + (s.boss ? ':' + (s.boss.alive ? s.boss.pos + '/' + (s.boss.tick % s.boss.every) : 'x') : '');
+  + (s.boss ? ':' + (s.boss.alive ? s.boss.pos + '/' + (s.boss.tick % s.boss.every) : 'x') : '')
+  + (s.pressed ? 'P' : '') + (s.moves === 0 ? 'Z' : '');
 
 function neighbors(b, i) {
   const x = i % b.w, y = (i / b.w) | 0, out = [];

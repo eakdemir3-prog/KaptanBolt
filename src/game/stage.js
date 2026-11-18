@@ -5,9 +5,9 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { THEMES, PORTAL_COLORS, makeMaterials, makeTile, makeStrongTile, makePortalTile, makePit, makeKey, makeDoor, makeRobot, setRobotFace, makeEnemy, makeBoss } from './models.js';
+import { THEMES, PORTAL_COLORS, makeMaterials, makeTile, makeStrongTile, makePortalTile, makePit, makeKey, makeDoor, makeRobot, setRobotFace, makeEnemy, makeBoss, makeBridgeTile, makeBridgeGhost, makeButtonTile, makeArrowTile, makeZzz, makeDangerMark, SKINS } from './models.js';
 import { tween, ease, updateTweens, clearTweens, wait } from './tween.js';
-import { HOLE, ICE, STRONG, doorOpen } from '../logic/rules.js';
+import { HOLE, ICE, STRONG, BRIDGE, BUTTON, ARROW_DIR, doorOpen } from '../logic/rules.js';
 
 const DIR_ANGLE = { down: 0, up: Math.PI, right: Math.PI / 2, left: -Math.PI / 2 };
 const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
@@ -127,7 +127,7 @@ export class Stage {
     this.hintMesh = null;
     const { w, h } = board;
     this.root.add(this._buildBackdrop(w, h));
-    this.tiles = new Map(); this.keys = new Map(); this.portals = [];
+    this.tiles = new Map(); this.keys = new Map(); this.portals = []; this.bridges = []; this.button = null; this.arrowTiles = []; this.zzz = []; this.dangerMarks = [];
     const pairId = new Map(); let pc = 0;
     for (let i = 0; i < board.cells.length; i++) if (board.portal[i] > i) pairId.set(i, pc++);
     for (let i = 0; i < board.cells.length; i++) {
@@ -136,7 +136,12 @@ export class Stage {
       const pit = makePit(this.M); pit.position.copy(p); this.root.add(pit);
       if (state.collapsed[i]) continue;
       let t;
-      if (board.cells[i] === STRONG) { t = makeStrongTile(this.M); t.userData.cracks.visible = !!state.hits[i]; }
+      if (board.cells[i] === BRIDGE) {
+        if (!state.pressed) { const gh = makeBridgeGhost(); gh.position.copy(p); this.root.add(gh); this.bridges.push({ i, ghost: gh }); continue; }
+        t = makeBridgeTile();
+      } else if (board.cells[i] === BUTTON) { t = makeButtonTile(this.M); this.button = t; if (state.pressed) this._pressButton(false); }
+      else if (ARROW_DIR[board.cells[i]]) { t = makeArrowTile(this.M, ARROW_DIR[board.cells[i]]); this.arrowTiles.push(t); }
+      else if (board.cells[i] === STRONG) { t = makeStrongTile(this.M); t.userData.cracks.visible = !!state.hits[i]; }
       else if (board.portal[i] >= 0) { t = makePortalTile(this.M, PORTAL_COLORS[pairId.get(Math.min(i, board.portal[i])) % 4]); this.portals.push(t); }
       else t = makeTile(this.M, board.cells[i] === ICE, i * 7 + 3);
       t.position.copy(p); this.root.add(t); this.tiles.set(i, t);
@@ -148,11 +153,13 @@ export class Stage {
       m.userData.turn.rotation.y = DIR_ANGLE[e.dir] ?? 0; m.userData.type = e.type; m.userData.phase = Math.random() * 6;
       this.root.add(m);
       if (e.type === 'patrol') { const a = makeArrow(0xffd23a); m.userData.arrow = a; this.root.add(a); this._placeArrow(m, e); }
+      if (state.moves === 0) { const z = makeZzz(); z.position.copy(m.position).add(new THREE.Vector3(0.15, 0.95, 0)); this.root.add(z); this.zzz.push(z); }
       return m;
     });
     this.bossMesh = null;
     if (state.boss && state.boss.alive) {
       const bm = makeBoss(this.world); bm.position.copy(this._bossPos(state.boss.pos)); this.root.add(bm); this.bossMesh = bm;
+      if (state.moves === 0) { const z = makeZzz(); z.scale.setScalar(0.8); z.position.copy(bm.position).add(new THREE.Vector3(0.4, 2.5, 0)); this.root.add(z); this.zzz.push(z); }
     }
     board.keys.forEach((ci, k) => {
       if (state.keysTaken[k]) return;
@@ -162,7 +169,7 @@ export class Stage {
     this.door = makeDoor(); this.door.position.copy(this.cellPos(board.door)).add(new THREE.Vector3(0, 0.18, -0.12));
     this.root.add(this.door);
     this._setDoorOpen(doorOpen(state), false);
-    this.robot = makeRobot(); this.robot.position.copy(this.cellPos(state.pos)).add(new THREE.Vector3(0, 0.18, 0));
+    this.robot = makeRobot(this.skin || SKINS[0]); this.robot.position.copy(this.cellPos(state.pos)).add(new THREE.Vector3(0, 0.18, 0));
     this.robot.userData.turn.rotation.y = 0;
     this.root.add(this.robot);
     this.mood = 'idle'; setRobotFace(this.robot, 'idle');
@@ -214,6 +221,8 @@ export class Stage {
       else if (e.t === 'crack') this._crack(e.cell);
       else if (e.t === 'teleport') await this._teleport(e);
       else if (e.t === 'caught') await this._caughtAnim();
+      else if (e.t === 'bridgeOpen') this._openBridges();
+      else if (e.t === 'wake') this._wake();
       else if (e.t === 'step') await this._step(e);
       else if (e.t === 'key') this._takeKey(e.index);
       else if (e.t === 'doorOpen') this._setDoorOpen(true, true);
@@ -273,6 +282,40 @@ export class Stage {
       this.root.remove(m);
       if (isBoss) this.bossMesh = null; else this.enemyMeshes[e.id] = null;
     }
+  }
+
+  _pressButton(animate = true) {
+    const b = this.button; if (!b) return;
+    const cap = b.userData.cap;
+    b.userData.capMat.color.set(0x3aff7a); b.userData.capMat.emissive.set(0x1ac04a);
+    if (!animate) { cap.position.y = 0.22; return; }
+    tween(150, (t) => { cap.position.y = 0.27 - t * 0.05; });
+  }
+  _openBridges() {
+    this._pressButton(true);
+    if (this.onSound) this.onSound('bridge');
+    this.bridges.forEach(({ i, ghost }, k) => {
+      this.root.remove(ghost);
+      const t = makeBridgeTile(); const p = this.cellPos(i); t.position.copy(p).setY(-1.2); t.rotation.z = 0.5;
+      this.root.add(t); this.tiles.set(i, t);
+      wait(k * 90).then(() => tween(420, (u) => { t.position.y = -1.2 + u * 1.2; t.rotation.z = 0.5 * (1 - u); }, ease.outBack));
+    });
+    this.bridges = [];
+  }
+  _wake() {
+    for (const z of this.zzz) { const y0 = z.position.y; tween(350, (t) => { z.position.y = y0 + t * 0.6; z.material.opacity = 1 - t; }).then(() => this.root.remove(z)); }
+    this.zzz = [];
+    if (this.onSound) this.onSound('wake');
+  }
+  setDanger(cells) {
+    for (const d of this.dangerMarks) this.root.remove(d);
+    this.dangerMarks = cells.map((i) => { const m = makeDangerMark(); m.position.copy(this.cellPos(i)).setY(0.2); this.root.add(m); return m; });
+  }
+  setSkin(skin) {
+    this.skin = skin;
+    if (!this.robot) return;
+    const r = makeRobot(skin); r.position.copy(this.robot.position); r.userData.turn.rotation.y = this.robot.userData.turn.rotation.y;
+    this.root.remove(this.robot); this.robot = r; this.root.add(r);
   }
 
   shake(amp, ms) {
@@ -465,6 +508,9 @@ export class Stage {
     if (this.portals) for (const p of this.portals) if (p.userData.swirl) p.userData.swirl.rotation.y = -t * 2.5;
     if (this.enemyMeshes) for (const m of this.enemyMeshes) if (m) { m.userData.body.position.y = Math.sin(t * 4 + m.userData.phase) * 0.03; if (m.userData.siren) m.userData.siren.scale.setScalar(0.8 + Math.abs(Math.sin(t * 6)) * 0.5); if (m.userData.arrow && m.userData.arrow.visible) m.userData.arrow.children[0].material.opacity = 0.5 + Math.abs(Math.sin(t * 4)) * 0.5; }
     if (this.bossMesh) { const U = this.bossMesh.userData; U.head.rotation.y = Math.sin(t * 0.9) * 0.15; U.body.position.y = Math.sin(t * 1.8) * 0.03; U.eyes.forEach((e) => (e.scale.y = 1 + Math.abs(Math.sin(t * 3)) * 0.4)); }
+    if (this.dangerMarks && this.dangerMarks.length) { const k = 0.55 + Math.abs(Math.sin(t * 5)) * 0.4; for (const d of this.dangerMarks) d.userData.mat.opacity = k; }
+    if (this.zzz) for (const z of this.zzz) z.material.rotation = Math.sin(t * 2) * 0.15;
+    if (this.arrowTiles) for (const a of this.arrowTiles) a.userData.arrowMat.opacity = 0.6 + Math.abs(Math.sin(t * 4)) * 0.4;
     if (this.hintMesh) { const k = (Math.sin(t * 6) + 1) / 2; this.hintMesh.children.forEach((c) => (c.material.opacity = 0.5 + k * 0.5)); }
     if (this.door && this.doorOpen) this.door.userData.light.intensity = 9 + Math.sin(t * 3) * 2;
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);

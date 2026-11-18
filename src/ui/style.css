@@ -137,3 +137,23 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   .btn { height: 50px; font-size: 18px; } .game-bottom { bottom: calc(var(--sb) + 14px); }
   .lv { max-height: 58px; } .lvgrid { gap: 7px; }
 }
+
+.menu-row { display: flex; gap: 10px; width: min(300px, 80vw); }
+.menu-row .btn { flex: 1; font-size: 17px; padding: 0 8px; }
+.daily-btn { flex-direction: column; gap: 0 !important; line-height: 1.1; }
+.daily-btn small { font-size: 10px; font-weight: 500; opacity: .8; }
+.gold-line { border-color: #ffcf3a; box-shadow: 0 0 14px rgba(255, 200, 60, .45), inset 0 0 10px rgba(255, 200, 60, .2); }
+.game-row { display: flex; gap: 10px; width: min(300px, 82vw); }
+.game-row .btn:last-child { flex: 1; }
+.undo-btn { width: 84px; font-size: 26px; border-color: #ffcf3a; box-shadow: 0 0 14px rgba(255, 200, 60, .45), inset 0 0 10px rgba(255, 200, 60, .2); gap: 4px !important; }
+.undo-btn span { font-size: 15px; }
+.undo-btn.off { opacity: .4; }
+.garage-panel { position: absolute; left: 12px; right: 12px; bottom: calc(var(--sb) + 18px); padding: 14px 12px 10px; border-radius: 22px; background: rgba(15, 12, 45, .88); border: 1.5px solid rgba(70, 220, 255, .4); pointer-events: auto; }
+.skin-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.skin { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 2px; border-radius: 14px; background: rgba(255, 255, 255, .05); border: 1.5px solid rgba(255, 255, 255, .1); }
+.skin.on { border-color: #3fe2ff; box-shadow: 0 0 14px rgba(60, 220, 255, .6); }
+.skin.locked { opacity: .5; }
+.skin .sw { width: 38px; height: 38px; border-radius: 50%; }
+.skin b { font-size: 11px; line-height: 1.15; text-align: center; }
+.skin small { font-size: 10px; opacity: .75; }
+.garage-tip { text-align: center; font-size: 12px; opacity: .6; margin-top: 8px; }

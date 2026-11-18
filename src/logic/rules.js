@@ -1,5 +1,7 @@
 // Kaptan Bolt — oyun kuralları (oyun, çözücü ve testler aynı dosyayı kullanır)
-export const HOLE = 0, TILE = 1, ICE = 2, STRONG = 3;
+export const HOLE = 0, TILE = 1, ICE = 2, STRONG = 3, BRIDGE = 4, BUTTON = 5, ARROW_U = 6, ARROW_D = 7, ARROW_L = 8, ARROW_R = 9;
+export const ARROW_DIR = { [ARROW_U]: 'up', [ARROW_D]: 'down', [ARROW_L]: 'left', [ARROW_R]: 'right' };
+const ARROW_CH = { '^': ARROW_U, 'v': ARROW_D, '<': ARROW_L, '>': ARROW_R };
 export const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 export const DIR_LIST = ['up', 'down', 'left', 'right'];
 const OPP = { up: 'down', down: 'up', left: 'right', right: 'left' };
@@ -7,6 +9,7 @@ const OPP = { up: 'down', down: 'up', left: 'right', right: 'left' };
 /**
  * Bölüm verisi:
  * grid: . kare  # boşluk  i buz  o sağlam taş  S başlangıç  K anahtar  D kapı  1-4 portal çiftleri
+ *       b düğme  = köprü (düğmeye basılınca açılır)  ^ v < > ok kareler
  * enemies: [{ type: 'patrol'|'chaser', at: [x, y], dir?: 'left'|... }]
  * boss: { at: [x, y] (2x2 sol üst), every: 1|2 }
  */
@@ -26,6 +29,9 @@ export function parseLevel(level) {
         case '.': cells[i] = TILE; break;
         case 'i': cells[i] = ICE; break;
         case 'o': cells[i] = STRONG; break;
+        case '=': cells[i] = BRIDGE; break;
+        case 'b': cells[i] = BUTTON; break;
+        case '^': case 'v': case '<': case '>': cells[i] = ARROW_CH[ch]; break;
         case 'S': cells[i] = TILE; start = i; break;
         case 'K': cells[i] = TILE; keys.push(i); break;
         case 'D': cells[i] = TILE; door = i; break;
@@ -56,6 +62,7 @@ export function newState(board) {
     keysTaken: board.keys.map(() => false),
     enemies: board.enemies.map((e) => ({ ...e, alive: true })),
     boss: board.boss ? { pos: board.boss.pos, every: board.boss.every, alive: true, tick: 0 } : null,
+    pressed: false,
     moves: 0,
     status: 'play', // play | win | stuck | caught
   };
@@ -65,7 +72,7 @@ export function cloneState(s) {
   return {
     board: s.board, pos: s.pos, collapsed: s.collapsed.slice(), hits: s.hits.slice(),
     keysTaken: s.keysTaken.slice(), enemies: s.enemies.map((e) => ({ ...e })),
-    boss: s.boss ? { ...s.boss } : null, moves: s.moves, status: s.status,
+    boss: s.boss ? { ...s.boss } : null, pressed: s.pressed, moves: s.moves, status: s.status,
   };
 }
 
@@ -84,6 +91,12 @@ export function bossCells(board, pos) {
   return [pos, pos + 1, pos + board.w, pos + board.w + 1];
 }
 
+/** Bu kare boşluk mu (çukur, çökmüş kare veya kapalı köprü) */
+export function isGap(s, i) {
+  const c = s.board.cells[i];
+  return c === HOLE || s.collapsed[i] === 1 || (c === BRIDGE && !s.pressed);
+}
+
 /** Bu karede düşman veya boss var mı */
 export function occupied(s, i, skip) {
   for (const e of s.enemies) if (e !== skip && e.alive && e.pos === i) return true;
@@ -95,7 +108,7 @@ export function occupied(s, i, skip) {
 export function enterable(s, i) {
   if (i < 0) return false;
   const b = s.board;
-  if (b.cells[i] === HOLE || s.collapsed[i]) return false;
+  if (isGap(s, i)) return false;
   if (i === b.door && !doorOpen(s)) return false; // kilitli kapı duvardır
   if (occupied(s, i)) return false;                 // düşmanın üstüne yürünmez
   return true;
@@ -124,6 +137,7 @@ function arrive(s, i, events) {
     checkDoor(s, was, events);
   }
   if (i === b.door && doorOpen(s)) { s.status = 'win'; events.push({ t: 'win' }); return true; }
+  if (b.cells[i] === BUTTON && !s.pressed) { s.pressed = true; events.push({ t: 'bridgeOpen', cell: i }); }
   const q = b.portal[i];
   if (q >= 0 && enterable(s, q)) {
     leave(s, i, events);
@@ -142,7 +156,7 @@ function moveEnemies(s, events) {
       let moved = false;
       for (const d of [e.dir, OPP[e.dir]]) {
         const n = step(b, e.pos, d);
-        if (n < 0 || b.cells[n] === HOLE || s.collapsed[n] || n === b.door || occupied(s, n, e)) continue;
+        if (n < 0 || isGap(s, n) || n === b.door || occupied(s, n, e)) continue;
         events.push({ t: 'enemyMove', id: s.enemies.indexOf(e), from: e.pos, to: n, dir: d });
         e.pos = n; e.dir = d; moved = true;
         break;
@@ -182,7 +196,7 @@ function chase(s, e, size, events) {
     if (cells.some((c) => occupied(s, c, e))) continue;
     const from = e.pos;
     e.pos = n;
-    if (cells.some((c) => b.cells[c] === HOLE || s.collapsed[c])) {
+    if (cells.some((c) => isGap(s, c))) {
       e.alive = false;
       events.push({ t: isBoss ? 'bossFall' : 'enemyFall', id: isBoss ? 'boss' : s.enemies.indexOf(e), from, to: n, dir: d });
       checkDoor(s, wasOpen, events);
@@ -208,16 +222,22 @@ export function move(s, dir) {
   events.push({ t: 'step', from: s.pos, to: next, slide: false });
   s.pos = next;
   if (!arrive(s, next, events)) {
-    while (b.cells[s.pos] === ICE) {            // buzda kayma
-      const n2 = step(b, s.pos, dir);
-      if (!enterable(s, n2)) break;              // geçemiyorsa buzun üstünde durur
+    let cur = dir;
+    // buzda kayma / ok karelerde itilme
+    while (b.cells[s.pos] === ICE || ARROW_DIR[b.cells[s.pos]]) {
+      const push = !!ARROW_DIR[b.cells[s.pos]];
+      if (push) cur = ARROW_DIR[b.cells[s.pos]];
+      const n2 = step(b, s.pos, cur);
+      if (!enterable(s, n2)) break;              // geçemiyorsa olduğu yerde durur
       leave(s, s.pos, events);
-      events.push({ t: 'step', from: s.pos, to: n2, slide: true });
+      events.push({ t: 'step', from: s.pos, to: n2, slide: true, push });
       s.pos = n2;
       if (arrive(s, n2, events)) break;
     }
   }
-  if (s.status === 'play') moveEnemies(s, events);
+  // Düşmanlar ilk hamlende uyanır: ilk hamle her zaman güvenlidir
+  if (s.status === 'play' && s.moves > 1) moveEnemies(s, events);
+  else if (s.status === 'play' && s.moves === 1 && (s.enemies.length || s.boss)) events.push({ t: 'wake' });
   if (s.status === 'play' && validMoves(s).length === 0) { s.status = 'stuck'; events.push({ t: 'stuck' }); }
   return events;
 }

@@ -61,6 +61,9 @@ export const sfx = {
   enemyFall() { if (!soundOn || !ensure()) return; tone(700, 0.5, { type: 'square', vol: 0.06, slide: -600 }); },
   bossFall() { if (!soundOn || !ensure()) return; tone(200, 1.2, { type: 'sawtooth', vol: 0.12, slide: -170 }); noise(1.0, { vol: 0.3, freq: 400, delay: 0.6 }); },
   caught() { if (!soundOn || !ensure()) return; tone(180, 0.4, { type: 'square', vol: 0.1, slide: -100 }); noise(0.25, { vol: 0.2, freq: 900 }); },
+  bridge() { if (!soundOn || !ensure()) return; tone(300, 0.15, { type: 'square', vol: 0.08 }); [392, 523, 659].forEach((f, i) => tone(f, 0.25, { type: 'triangle', vol: 0.12, delay: 0.1 + i * 0.09 })); noise(0.5, { vol: 0.12, freq: 600, delay: 0.1 }); },
+  wake() { if (!soundOn || !ensure()) return; tone(220, 0.2, { type: 'sawtooth', vol: 0.06, slide: 220 }); },
+  undo() { if (!soundOn || !ensure()) return; tone(900, 0.12, { type: 'triangle', vol: 0.12, slide: -500 }); },
   hint() { if (!soundOn || !ensure()) return; tone(1200, 0.15, { vol: 0.12 }); tone(1600, 0.2, { vol: 0.1, delay: 0.08 }); },
 };
 

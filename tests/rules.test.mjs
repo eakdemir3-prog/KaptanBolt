@@ -98,7 +98,8 @@ test('ilerleme kaydı: kazanınca yıldız, kilit açılır, ipucu ödülü', ()
 });
 
 // ---------------- 2. aşama mekanikleri ----------------
-const LV = (grid, extra = {}) => newState(parseLevel({ id: 0, grid, ...extra }));
+// awake: ilk-hamle korumasını atla (düşman hareketini doğrudan test etmek için)
+const LV = (grid, extra = {}) => { const s = newState(parseLevel({ id: 0, grid, ...extra })); s.moves = 1; return s; };
 
 test('devriye robotu her hamlede bir kare gider, duvarda geri döner', () => {
   const s = LV(['S....', '.....', 'K...D'], { enemies: [{ type: 'patrol', at: [3, 1], dir: 'right' }] });
@@ -156,4 +157,33 @@ test('boss iki hamlede bir yürür ve üstüne gelirse yakalar', () => {
   assert.equal(s.boss.pos, 2);                       // ilk tur bekler
   move(s, 'right');                                  // ikinci tur yürür: oyuncu (1,1) -> boss sola
   assert.equal(s.status, 'caught');
+});
+
+// ---------------- 3. aşama ----------------
+test('ilk hamle her zaman güvenli: düşmanlar ilk hamlede uyanır', () => {
+  const s = newState(parseLevel({ id: 0, grid: ['S...D', 'K....'], enemies: [{ type: 'patrol', at: [2, 0], dir: 'left' }] }));
+  const ev = move(s, 'right');
+  assert.equal(s.status, 'play'); assert.equal(s.enemies[0].pos, 2);
+  assert.ok(ev.some((e) => e.t === 'wake'));
+  move(s, 'left') ; // geçersiz (çöken kare)
+  assert.equal(s.moves, 1);
+});
+test('düğme köprüyü açar; kapalı köprü boşluktur', () => {
+  const s = newState(parseLevel({ id: 0, grid: ['Sb.', '#=#', 'K.D'] }));
+  move(s, 'right');
+  assert.equal(s.pressed, true);
+  assert.equal(canMove(s, 'down'), true);
+  const t = newState(parseLevel({ id: 0, grid: ['S.b', '=##', 'K.D'] }));
+  assert.equal(canMove(t, 'down'), false); // köprü kapalı
+});
+test('ok kare robotu okun yönüne iter, önü kapalıysa okta durur', () => {
+  const s = newState(parseLevel({ id: 0, grid: ['S>..', '##.#', 'K..D'] }));
+  move(s, 'right');
+  assert.equal(s.pos, 2); assert.equal(s.moves, 1); assert.equal(s.collapsed[1], 1);
+  const t = newState(parseLevel({ id: 0, grid: ['Sv.', '.#.', 'K.D'] }));
+  move(t, 'right');
+  assert.equal(t.pos, 1); // aşağısı boşluk: okta durur
+  const u = newState(parseLevel({ id: 0, grid: ['S>v', '##.', 'K.D'] }));
+  move(u, 'right');
+  assert.equal(u.pos, 5); // sağa, sonra aşağı itilir
 });

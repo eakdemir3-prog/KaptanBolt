@@ -18,6 +18,12 @@ export const THEMES = {
   7: { name: 'Takipçi İni', bg: 0x150808, fog: 0x1f0c0c, wall: 0x241010, rock: 0x341616, rock2: 0x441c1c,
        tile: 0x34ccdc, tileEm: 0x0a6070, side: 0x0e6878, torch: 0xff7a1a, flame: 0xffc890, crystal: 0xff8a2a, crystalEm: 0xd04a00, particle: 0xffa860, hemi: 0xffb08a },
 };
+THEMES[8] = { name: 'Köprü Ustası', bg: 0x1a1208, fog: 0x22180c, wall: 0x2a1e10, rock: 0x3a2a18, rock2: 0x4a3620,
+  tile: 0x3fd6e6, tileEm: 0x0a6a80, side: 0x0e7088, torch: 0xffa83a, flame: 0xffe0a0, crystal: 0xffb04a, crystalEm: 0xd07000, particle: 0xffc87a, hemi: 0xffd0a0 };
+THEMES[9] = { name: 'Ok Labirenti', bg: 0x0a1a1a, fog: 0x0e2424, wall: 0x102c2c, rock: 0x173a3a, rock2: 0x1f4a48,
+  tile: 0x46e0f0, tileEm: 0x0a6a7a, side: 0x0e7080, torch: 0xffe14a, flame: 0xfff4b8, crystal: 0xffe14a, crystalEm: 0xc0a000, particle: 0xfff08a, hemi: 0xd8ffe8 };
+THEMES[10] = { name: 'Son Kale', bg: 0x14060e, fog: 0x1c0a14, wall: 0x240c18, rock: 0x341222, rock2: 0x46182c,
+  tile: 0x3ad2ec, tileEm: 0x0a6488, side: 0x0e6c90, torch: 0xffcf3a, flame: 0xfff0b0, crystal: 0xffcf3a, crystalEm: 0xff6a00, particle: 0xffd56a, hemi: 0xffc0c0 };
 export const PORTAL_COLORS = [0xff4ae0, 0x4affb0, 0xffd54a, 0x4a9aff];
 
 const std = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.55, ...o });
@@ -87,6 +93,41 @@ export function makePortalTile(M, color) {
   g.userData.swirl = swirl; g.userData.portal = true;
   return g;
 }
+const wood = () => std(0xa8743f, { roughness: 0.8 });
+export function makeBridgeTile() {
+  const g = new THREE.Group(), m = wood(), dark = std(0x6a4320, { roughness: 0.9 });
+  const body = mesh(new THREE.BoxGeometry(0.9, 0.12, 0.9), dark, [0, 0.06, 0]); g.add(body);
+  for (let k = 0; k < 4; k++) g.add(mesh(new RoundedBoxGeometry(0.88, 0.1, 0.2, 2, 0.03), m, [0, 0.15, -0.33 + k * 0.22]));
+  for (const x of [-0.36, 0.36]) g.add(mesh(new THREE.BoxGeometry(0.06, 0.06, 0.9), dark, [x, 0.21, 0]));
+  g.userData = { body };
+  return g;
+}
+export function makeBridgeGhost() {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffb04a, transparent: true, opacity: 0.35, depthWrite: false });
+  for (let k = 0; k < 4; k++) { const p = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.12), mat); p.rotation.x = -Math.PI / 2; p.position.set(0, -0.06, -0.33 + k * 0.22); g.add(p); }
+  return g;
+}
+export function makeButtonTile(M) {
+  const g = makeTile(M, false, 2);
+  const base = mesh(new THREE.CylinderGeometry(0.3, 0.32, 0.06, 28), std(0x3a3f55, { metalness: 0.6, roughness: 0.3 }), [0, 0.2, 0]); g.add(base);
+  const capMat = std(0xff3a4a, { emissive: 0xff1a2a, emissiveIntensity: 0.6, roughness: 0.3 });
+  const cap = mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.1, 28), capMat, [0, 0.27, 0]); g.add(cap);
+  g.userData.cap = cap; g.userData.capMat = capMat;
+  return g;
+}
+export function makeArrowTile(M, dir) {
+  const g = makeTile(M, false, 3);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffe14a, transparent: true, opacity: 0.95 });
+  const ar = new THREE.Group(); ar.position.y = 0.185;
+  for (let k = 0; k < 2; k++) {
+    const sh = new THREE.Shape(); sh.moveTo(-0.22, -0.08); sh.lineTo(0, 0.12); sh.lineTo(0.22, -0.08); sh.lineTo(0.22, -0.18); sh.lineTo(0, 0.02); sh.lineTo(-0.22, -0.18);
+    const c = new THREE.Mesh(new THREE.ShapeGeometry(sh), mat); c.rotation.x = -Math.PI / 2; c.position.z = 0.1 - k * 0.2; ar.add(c);
+  }
+  ar.rotation.y = { up: 0, down: Math.PI, left: Math.PI / 2, right: -Math.PI / 2 }[dir];
+  g.add(ar); g.userData.arrow = ar; g.userData.arrowMat = mat;
+  return g;
+}
 export function makePit(M) {
   const g = new THREE.Group();
   g.add(mesh(new THREE.BoxGeometry(0.86, 0.02, 0.86), M.pit, [0, -0.09, 0], false));
@@ -139,11 +180,22 @@ export function makeDoor() {
 }
 
 // --- Kaptan Bolt ---
-export function makeRobot() {
+export const SKINS = [
+  { id: 'klasik', name: 'Klasik Kaptan', stars: 0, body: 0xf3f6ff, grey: 0xcfd8e8, cap: 0x1d2a6b, band: 0xffc531, eye: 0x6ff6ff, bag: 0xb5733b },
+  { id: 'altin', name: 'Altın Kaptan', stars: 30, body: 0xffe08a, grey: 0xe8b84a, cap: 0x7a1a1a, band: 0xffffff, eye: 0x6ff6ff, bag: 0x8a5a2a, metal: true },
+  { id: 'korsan', name: 'Korsan', stars: 60, body: 0xe8e2d4, grey: 0x9a8a70, cap: 0x1a1a1a, band: 0xd02a2a, eye: 0xffd54a, bag: 0x6a3a1a },
+  { id: 'ninja', name: 'Ninja', stars: 100, body: 0x2a2d3a, grey: 0x1a1c24, cap: 0xc0182a, band: 0x1a1c24, eye: 0xff4a5a, bag: 0x3a3d4a },
+  { id: 'buz', name: 'Buz Kristali', stars: 150, body: 0xd8f4ff, grey: 0x9ad8f4, cap: 0x3a8ad0, band: 0xffffff, eye: 0x3affff, bag: 0x6ab8e0 },
+  { id: 'lav', name: 'Lav Robotu', stars: 220, body: 0x3a2a2a, grey: 0x5a3a2a, cap: 0xff5a1a, band: 0xffcf3a, eye: 0xffa01a, bag: 0x8a2a10 },
+  { id: 'neon', name: 'Neon', stars: 300, body: 0x1a1030, grey: 0x2a1a4a, cap: 0xff3ae0, band: 0x3affe0, eye: 0x3affe0, bag: 0x5a2ab0 },
+  { id: 'kral', name: 'Kral Bolt', stars: 400, body: 0xffffff, grey: 0xffd54a, cap: 0x6a1ab0, band: 0xffd54a, eye: 0x7affb0, bag: 0xd02a6a, metal: true },
+];
+export function makeRobot(skin = SKINS[0]) {
+  const met = skin.metal ? { metalness: 0.6, roughness: 0.25 } : { roughness: 0.3 };
   const M = {
-    white: std(0xf3f6ff, { roughness: 0.3 }), grey: std(0xcfd8e8, { roughness: 0.4 }), visor: std(0x10162e, { roughness: 0.15, metalness: 0.3 }),
-    eye: new THREE.MeshBasicMaterial({ color: 0x6ff6ff }), dark: std(0x39425e), bag: std(0xb5733b, { roughness: 0.7 }), bag2: std(0x7d4a20),
-    cap: std(0x1d2a6b, { roughness: 0.5 }), capBand: std(0xffc531, { metalness: 0.6, roughness: 0.3, emissive: 0x6a4300, emissiveIntensity: 0.4 }),
+    white: std(skin.body, met), grey: std(skin.grey, { roughness: 0.4 }), visor: std(0x10162e, { roughness: 0.15, metalness: 0.3 }),
+    eye: new THREE.MeshBasicMaterial({ color: skin.eye }), dark: std(0x39425e), bag: std(skin.bag, { roughness: 0.7 }), bag2: std(0x3a2a1a),
+    cap: std(skin.cap, { roughness: 0.5 }), capBand: std(skin.band, { metalness: 0.6, roughness: 0.3, emissive: skin.band, emissiveIntensity: 0.15 }),
   };
   const root = new THREE.Group();      // konum
   const body = new THREE.Group();      // zıplama/sallanma
@@ -179,15 +231,15 @@ export function makeRobot() {
   const antTip = mesh(new THREE.SphereGeometry(0.045, 16, 16), M.eye, [0.16, 0.47, -0.05], false); head.add(antTip);
   const light = new THREE.PointLight(0x6ff6ff, 1.4, 1.3); light.position.set(0, 0.8, 0.5); root.add(light);
   root.scale.setScalar(1.2);
-  root.userData = { body, turn, head, eyeL, eyeR, legL, legR, armL, armR, eyeMat: M.eye };
+  root.userData = { body, turn, head, eyeL, eyeR, legL, legR, armL, armR, eyeMat: M.eye, eyeColor: skin.eye };
   return root;
 }
 
 export function setRobotFace(robot, face) {
   const { eyeL, eyeR, eyeMat } = robot.userData;
-  if (face === 'happy') { eyeL.scale.set(1.2, 0.45, 1); eyeR.scale.set(1.2, 0.45, 1); eyeL.position.y = eyeR.position.y = 0.03; eyeMat.color.set(0x6ff6ff); }
+  if (face === 'happy') { eyeL.scale.set(1.2, 0.45, 1); eyeR.scale.set(1.2, 0.45, 1); eyeL.position.y = eyeR.position.y = 0.03; eyeMat.color.set(robot.userData.eyeColor); }
   else if (face === 'sad') { eyeL.scale.set(1, 0.4, 1); eyeR.scale.set(1, 0.4, 1); eyeL.position.y = eyeR.position.y = -0.03; eyeMat.color.set(0x7fa8ff); }
-  else { eyeL.scale.set(1, 1, 1); eyeR.scale.set(1, 1, 1); eyeL.position.y = eyeR.position.y = 0.01; eyeMat.color.set(0x6ff6ff); }
+  else { eyeL.scale.set(1, 1, 1); eyeR.scale.set(1, 1, 1); eyeL.position.y = eyeR.position.y = 0.01; eyeMat.color.set(robot.userData.eyeColor); }
 }
 
 // --- Düşman robotlar ---
@@ -243,4 +295,21 @@ export function makeBoss(world) {
   const l = new THREE.PointLight(0xff3a2a, 10, 4); l.position.set(0, 1.7, 1.2); root.add(l);
   root.userData = { body, turn, head, eyes, eyeMat: M.eye, light: l };
   return root;
+}
+
+export function makeZzz() {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+  const g = c.getContext('2d'); g.font = 'bold 70px Poppins, sans-serif'; g.fillStyle = '#bff7ff'; g.strokeStyle = '#1a1250'; g.lineWidth = 8;
+  g.strokeText('z', 20, 110); g.fillText('z', 20, 110); g.font = 'bold 50px Poppins, sans-serif'; g.strokeText('z', 70, 60); g.fillText('z', 70, 60);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthTest: false }));
+  sp.scale.setScalar(0.45); sp.renderOrder = 20;
+  return sp;
+}
+export function makeDangerMark() {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color: 0xff2a4a, transparent: true, opacity: 0.85, depthWrite: false });
+  for (const r of [Math.PI / 4, -Math.PI / 4]) { const b = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.12), mat); b.rotation.x = -Math.PI / 2; b.rotation.z = r; g.add(b); }
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.42, 32), mat); ring.rotation.x = -Math.PI / 2; g.add(ring);
+  g.position.y = 0.2; g.renderOrder = 5; g.userData.mat = mat;
+  return g;
 }
