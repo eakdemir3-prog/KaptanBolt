@@ -14,44 +14,68 @@
 
   <!-- ANA MENÜ -->
   <section id="menu" class="screen">
-    <button class="icon-btn top-right" data-act="settings" aria-label="Ayarlar"></button>
-    <div class="logo big">
+    <div class="topbar">
+      <button class="chip quest-btn" data-act="quests">🎯 <span>Görevler</span><b class="badge hidden" id="questBadge"></b></button>
+      <div class="res"><div class="chip energy-chip" id="menuEnergy"></div><div class="chip coin-chip" id="menuCoins"></div></div>
+    </div>
+    <div class="logo big" id="menuLogo">
       <div class="l1">KAPTAN</div><div class="l2">BOLT</div><div class="swoosh"></div>
       <div class="tag">SON HAMLE</div>
     </div>
-    <div class="menu-bottom">
+    <div class="menu-bottom" id="menuBottom">
       <button class="btn primary wide" data-act="continue"><span class="i-play"></span>Devam Et</button>
       <div class="menu-sub" id="menuSub"></div>
       <div class="menu-row">
-        <button class="btn" data-act="levels"><span class="i-grid"></span>Bölümler</button>
-        <button class="btn purple daily-btn" data-act="daily">📅 Günlük<small id="dailyInfo"></small></button>
+        <button class="btn" data-act="worlds"><span class="i-grid"></span>Dünyalar</button>
+        <button class="btn purple daily-btn" data-act="daily"><span class="dl">🧩 Günlük</span><small id="dailyInfo"></small></button>
       </div>
-      <button class="btn small wide gold-line" data-act="garage">🎩 Kostümler</button>
-      <div class="brand">EA Vision Labs</div>
+      <div class="menu-row">
+        <button class="btn small gold-line" data-act="garage">🎩 Kostümler</button>
+        <button class="btn small" data-act="ach">🏆 Başarımlar<b class="badge hidden" id="achBadge"></b></button>
+        <button class="icon-btn settings-btn" data-act="settings" aria-label="Ayarlar"></button>
+      </div>
     </div>
   </section>
 
-  <!-- BÖLÜM SEÇİMİ -->
-  <section id="levels" class="screen dim">
+  <!-- DÜNYALAR -->
+  <section id="worlds" class="screen solid">
     <div class="topbar">
       <button class="icon-btn" data-act="back" aria-label="Geri"></button>
-      <div class="top-title">Bölümler</div>
-      <div class="chip" id="starTotal"></div>
+      <div class="top-title">Dünyalar</div>
+      <div class="res"><div class="chip energy-chip"></div><div class="chip coin-chip"></div></div>
     </div>
-    <div class="tabs" id="worldTabs"></div>
-    <div class="world-head" id="worldHead"></div>
-    <div class="lvgrid" id="lvGrid"></div>
-    <div class="soon">🎩 Yıldız topla, yeni kostümler aç! 📅 Her gün yeni bir günlük bulmaca var.</div>
+    <div class="scroll wcards" id="worldList"></div>
+  </section>
+
+  <!-- YOL HARİTASI -->
+  <section id="map" class="screen solid">
+    <div class="scroll" id="mapScroll"><div class="map-inner" id="mapInner"></div></div>
+    <div class="topbar">
+      <button class="icon-btn" data-act="back" aria-label="Geri"></button>
+      <div class="res"><div class="chip energy-chip"></div><div class="chip coin-chip"></div></div>
+    </div>
+    <div class="maphead" id="mapHead"></div>
   </section>
 
   <!-- KOSTÜMLER -->
-  <section id="garage" class="screen">
+  <section id="garage" class="screen solid">
     <div class="topbar">
       <button class="icon-btn" data-act="back" aria-label="Geri"></button>
       <div class="top-title">Kostümler</div>
-      <div class="chip" id="garageStars"></div>
+      <div class="res"><div class="chip coin-chip"></div></div>
     </div>
-    <div class="garage-panel"><div class="skin-grid" id="skinGrid"></div><p class="garage-tip">Yıldız topladıkça yeni kostümler açılır.</p></div>
+    <div class="hero"><img id="heroImg" alt=""><div class="name" id="heroName"></div></div>
+    <div class="garage-panel"><div class="skin-grid" id="skinGrid"></div><p class="garage-tip">Bölüm bitirerek altın kazan, yeni kostümler aç.</p></div>
+  </section>
+
+  <!-- BAŞARIMLAR -->
+  <section id="ach" class="screen solid">
+    <div class="topbar">
+      <button class="icon-btn" data-act="back" aria-label="Geri"></button>
+      <div class="top-title">Başarımlar</div>
+      <div class="res"><div class="chip coin-chip"></div></div>
+    </div>
+    <div class="scroll ach-list" id="achList"></div>
   </section>
 
   <!-- OYUN -->
@@ -60,7 +84,7 @@
       <button class="icon-btn" data-act="back" aria-label="Geri"></button>
       <div class="chips">
         <div class="chip" id="chipKeys"></div>
-        <div class="chip" id="chipCollapse" title="Çöken kareler"></div>
+        <div class="chip" id="chipCollapse"></div>
         <div class="chip hidden" id="chipBoss"></div>
       </div>
       <button class="icon-btn hint-btn" data-act="hint" aria-label="İpucu"><span id="hintCount"></span></button>

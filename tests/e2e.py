@@ -14,10 +14,10 @@ with sync_playwright() as p:
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.on("console", lambda m: m.type == "error" and errs.append(m.text))
     pg.goto(URL); pg.wait_for_timeout(1000)
-    pg.evaluate("localStorage.setItem('kaptanbolt.save.v1', JSON.stringify({settings:{unlockAll:false}}))"); pg.reload(); pg.wait_for_timeout(2500)
+    pg.evaluate("Object.assign(KB.data().settings,{unlockAll:false,infiniteEnergy:true})"); pg.wait_for_timeout(1500)
     pg.screenshot(path=OUT+"01_menu.png")
     check("ana menü açıldı", pg.evaluate("KB.screen") == "menu")
-    pg.click("[data-act=levels]"); pg.wait_for_timeout(1200)
+    pg.click("[data-act=worlds]"); pg.wait_for_timeout(1200); pg.screenshot(path=OUT+"02_worlds.png"); pg.click("[data-world='1']"); pg.wait_for_timeout(1000)
     pg.screenshot(path=OUT+"02_levels.png")
     check("bölüm 2 kilitli", pg.locator("[data-lv='2']").get_attribute("data-locked") == "1")
     pg.click("[data-lv='1']"); pg.wait_for_timeout(1500)
@@ -54,7 +54,7 @@ with sync_playwright() as p:
     # kayıt yeniden yüklemede korunuyor mu
     pg.reload(); pg.wait_for_timeout(2000)
     check("yeniden açınca ilerleme duruyor", pg.evaluate("KB.data().stars[1]") == 3)
-    pg.click("[data-act=levels]"); pg.wait_for_timeout(800)
+    pg.click("[data-act=worlds]"); pg.wait_for_timeout(800); pg.click("[data-world='1']"); pg.wait_for_timeout(800)
     check("bölüm 2 açıldı", pg.locator("[data-lv='2']").get_attribute("data-locked") is None)
     # kapı kilidi: bölüm 2'yi aç, kapıya anahtarsız girmeye çalış
     lv = json.load(open("/home/claude/kaptan-bolt/src/levels/levels.json"))

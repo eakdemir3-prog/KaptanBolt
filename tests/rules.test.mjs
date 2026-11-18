@@ -187,3 +187,45 @@ test('ok kare robotu okun yönüne iter, önü kapalıysa okta durur', () => {
   move(u, 'right');
   assert.equal(u.pos, 5); // sağa, sonra aşağı itilir
 });
+
+// ---------------- ekonomi ----------------
+import * as Eco from '../src/economy.js';
+test('enerji: kaybedince 1 düşer, 20 dakikada 1 dolar, 0 iken oynatmaz', () => {
+  const d = Eco.ensure({ settings: {}, hints: 0 });
+  const t0 = 1_000_000;
+  d.energyAt = t0;
+  for (let i = 0; i < 5; i++) assert.equal(Eco.spendEnergy(d, t0), true);
+  assert.equal(d.energy, 0); assert.equal(Eco.spendEnergy(d, t0), false);
+  assert.equal(Eco.tickEnergy(d, t0 + Eco.ENERGY_MS * 2 + 5), 2);
+  assert.ok(Eco.nextEnergyIn(d, t0 + Eco.ENERGY_MS * 2 + 5) < Eco.ENERGY_MS);
+  assert.equal(Eco.tickEnergy(d, t0 + Eco.ENERGY_MS * 50), 5);
+  d.settings.infiniteEnergy = true; d.energy = 0;
+  assert.equal(Eco.spendEnergy(d, t0), true);
+});
+test('günlük görevler: tarihe göre aynı, ilerler, ödül ve bonus verir', () => {
+  const d = Eco.ensure({ settings: {}, hints: 0 });
+  const q = Eco.dailyQuests(d, '2026-11-18');
+  assert.equal(q.list.length, 3);
+  assert.deepEqual(Eco.dailyQuests(Eco.ensure({ settings: {}, hints: 0 }), '2026-11-18').list.map((x) => x.k), q.list.map((x) => x.k));
+  for (const x of q.list) Eco.stat(d, x.k, x.n);
+  assert.equal(Eco.questsReady(d), 3);
+  q.list.forEach((_, i) => Eco.claimQuest(d, i));
+  assert.equal(Eco.claimBonus(d), true);
+  assert.ok(d.coins >= Eco.QUEST_BONUS);
+  assert.equal(Eco.claimBonus(d), false);
+});
+test('başarım: hedefe ulaşınca bir kez ödül', () => {
+  const d = Eco.ensure({ settings: {}, hints: 0, stars: {} });
+  Eco.stat(d, 'wins', 1);
+  assert.equal(Eco.claimAch(d, 'ilk'), 50);
+  assert.equal(Eco.claimAch(d, 'ilk'), 0);
+});
+test('dünya kilidi: önceki boss veya yıldız eşiği açar', () => {
+  const d = Save.load(); d.settings.unlockAll = false; d.stars = {};
+  assert.equal(Save.isUnlocked(d, 21), false);
+  d.stars[20] = 1;
+  assert.equal(Save.isUnlocked(d, 21), true);
+  assert.equal(Save.isUnlocked(d, 22), false);
+  const e = Save.load(); e.settings.unlockAll = false; e.stars = {}; for (let i = 1; i <= 9; i++) e.stars[i] = 3; // 27 yıldız
+  assert.equal(Save.isUnlocked(e, 21), true);
+});

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/src/ui/style.css">
+<style>
+body{background:#0d0926}
+.bg{position:fixed;inset:0;background:radial-gradient(ellipse 80% 40% at 50% 0%,rgba(130,70,255,.35),transparent 70%),linear-gradient(#140e38,#0b0820)}
+.res{display:flex;gap:6px}
+.res .chip{height:38px;font-size:15px}
+.ic{width:20px;height:20px;display:inline-block;vertical-align:middle;flex:none}
+.wcards{position:absolute;top:calc(var(--st) + 76px);left:14px;right:14px;bottom:10px;overflow:hidden;display:flex;flex-direction:column;gap:12px}
+.wc{position:relative;height:104px;border-radius:22px;padding:12px 14px 12px 112px;display:flex;flex-direction:column;justify-content:center;overflow:hidden;border:1.5px solid rgba(255,255,255,.18);box-shadow:0 8px 20px rgba(0,0,0,.4)}
+.wc img{position:absolute;left:4px;top:50%;transform:translateY(-50%);width:104px;height:104px}
+.wc .num{font-size:12px;font-weight:700;opacity:.75;letter-spacing:1px}
+.wc .nm{font-size:20px;font-weight:700;line-height:1.1}
+.wc .bar{height:8px;border-radius:4px;background:rgba(0,0,0,.35);margin-top:8px;overflow:hidden}
+.wc .bar i{display:block;height:100%;background:linear-gradient(90deg,#ffe27a,#ffb21e);border-radius:4px}
+.wc .meta{display:flex;justify-content:space-between;font-size:12px;margin-top:5px;opacity:.9}
+.wc .boss{position:absolute;right:10px;top:10px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;background:rgba(0,0,0,.35)}
+.wc.lock{filter:grayscale(.85) brightness(.5)}
+.wc.lock::after{content:"🔒";position:absolute;right:14px;top:34px;font-size:22px}
+.map{position:absolute;inset:0}
+.map svg{position:absolute;inset:0}
+.node{position:absolute;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px}
+.node.done{background:linear-gradient(160deg,#6ff3ff,#1fb9dd);color:#062238;box-shadow:0 5px 0 #0b6f93,0 0 14px rgba(60,220,255,.5)}
+.node.cur{background:#0f0c2d;border:3px solid #3fe2ff;color:#bff7ff;box-shadow:0 0 22px rgba(60,220,255,.9)}
+.node.lock{background:#2a2560;color:rgba(255,255,255,.35);border:1.5px solid rgba(255,255,255,.1)}
+.node .st{position:absolute;bottom:-16px;font-size:12px;letter-spacing:-1px;color:#ffcf3a;text-shadow:0 0 4px #000}
+.node.boss{width:96px;height:96px;margin:-48px 0 0 -48px;background:radial-gradient(#5a1a2a,#2a0a14);border:3px solid #ff5a3a;box-shadow:0 0 26px rgba(255,80,50,.7)}
+.node.boss img{width:92px;height:92px}
+.bolthead{position:absolute;width:64px;height:64px;margin:-86px 0 0 -32px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.6))}
+.maphead{position:absolute;top:calc(var(--st) + 70px);left:16px;right:16px;padding:12px 16px;border-radius:18px;background:rgba(15,12,45,.85);border:1.5px solid rgba(70,220,255,.4);display:flex;justify-content:space-between;align-items:center}
+.maphead b{font-size:19px}.maphead span{font-size:13px;opacity:.75}
+.hero{position:absolute;top:calc(var(--st) + 66px);left:0;right:0;height:330px;display:flex;justify-content:center}
+.hero img{height:330px}
+.hero .name{position:absolute;bottom:4px;font-size:22px;font-weight:800;text-shadow:0 0 12px rgba(60,220,255,.6)}
+.skin2{display:flex;flex-direction:column;align-items:center;padding:4px 2px 8px;border-radius:16px;background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1)}
+.skin2 img{width:74px;height:84px}
+.skin2.on{border-color:#3fe2ff;box-shadow:0 0 14px rgba(60,220,255,.6);background:rgba(60,220,255,.1)}
+.skin2.lock img{filter:brightness(0) drop-shadow(0 0 2px rgba(150,140,255,.6));opacity:.7}
+.skin2 b{font-size:11px;text-align:center;line-height:1.1}.skin2 small{font-size:10px;opacity:.8;margin-top:2px}
+.price{display:inline-flex;align-items:center;gap:3px;color:#ffd54a;font-weight:700}
+.quest{display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);margin-top:8px;text-align:left}
+.quest .qi{font-size:26px}.quest .qt{flex:1;font-size:14px;font-weight:700}.quest .qt small{display:block;font-weight:500;opacity:.7;font-size:12px}
+.qbar{height:6px;border-radius:3px;background:rgba(0,0,0,.4);margin-top:5px;overflow:hidden}.qbar i{display:block;height:100%;background:#3fe2ff}
+.qbtn{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;padding:8px 10px;border-radius:12px;font-size:12px;font-weight:700;background:linear-gradient(#ffe27a,#ffb21e);color:#3a2400}
+.qbtn.dis{background:#2a2560;color:rgba(255,255,255,.5)}
+.energy-big{font-size:64px;line-height:1;margin:6px 0;filter:drop-shadow(0 0 14px #ffd54a)}
+.bolts{display:flex;justify-content:center;gap:6px;margin:8px 0}
+.bolts i{width:30px;height:38px;display:inline-block}
+.ribbon{position:absolute;left:50%;transform:translateX(-50%);top:calc(var(--st) + 14px);display:flex;gap:6px}
+</style></head><body><div class="bg"></div><canvas id="c" style="display:none"></canvas><div id="ui" style="pointer-events:none"></div>
+<script type="module">
+import * as THREE from 'three';
+import { makeRobot, setRobotFace, makeKey, makeTile, makeEnemy, makeStrongTile, makePortalTile, makeBridgeTile, makeArrowTile, makeBoss, makeMaterials, THEMES, SKINS } from '/src/game/models.js';
+const S = new URLSearchParams(location.search).get('s') || 'worlds';
+const R = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = 1.0;
+function shot(obj, { w = 256, h = 256, dist = 2.4, y = 0.6, look = 0.5, rotY = -0.4, el = 0.35 } = {}) {
+  R.setSize(w, h);
+  const sc = new THREE.Scene();
+  sc.add(new THREE.HemisphereLight(0xd8d0ff, 0x302060, 1.3));
+  const d = new THREE.DirectionalLight(0xffffff, 2.2); d.position.set(-2, 4, 5); sc.add(d);
+  const r1 = new THREE.PointLight(0x3fe2ff, 14, 6); r1.position.set(1.5, 1.2, -1); sc.add(r1);
+  obj.rotation.y = rotY; sc.add(obj);
+  const cam = new THREE.PerspectiveCamera(30, w / h, 0.1, 50);
+  cam.position.set(0, y + Math.sin(el) * dist, Math.cos(el) * dist); cam.lookAt(0, look, 0);
+  R.render(sc, cam);
+  return R.domElement.toDataURL();
+}
+const robotImg = (skin, face = 'happy', o = {}) => { const r = makeRobot(skin); setRobotFace(r, face); return shot(r, { dist: 2.6, y: 0.2, look: 0.62, el: 0.12, ...o }); };
+const M = makeMaterials(THEMES[1]);
+const grp = (...xs) => { const g = new THREE.Group(); xs.forEach(([o, p]) => { o.position.set(...p); g.add(o); }); return g; };
+const ICON = {
+  1: () => shot(grp([makeTile(M, false, 1), [0, 0, 0]], [makeRobot(SKINS[0]), [0, 0.18, 0]]), { dist: 2.8, look: 0.5 }),
+  2: () => shot(grp([makeTile(M, false, 2), [0, 0, 0]], [makeKey(), [0, 0.8, 0]]), { dist: 2.4, look: 0.55 }),
+  3: () => shot(grp([makeTile(M, true, 1), [0, 0, 0]], [makeTile(M, true, 2), [0.95, 0, 0]], [makeTile(M, true, 3), [-0.95, 0, 0]]), { dist: 3.4, look: 0.1, el: 0.6 }),
+  4: () => shot(grp([makeTile(M, false, 1), [0, 0, 0]], [makeEnemy('patrol'), [0, 0.18, 0]]), { dist: 2.3, look: 0.45 }),
+  5: () => shot(grp([makeStrongTile(M), [0, 0, 0]], [makeStrongTile(M), [0.95, 0, 0]]), { dist: 2.8, look: 0.1, el: 0.6, rotY: -0.2 }),
+  6: () => shot(grp([makePortalTile(M, 0xff4ae0), [0, 0, 0]]), { dist: 2.0, look: 0.1, el: 0.8 }),
+  7: () => shot(grp([makeTile(M, false, 1), [0, 0, 0]], [makeEnemy('chaser'), [0, 0.18, 0]]), { dist: 2.2, look: 0.45 }),
+  8: () => shot(grp([makeBridgeTile(), [0, 0, 0]], [makeBridgeTile(), [0.95, 0, 0]]), { dist: 2.8, look: 0.1, el: 0.6, rotY: -0.3 }),
+  9: () => shot(grp([makeArrowTile(M, 'right'), [0, 0, 0]], [makeArrowTile(M, 'right'), [0.95, 0, 0]]), { dist: 2.7, look: 0.1, el: 0.75, rotY: 0 }),
+  10: () => shot(grp([makeBoss(10), [0, 0, 0]]), { dist: 6.5, look: 1.2, el: 0.2 }),
+};
+const ui = document.getElementById('ui');
+const BOLT = '<svg viewBox="0 0 24 32" class="ic"><path d="M14 0L2 18h8l-3 14L22 12h-9z" fill="#ffd54a" stroke="#a86a00" stroke-width="1"/></svg>';
+const COIN = '<svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="12" r="10" fill="#ffcf3a" stroke="#b07a00" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="#b07a00" stroke-width="1.5"/></svg>';
+const resBar = `<div class="res"><div class="chip">${BOLT}<span>4/5</span><span class="lbl" style="font-size:11px">12:40</span></div><div class="chip">${COIN}<span>1.250</span></div></div>`;
+const pct = [100, 85, 40, 0, 0, 0, 0, 0, 0, 0];
+
+if (S === 'worlds') {
+  let html = `<div class="topbar"><button class="icon-btn" data-act="back"></button><div class="top-title">Dünyalar</div>${resBar}</div><div class="wcards">`;
+  for (let w = 1; w <= 6; w++) {
+    const th = THEMES[w], c1 = '#' + th.torch.toString(16).padStart(6, '0'), c2 = '#' + th.bg.toString(16).padStart(6, '0');
+    const lock = w > 3;
+    html += `<div class="wc ${lock ? 'lock' : ''}" style="background:linear-gradient(110deg, ${c1}55, ${c2} 70%)">
+      <img src="${ICON[w]()}"><div class="num">DÜNYA ${w}</div><div class="nm">${th.name}</div>
+      <div class="bar"><i style="width:${pct[w - 1]}%"></i></div>
+      <div class="meta"><span>⭐ ${Math.round(pct[w - 1] * 0.6)}/60</span><span>${lock ? '⭐ ' + (w - 1) * 25 + ' ile açılır' : pct[w - 1] === 100 ? '✔ Tamamlandı' : 'Bölüm ' + ((w - 1) * 20 + Math.round(pct[w - 1] / 5) + 1)}</span></div>
+      <div class="boss">${pct[w - 1] === 100 ? '💥 Boss yenildi' : '👹 Boss'}</div></div>`;
+  }
+  ui.innerHTML = html + '</div>';
+}
+if (S === 'map') {
+  const th = THEMES[3];
+  const pts = [];
+  for (let i = 0; i < 9; i++) { const y = 860 - i * 82; const x = 206 + Math.sin(i * 1.1) * 120; pts.push([x, y]); }
+  let d = `M${pts[0][0]},${pts[0][1]}`; for (let i = 1; i < pts.length; i++) { const [x0, y0] = pts[i - 1], [x1, y1] = pts[i]; d += ` C${x0},${y0 - 45} ${x1},${y1 + 45} ${x1},${y1}`; }
+  const boltHead = robotImg(SKINS[0], 'happy', { w: 128, h: 128, dist: 1.5, look: 0.78, y: 0.55, el: 0.05 });
+  const boss = ICON[10]();
+  let nodes = '';
+  const base = 52;
+  pts.forEach(([x, y], i) => {
+    const n = base + i, last = n === 60;
+    const cls = n < 57 ? 'done' : n === 57 ? 'cur' : 'lock';
+    if (last) nodes += `<div class="node boss" style="left:${x}px;top:${y - 10}px"><img src="${boss}"></div>`;
+    else nodes += `<div class="node ${cls}" style="left:${x}px;top:${y}px">${n}${cls === 'done' ? `<span class="st">${'★'.repeat(n % 3 + 1)}</span>` : ''}</div>`;
+    if (cls === 'cur') nodes += `<img class="bolthead" src="${boltHead}" style="left:${x}px;top:${y}px">`;
+  });
+  ui.innerHTML = `<div class="map" style="background:radial-gradient(ellipse at 50% 20%, #1f3f78, #07142e 70%)">
+    <svg viewBox="0 0 412 915" preserveAspectRatio="none"><defs><filter id="gl"><feGaussianBlur stdDeviation="6"/></filter></defs>
+    ${Array.from({ length: 40 }, (_, i) => `<circle cx="${(i * 97) % 412}" cy="${(i * 233) % 915}" r="${1 + (i % 3)}" fill="#fff" opacity=".5"/>`).join('')}
+    <path d="${d}" stroke="#3fc4f5" stroke-width="22" fill="none" opacity=".35" filter="url(#gl)"/>
+    <path d="${d}" stroke="#bfefff" stroke-width="10" fill="none" stroke-dasharray="2 16" stroke-linecap="round"/></svg>
+    ${nodes}</div>
+    <div class="topbar"><button class="icon-btn" data-act="back"></button>${resBar}</div>
+    <div class="maphead"><div><b>Dünya 3: ${th.name}</b><br><span>❄ Buzda kayma • 👑 Boss: Buz Golemi</span></div><div class="chip">⭐ 24/60</div></div>`;
+}
+if (S === 'garage') {
+  const cur = 2;
+  const big = (() => { const r = makeRobot(SKINS[cur]); setRobotFace(r, 'happy'); r.userData.armR.rotation.z = -1.9; return shot(r, { w: 360, h: 360, dist: 3.1, y: 0.3, look: 0.6, el: 0.1, rotY: -0.5 }); })();
+  let cards = '';
+  SKINS.forEach((k, i) => {
+    const open = i <= 3, on = i === cur;
+    cards += `<div class="skin2 ${on ? 'on' : ''} ${open ? '' : 'lock'}"><img src="${robotImg(k, 'idle', { w: 148, h: 168 })}"><b>${k.name}</b><small>${on ? 'Seçili' : open ? 'Seç' : `<span class="price">${COIN} ${[0, 500, 1000, 1500, 2500, 4000, 6000, 9000][i]}</span>`}</small></div>`;
+  });
+  ui.innerHTML = `<div class="topbar"><button class="icon-btn" data-act="back"></button><div class="top-title">Kostümler</div>${resBar.replace('<div class="chip">' + BOLT + '<span>4/5</span><span class="lbl" style="font-size:11px">12:40</span></div>', '')}</div>
+   <div class="hero"><img src="${big}"><div class="name">${SKINS[cur].name}</div></div>
+   <div class="garage-panel" style="pointer-events:auto"><div class="skin-grid">${cards}</div><p class="garage-tip">Bölüm bitirerek altın kazan, yeni kostümler aç.</p></div>`;
+}
+if (S === 'quests') {
+  ui.innerHTML = `<div class="modal"><div class="card"><h2>🎯 Günlük Görevler</h2><p>Her gün yenilenir. Ödülünü almayı unutma!</p>
+   <div class="quest"><div class="qi">🏁</div><div class="qt">3 bölüm bitir<small>2 / 3</small><div class="qbar"><i style="width:66%"></i></div></div><button class="qbtn dis">${COIN} 100</button></div>
+   <div class="quest"><div class="qi">👹</div><div class="qt">1 boss yen<small>1 / 1</small><div class="qbar"><i style="width:100%"></i></div></div><button class="qbtn">Al ${BOLT}+2</button></div>
+   <div class="quest"><div class="qi">⭐</div><div class="qt">2 bölümü 3 yıldızla bitir<small>0 / 2</small><div class="qbar"><i style="width:0%"></i></div></div><button class="qbtn dis">💡 +1</button></div>
+   <div class="tip">Hepsini bitir: <b>+250 altın bonus</b> 🎁</div>
+   <button class="btn primary">Kapat</button></div></div>`;
+}
+if (S === 'energy') {
+  ui.innerHTML = `<div class="modal"><div class="card fail"><div class="energy-big">${BOLT.replace('class="ic"', 'style="width:70px;height:90px"')}</div><h2>Enerjin Bitti</h2>
+   <p>Kaybettiğin her bölüm 1 enerji harcar. Kazandığın bölümler enerji harcamaz.</p>
+   <div class="bolts">${Array.from({ length: 5 }, (_, i) => BOLT.replace('class="ic"', 'style="width:30px;height:38px;opacity:' + (i < 0 ? 1 : .25) + '"')).join('')}</div>
+   <div class="stat"><div><b>18:42</b>sonraki enerji</div><div><b>1:38:00</b>tamamı dolar</div></div>
+   <button class="btn gold">${COIN} 200 ile doldur</button>
+   <button class="btn primary">📅 Günlük bulmacayı çöz (+1)</button>
+   <button class="linkbtn">Ana Menü</button></div></div>`;
+}
+if (S === 'menu') {
+  const r = makeRobot(SKINS[0]); setRobotFace(r, 'happy'); r.userData.armR.rotation.z = -1.9;
+  const img = shot(r, { w: 300, h: 300, dist: 3.0, y: 0.3, look: 0.62, el: 0.1, rotY: -0.4 });
+  ui.innerHTML = `<div class="topbar"><button class="chip" style="height:44px">🎯 <span>Görevler</span><span style="background:#ff4a6a;border-radius:9px;padding:0 6px;font-size:11px">2</span></button>${resBar}</div>
+   <div class="logo big" style="top:calc(var(--st) + 74px)"><div class="l1">KAPTAN</div><div class="l2">BOLT</div><div class="swoosh"></div><div class="tag">SON HAMLE</div></div>
+   <img src="${img}" style="position:absolute;left:50%;transform:translateX(-50%);top:300px;width:270px">
+   <div class="menu-bottom"><button class="btn primary wide"><span class="i-play"></span>Devam Et</button>
+   <div class="menu-sub">Bölüm 57 • Dünya 3 • ⭐ 112</div>
+   <div class="menu-row"><button class="btn"><span class="i-grid"></span>Dünyalar</button><button class="btn purple daily-btn">🗓 Günlük<small>🔥 3 gün</small></button></div>
+   <div class="menu-row"><button class="btn small gold-line" style="height:48px">🎩 Kostümler</button><button class="btn small" style="height:48px">🏆 Başarımlar</button></div></div>`;
+}
+window.DONE = true;
+</script></body></html>

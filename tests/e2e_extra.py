@@ -41,7 +41,7 @@ with sync_playwright() as p:
     check("anahtar öğreticisi", pg.is_visible("#tutorial"))
     # android geri tuşu (Escape): oyundan bölümler ekranına
     pg.keyboard.press("Escape"); pg.wait_for_timeout(300); pg.keyboard.press("Escape"); pg.wait_for_timeout(500)
-    check("geri tuşu menüye döner", pg.evaluate("KB.screen") in ("levels","menu"))
+    check("geri tuşu menüye döner", pg.evaluate("KB.screen") in ("map","worlds","menu"))
     check("hata yok", not errs); print(errs[:3])
     b.close()
 sys.exit(0 if all(res) else 1)

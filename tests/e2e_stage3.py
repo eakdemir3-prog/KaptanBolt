@@ -10,7 +10,7 @@ with sync_playwright() as p:
     pg=b.new_page(viewport={"width":412,"height":915},device_scale_factor=2)
     errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
     pg.goto("http://localhost:4173/"); pg.wait_for_timeout(800)
-    pg.evaluate("localStorage.setItem('kaptanbolt.save.v1', JSON.stringify({seenTutorial:{patrol:1,strong:1,portal:1,chaser:1,boss:1,keys:1,ice:1,castle:1}}))"); pg.reload(); pg.wait_for_timeout(1800)
+    pg.evaluate("Object.assign(KB.data().seenTutorial,{patrol:1,strong:1,portal:1,chaser:1,boss:1,keys:1,ice:1,castle:1}); KB.data().settings.infiniteEnergy=true"); pg.wait_for_timeout(1800)
     pg.screenshot(path=OUT+"s3_menu.png")
     idle=lambda: pg.wait_for_function("KB.idle()",timeout=15000)
     st=lambda k: pg.evaluate(f"KB.state.{k}")

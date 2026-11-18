@@ -5,7 +5,7 @@ const DEFAULT = () => ({
   best: {},           // { bölümNo: en az hamle }
   last: 1,            // kalınan bölüm
   hints: 5,
-  settings: { sound: true, music: true, vibration: true, quality: 'high', unlockAll: true },
+  settings: { sound: true, music: true, vibration: true, quality: 'high', unlockAll: true, infiniteEnergy: false },
   seenTutorial: {},
 });
 
@@ -26,7 +26,19 @@ export function reset() { const d = DEFAULT(); save(d); return d; }
 
 export const isDone = (d, id) => (d.stars[id] || 0) > 0;
 // TEST MODU: unlockAll açıkken tüm bölümler açıktır (Play Store sürümünden önce varsayılanı false yapılacak)
-export const isUnlocked = (d, id) => id === 1 || !!d.settings.unlockAll || isDone(d, id - 1);
+export const WORLD_SIZE = 20;
+export const worldOf = (id) => Math.ceil(id / WORLD_SIZE);
+/** Dünya açık mı: önceki dünyanın boss'u yenildiyse veya yeterli yıldız varsa */
+export function worldUnlocked(d, w) {
+  if (w === 1 || d.settings.unlockAll) return true;
+  return isDone(d, (w - 1) * WORLD_SIZE) || totalStars(d) >= (w - 1) * 25;
+}
+export const isUnlocked = (d, id) => {
+  if (id === 1 || d.settings.unlockAll) return true;
+  const w = worldOf(id);
+  if (!worldUnlocked(d, w)) return false;
+  return id === (w - 1) * WORLD_SIZE + 1 || isDone(d, id - 1);
+};
 export const totalStars = (d) => Object.values(d.stars).reduce((a, b) => a + b, 0);
 
 /** Bölüm sonucu kaydet. Yeni kazanılan 3 yıldız için ipucu ödülü verir. */
@@ -43,6 +55,6 @@ export function recordWin(d, id, stars, moves, maxId) {
 
 /** Devam Et: ilk tamamlanmamış açık bölüm */
 export function continueLevel(d, maxId) {
-  for (let i = 1; i <= maxId; i++) if (!isDone(d, i)) return i;
+  for (let i = 1; i <= maxId; i++) if (!isDone(d, i) && isUnlocked(d, i)) return i;
   return Math.min(d.last, maxId);
 }
