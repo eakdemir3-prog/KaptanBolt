@@ -66,15 +66,15 @@ with sync_playwright() as p:
     c2=pg.evaluate("KB.data().coins")
     for i in range(3): pg.click("#card [data-act=claimq]"); pg.wait_for_timeout(300)
     pg.click("#card [data-act=claimbonus]"); pg.wait_for_timeout(300)
-    check("görev ödülleri ve bonus alındı", pg.evaluate("KB.data().quests.bonus") and pg.evaluate("KB.data().coins")>=c2+250)
+    check("görev ödülleri ve bonus alındı", pg.evaluate("KB.data().quests.bonus") and pg.evaluate("KB.data().coins")>=c2+100)
     pg.click("#card [data-act=close]"); pg.wait_for_timeout(300)
     # kostüm satın alma
-    pg.evaluate("Object.assign(KB.data().settings,{unlockAll:false}); KB.data().coins=600")
+    pg.evaluate("Object.assign(KB.data().settings,{unlockAll:false}); KB.data().coins=900")
     pg.click("[data-act=garage]"); pg.wait_for_timeout(1500)
     pg.click("[data-skin=altin]"); pg.wait_for_timeout(400)
     pg.click("#card [data-act=buyskin]"); pg.wait_for_timeout(800)
     pg.screenshot(path=OUT+"s4_garage.png")
-    check("Altın Kaptan 500 altına alındı ve seçildi", pg.evaluate("KB.data().skin")=="altin" and pg.evaluate("KB.data().coins")==100)
+    check("Altın Kaptan 800 altına alındı ve seçildi", pg.evaluate("KB.data().skin")=="altin" and pg.evaluate("KB.data().coins")==100)
     # başarımlar
     pg.keyboard.press("Escape"); pg.wait_for_timeout(500)
     pg.click("[data-act=ach]"); pg.wait_for_timeout(800)

@@ -63,6 +63,7 @@ export function newState(board) {
     enemies: board.enemies.map((e) => ({ ...e, alive: true })),
     boss: board.boss ? { pos: board.boss.pos, every: board.boss.every, alive: true, tick: 0 } : null,
     pressed: false,
+    frozen: 0,
     moves: 0,
     status: 'play', // play | win | stuck | caught
   };
@@ -72,7 +73,7 @@ export function cloneState(s) {
   return {
     board: s.board, pos: s.pos, collapsed: s.collapsed.slice(), hits: s.hits.slice(),
     keysTaken: s.keysTaken.slice(), enemies: s.enemies.map((e) => ({ ...e })),
-    boss: s.boss ? { ...s.boss } : null, pressed: s.pressed, moves: s.moves, status: s.status,
+    boss: s.boss ? { ...s.boss } : null, pressed: s.pressed, frozen: s.frozen || 0, moves: s.moves, status: s.status,
   };
 }
 
@@ -115,6 +116,14 @@ export function enterable(s, i) {
 }
 
 export function canMove(s, dir) { return s.status === 'play' && enterable(s, step(s.board, s.pos, dir)); }
+/** Zıpla gücü: bir karenin (boşluk/çöken/düşman) üstünden atlayıp ikinci kareye iner */
+export function jumpTarget(s, dir) {
+  const mid = step(s.board, s.pos, dir);
+  if (mid < 0 || mid === s.board.door) return -1;
+  const t = step(s.board, mid, dir);
+  return enterable(s, t) ? t : -1;
+}
+export const canJump = (s, dir) => s.status === 'play' && jumpTarget(s, dir) >= 0;
 export function validMoves(s) { return DIR_LIST.filter((d) => canMove(s, d)); }
 
 function leave(s, i, events) {
@@ -212,14 +221,14 @@ function chase(s, e, size, events) {
  * Hamle yap. Geçersizse null döner (hamle sayılmaz).
  * Geçerliyse durumu yerinde değiştirir ve animasyon olaylarını döndürür.
  */
-export function move(s, dir) {
-  if (!canMove(s, dir)) return null;
+export function move(s, dir, opt = {}) {
+  if (opt.jump ? !canJump(s, dir) : !canMove(s, dir)) return null;
   const b = s.board;
   const events = [];
-  const next = step(b, s.pos, dir);
+  const next = opt.jump ? jumpTarget(s, dir) : step(b, s.pos, dir);
   s.moves++;
   leave(s, s.pos, events);
-  events.push({ t: 'step', from: s.pos, to: next, slide: false });
+  events.push({ t: 'step', from: s.pos, to: next, slide: false, jump: !!opt.jump });
   s.pos = next;
   if (!arrive(s, next, events)) {
     let cur = dir;
@@ -235,8 +244,9 @@ export function move(s, dir) {
       if (arrive(s, n2, events)) break;
     }
   }
-  // Düşmanlar ilk hamlende uyanır: ilk hamle her zaman güvenlidir
-  if (s.status === 'play' && s.moves > 1) moveEnemies(s, events);
+  // Düşmanlar ilk hamlende uyanır: ilk hamle her zaman güvenlidir. Dondur gücü varken beklerler.
+  if (s.status === 'play' && s.frozen > 0 && (s.enemies.length || s.boss)) { s.frozen--; events.push({ t: 'frozen', left: s.frozen }); }
+  else if (s.status === 'play' && s.moves > 1) moveEnemies(s, events);
   else if (s.status === 'play' && s.moves === 1 && (s.enemies.length || s.boss)) events.push({ t: 'wake' });
   if (s.status === 'play' && validMoves(s).length === 0) { s.status = 'stuck'; events.push({ t: 'stuck' }); }
   return events;

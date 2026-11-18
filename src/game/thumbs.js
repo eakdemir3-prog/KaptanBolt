@@ -38,7 +38,7 @@ export function skinImg(skin, big = false) {
   });
 }
 export function boltHead(skin = SKINS[0]) {
-  return memo('head:' + skin.id, () => { const r = makeRobot(skin); setRobotFace(r, 'happy'); return shot(r, { w: 128, h: 128, dist: 1.5, look: 0.78, y: 0.55, el: 0.05 }); });
+  return memo('head:' + skin.id, () => { const r = makeRobot(skin); setRobotFace(r, 'happy'); return shot(r, { w: 160, h: 160, dist: 2.0, look: 0.98, y: 0.98, el: 0.0, rotY: -0.25 }); });
 }
 export function bossImg(w = 10) { return memo('boss' + w, () => shot(makeBoss(w), { w: 192, h: 192, dist: 6.2, look: 1.25, el: 0.18, rotY: -0.35 })); }
 

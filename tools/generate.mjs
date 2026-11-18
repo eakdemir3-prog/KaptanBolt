@@ -32,6 +32,37 @@ function randomPath(w, h, target, used = new Uint8Array(w * h), startCell = null
   return best;
 }
 
+/** Kesişmeli yol: bir kareden iki kez dik açıyla geçebilir (sağlam taş için). Dönüş: { path, cross:Set } */
+function crossPath(w, h, target, wantCross) {
+  const nb = nbFor(w, h);
+  let best = null;
+  for (let attempt = 0; attempt < 120; attempt++) {
+    const cnt = new Uint8Array(w * h), axis = new Array(w * h).fill(null), cross = new Set();
+    const p = [ri(0, w * h - 1)]; cnt[p[0]] = 1;
+    while (p.length < target) {
+      const c = p[p.length - 1], prev = p.length > 1 ? p[p.length - 2] : -1;
+      const opts = [];
+      for (const n of nb(c)) {
+        if (!cnt[n]) opts.push({ n, score: nb(n).filter((m) => !cnt[m]).length + rnd() * 2.2 });
+        else if (cnt[n] === 1 && cross.size < wantCross && axis[n]) {
+          const d = n - c, beyond = n + d, ax = Math.abs(d) === 1 ? 'h' : 'v';
+          const inb = Math.abs(d) === 1 ? Math.floor(beyond / w) === Math.floor(n / w) && beyond >= 0 : beyond >= 0 && beyond < w * h;
+          if (axis[n] !== ax && inb && !cnt[beyond]) opts.push({ n, beyond, score: -1 + rnd() });
+        }
+      }
+      if (!opts.length) break;
+      opts.sort((a, b) => a.score - b.score);
+      const o = opts[0];
+      if (o.beyond !== undefined) { cnt[o.n] = 2; cross.add(o.n); p.push(o.n, o.beyond); cnt[o.beyond] = 1; }
+      else { cnt[o.n] = 1; p.push(o.n); }
+      // ilk geçişin ekseni (düz geçişse) — kesişme ancak düz geçilen karede olur
+      if (p.length >= 3) { const a = p[p.length - 3], b = p[p.length - 2], cc = p[p.length - 1]; if (cnt[b] === 1 && b - a === cc - b) axis[b] = Math.abs(b - a) === 1 ? 'h' : 'v'; }
+    }
+    if (p.length >= target && cross.size >= 1) { best = { path: p, cross }; break; }
+  }
+  return best;
+}
+
 const dist = (w, a, b) => Math.abs((a % w) - (b % w)) + Math.abs(((a / w) | 0) - ((b / w) | 0));
 
 /** Yol tabanlı bölüm: kareler = yol (3 yıldızlık çözüm yapı gereği var) */
@@ -48,6 +79,10 @@ function buildPath(w, h, o) {
     if (p2.length < o.len - l1) return null;
     portalAt = p1.length - 1;
     path = p1.concat(p2);
+  } else if (o.strong) {
+    const cp = crossPath(w, h, o.len, 1 + Math.floor(rnd() * 2));
+    if (!cp) return null;
+    path = cp.path; o = { ...o, _cross: cp.cross };
   } else {
     path = randomPath(w, h, o.len);
     if (path.length < o.len) return null;
@@ -68,7 +103,7 @@ function buildPath(w, h, o) {
     const a = path[k - 1], b = path[k], c = path[k + 1];
     if (b - a === c - b && rnd() < o.ice) put(b, 'i');
   }
-  if (o.strong) for (let k = 1; k < path.length - 1; k++) if (get(path[k]) === '.' && rnd() < o.strong) put(path[k], 'o');
+  if (o._cross) for (const c of o._cross) { if (get(c) !== '.') return null; put(c, 'o'); }
   if (o.bridge) {
     const bs = []; for (let k = 2; k < Math.floor(path.length / 2); k++) if (get(path[k]) === '.') bs.push(k);
     if (!bs.length) return null;
@@ -158,7 +193,7 @@ function evaluate(id, cand, isBoss) {
   let stars = { mode: 'cover' }, cover = null;
   const special = board.enemies.length || board.strongCount || board.portal.some((p) => p >= 0) || board.boss;
   if (!isBoss) {
-    const fc = fullCover(s, special ? 300000 : 2000000);
+    const fc = fullCover(s, board.enemies.length ? 300000 : 2000000);
     if (fc && fc.moves) cover = fc.moves.length;
     else if (!special) return null; // düz yol bölümünde 3 yıldız şart
   }
@@ -168,7 +203,7 @@ function evaluate(id, cand, isBoss) {
   const score = board.tileCount * 0.5 + sh.moves.length * 0.8 + fr * 12 + board.keys.length * 2 + extras * 0.5 + board.enemies.length * 2;
   return {
     lv: { grid: cand.grid, ...(cand.enemies.length ? { enemies: cand.enemies } : {}), ...(cand.boss ? { boss: cand.boss } : {}), ...(stars.mode !== 'cover' ? { stars } : {}) },
-    min: sh.moves.length, cover, fail: fr, score,
+    min: sh.moves.length, cover, fail: fr, score, tiles: board.tileCount,
   };
 }
 
@@ -191,9 +226,9 @@ const SEG = [
   [73, 79, 4, 6, 6, { len: [20, 30], keys: [2, 2], patrols: 2 }],
   [80, 80, 4, 6, 6, { boss: true, keys: 1, every: 2, patrols: 1 }],
   // Dünya 5: Sağlam Taş
-  [81, 85, 5, 5, 5, { len: [10, 16], keys: [1, 1], strong: 0.2 }, 'easy'],
-  [86, 92, 5, 6, 6, { len: [16, 26], keys: [1, 2], strong: 0.2 }],
-  [93, 99, 5, 7, 7, { len: [22, 32], keys: [2, 2], strong: 0.18, patrols: 1 }],
+  [81, 85, 5, 5, 5, { len: [10, 16], keys: [1, 1], strong: true }, 'easy'],
+  [86, 92, 5, 6, 6, { len: [16, 26], keys: [1, 2], strong: true }],
+  [93, 99, 5, 7, 7, { len: [22, 32], keys: [2, 2], strong: true, patrols: 1 }],
   [100, 100, 5, 7, 7, { boss: true, keys: 2, every: 2, strong: 0.12 }],
   // Dünya 6: Işınlanma
   [101, 105, 6, 6, 6, { len: [12, 18], keys: [1, 1], portal: true }, 'easy'],
@@ -219,7 +254,7 @@ const SEG = [
   [181, 199, 10, 7, 7, { mix: true, len: [22, 34], keys: [2, 3] }],
   [200, 200, 10, 7, 7, { boss: true, keys: 2, every: 1, chasers: 1, patrols: 1 }],
 ];
-const MIX = [{ ice: 0.25 }, { strong: 0.15 }, { portal: true }, { bridge: true }, { arrows: 0.2 }, { patrols: 1 }, { chasers: 1 }];
+const MIX = [{ ice: 0.25 }, { strong: true }, { portal: true }, { bridge: true }, { arrows: 0.2 }, { patrols: 1 }, { chasers: 1 }];
 
 const TUT = { 1: 'swipe', 20: 'boss', 21: 'keys', 41: 'ice', 61: 'patrol', 81: 'strong', 101: 'portal', 121: 'chaser', 141: 'bridge', 161: 'arrow', 181: 'castle' };
 
@@ -232,7 +267,7 @@ for (const [a, b, world, w, h, o, tag] of SEG) {
   const isBoss = !!o.boss;
   const pool = [], seen = new Set();
   let tries = 0;
-  const target = isBoss ? 40 : need * 25, maxTries = isBoss ? 6000 : need * 2500;
+  const target = isBoss ? 40 : need * 25, maxTries = isBoss ? 6000 : need * 4000;
   while (pool.length < target && tries < maxTries) {
     tries++;
     let oo = o;
@@ -243,7 +278,9 @@ for (const [a, b, world, w, h, o, tag] of SEG) {
     if (seen.has(k)) continue;
     seen.add(k);
     const ev = evaluate(a, cand, isBoss);
-    if (!ev || ev.min < (isBoss ? 7 : 4)) continue;
+    if (!ev || ev.min < (isBoss ? 8 : 4)) continue;
+    // kestirme yol olmasın: en kısa çözüm karelerin en az yarısı kadar (öğreticiler hariç)
+    if (!isBoss && tag !== 'easy' && ev.min < Math.ceil(ev.tiles * (o.patrols || o.chasers ? 0.42 : 0.5))) continue;
     pool.push(ev);
   }
   pool.sort((x, y) => x.score - y.score);
@@ -253,8 +290,8 @@ for (const [a, b, world, w, h, o, tag] of SEG) {
     let q;
     if (isBoss) q = 0.6;
     else if (tag === 'easy') q = 0.12 + (0.83 * k) / Math.max(1, need - 1);
-    else if (o.patrols || o.chasers) q = 0.15 + (0.65 * k) / Math.max(1, need - 1); // düşmanlı bölümler bir kademe kolay
-    else q = 0.3 + (0.68 * k) / Math.max(1, need - 1);
+    else if (o.patrols || o.chasers) q = 0.25 + (0.65 * k) / Math.max(1, need - 1); // düşmanlı bölümler bir kademe kolay
+    else q = 0.4 + (0.58 * k) / Math.max(1, need - 1);
     const ev = pool[Math.min(pool.length - 1, Math.floor(q * pool.length))];
     pool.splice(pool.indexOf(ev), 1);
     const id = a + k;

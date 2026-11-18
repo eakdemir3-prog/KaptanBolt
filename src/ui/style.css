@@ -68,7 +68,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 .game-bottom { position: absolute; left: 0; right: 0; bottom: calc(var(--sb) + 26px); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .moves { font-size: 13px; opacity: .65; }
 .banner { position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--st) + 178px); padding: 9px 16px; border-radius: 18px; background: rgba(40, 10, 40, .9); border: 1.5px solid #ff6b9a; font-size: 14px; font-weight: 700; white-space: nowrap; box-shadow: 0 0 16px rgba(255, 90, 150, .4); animation: pop .25s ease-out; }
-.tutorial { position: absolute; left: 20px; right: 20px; bottom: calc(var(--sb) + 130px); padding: 14px 16px; border-radius: 18px; background: rgba(10, 8, 35, .92); border: 1.5px solid #ffcf3a; text-align: center; font-size: 15px; font-weight: 700; box-shadow: 0 0 16px rgba(255, 200, 60, .35); animation: pop .3s ease-out; pointer-events: auto; }
+.tutorial { position: absolute; left: 20px; right: 20px; bottom: calc(var(--sb) + 196px); z-index: 3; padding: 14px 16px; border-radius: 18px; background: rgba(10, 8, 35, .92); border: 1.5px solid #ffcf3a; text-align: center; font-size: 15px; font-weight: 700; box-shadow: 0 0 16px rgba(255, 200, 60, .35); animation: pop .3s ease-out; pointer-events: auto; }
 .tutorial small { display: block; font-weight: 500; font-size: 13px; opacity: .8; margin-top: 4px; }
 .tutorial .hand { font-size: 38px; display: inline-block; animation: swipe 1.4s ease-in-out infinite; }
 .tutorial .btn { margin: 10px auto 0; }
@@ -249,3 +249,44 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .set-row { display: flex; gap: 8px; }
 .set-row .btn { flex: 1; margin-top: 10px !important; height: 46px !important; font-size: 15px !important; }
 .card .btn small { font-weight: 500; }
+
+/* ---------- harita işareti / başlık ---------- */
+.map-fade { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--st) + 190px); background: linear-gradient(#0f0b2c 0%, #0f0b2cf2 70%, #0f0b2c00 100%); pointer-events: none; }
+.maphead { background: rgba(20, 16, 56, .97); }
+.pin { position: absolute; width: 66px; height: 82px; margin: -118px 0 0 -33px; pointer-events: none; animation: bob 1.4s ease-in-out infinite; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .55)); }
+.pin .ring { width: 66px; height: 66px; border-radius: 50%; background: radial-gradient(circle at 50% 35%, #2a4a9a, #141038); border: 3px solid #ffd54a; box-shadow: 0 0 16px rgba(255, 213, 74, .7); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.pin .ring img { width: 76px; height: 76px; }
+.pin::after { content: ""; position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); border: 10px solid transparent; border-top: 14px solid #ffd54a; }
+
+/* ---------- mağaza ---------- */
+.shop-tabs { position: absolute; top: calc(var(--st) + 66px); left: 12px; right: 12px; display: flex; gap: 6px; overflow-x: auto; pointer-events: auto; padding-bottom: 4px; }
+.shop-tabs button { flex: none; height: 36px; padding: 0 12px; border-radius: 18px; font-size: 13px; font-weight: 700; background: rgba(15, 12, 45, .8); border: 1px solid rgba(255, 255, 255, .14); }
+.shop-tabs button.on { background: linear-gradient(#57ecff, #16b5dc); color: #062038; border: none; }
+.shop-list { top: calc(var(--st) + 112px); padding: 4px 14px calc(var(--sb) + 24px); }
+.item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .12); margin-bottom: 10px; }
+.item .ii { width: 50px; height: 50px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 28px; background: rgba(60, 220, 255, .12); flex: none; }
+.item .ii img { width: 54px; height: 60px; }
+.item .it { flex: 1; font-weight: 700; font-size: 15px; } .item .it small { display: block; font-weight: 500; font-size: 12px; opacity: .72; margin-top: 2px; }
+.item .own { font-size: 12px; color: #5ae6ff; font-weight: 700; }
+.buy { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; padding: 9px 12px; border-radius: 14px; font-size: 13px; font-weight: 800; background: linear-gradient(#ffe27a, #ffb21e); color: #3a2400; box-shadow: 0 4px 0 #a86a00; }
+.buy.money { background: linear-gradient(#7affb0, #1fc06a); color: #04301a; box-shadow: 0 4px 0 #0a7a3a; }
+.buy.ad { background: linear-gradient(#57ecff, #16b5dc); color: #062038; box-shadow: 0 4px 0 #0a6b8f; }
+.buy.dis { background: #2a2560; color: rgba(255, 255, 255, .5); box-shadow: none; }
+.buy .ic { width: 15px; height: 15px; }
+.pro-card { border-radius: 22px; padding: 18px 16px; margin-bottom: 12px; background: linear-gradient(135deg, #3a2a00, #1c1c24 60%); border: 2px solid #ffcf3a; box-shadow: 0 0 24px rgba(255, 200, 60, .35); }
+.pro-card h3 { font-size: 22px; color: #ffd54a; } .pro-card ul { margin: 8px 0 12px 18px; font-size: 14px; line-height: 1.6; }
+.pro-card .row2 { display: flex; gap: 8px; } .pro-card .row2 .buy { flex: 1; justify-content: center; flex-direction: column; padding: 10px 6px; }
+.pro-card .row2 .buy small { font-weight: 600; font-size: 11px; }
+.pro-badge { display: inline-block; padding: 3px 8px; border-radius: 8px; background: #ffcf3a; color: #3a2400; font-size: 11px; font-weight: 800; }
+.shop-note { font-size: 11px; opacity: .5; text-align: center; margin: 6px 0 14px; }
+
+/* ---------- güç çubuğu ---------- */
+.power-bar { display: flex; gap: 6px; justify-content: center; }
+.pw { position: relative; width: 46px; height: 46px; border-radius: 14px; font-size: 22px; background: rgba(15, 12, 45, .85); border: 1.5px solid rgba(255, 213, 74, .55); display: flex; align-items: center; justify-content: center; }
+.pw b { position: absolute; right: -5px; top: -6px; min-width: 18px; height: 18px; border-radius: 9px; background: #ffcf3a; color: #3a2400; font-size: 11px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+.pw.zero { opacity: .45; } .pw.zero b { background: #2a2560; color: #fff; }
+.pw.active { border-color: #3fe2ff; box-shadow: 0 0 16px rgba(60, 220, 255, .9); background: rgba(30, 80, 120, .9); }
+@media (max-height: 700px) { .pw { width: 40px; height: 40px; font-size: 19px; } }
+
+.menu-row .btn.small { white-space: nowrap; flex-direction: row; font-size: 13px; }
+.menu-row .icon-only { flex: none !important; width: 48px; padding: 0 !important; font-size: 18px !important; }

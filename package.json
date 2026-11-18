@@ -24,6 +24,7 @@
     "@capacitor/app": "^6.0.3",
     "@capacitor/core": "^6.2.3",
     "@capacitor/haptics": "^6.0.3",
+    "@revenuecat/purchases-capacitor": "^9.2.2",
     "three": "^0.170.0"
   },
   "devDependencies": {

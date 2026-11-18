@@ -30,8 +30,9 @@
         <button class="btn purple daily-btn" data-act="daily"><span class="dl">🧩 Günlük</span><small id="dailyInfo"></small></button>
       </div>
       <div class="menu-row">
-        <button class="btn small gold-line" data-act="garage">🎩 Kostümler</button>
-        <button class="btn small" data-act="ach">🏆 Başarımlar<b class="badge hidden" id="achBadge"></b></button>
+        <button class="btn small gold-line" data-act="shop">🛒 Mağaza</button>
+        <button class="btn small" data-act="garage">🎩 Kostüm</button>
+        <button class="btn small icon-only" data-act="ach" aria-label="Başarımlar">🏆<b class="badge hidden" id="achBadge"></b></button>
         <button class="icon-btn settings-btn" data-act="settings" aria-label="Ayarlar"></button>
       </div>
     </div>
@@ -50,6 +51,7 @@
   <!-- YOL HARİTASI -->
   <section id="map" class="screen solid">
     <div class="scroll" id="mapScroll"><div class="map-inner" id="mapInner"></div></div>
+    <div class="map-fade"></div>
     <div class="topbar">
       <button class="icon-btn" data-act="back" aria-label="Geri"></button>
       <div class="res"><div class="chip energy-chip"></div><div class="chip coin-chip"></div></div>
@@ -66,6 +68,17 @@
     </div>
     <div class="hero"><img id="heroImg" alt=""><div class="name" id="heroName"></div></div>
     <div class="garage-panel"><div class="skin-grid" id="skinGrid"></div><p class="garage-tip">Bölüm bitirerek altın kazan, yeni kostümler aç.</p></div>
+  </section>
+
+  <!-- MAĞAZA -->
+  <section id="shop" class="screen solid">
+    <div class="topbar">
+      <button class="icon-btn" data-act="back" aria-label="Geri"></button>
+      <div class="top-title">Mağaza</div>
+      <div class="res"><div class="chip energy-chip"></div><div class="chip coin-chip"></div></div>
+    </div>
+    <div class="shop-tabs" id="shopTabs"></div>
+    <div class="scroll shop-list" id="shopList"></div>
   </section>
 
   <!-- BAŞARIMLAR -->
@@ -96,6 +109,7 @@
     <div id="banner" class="banner hidden"></div>
     <div id="tutorial" class="tutorial hidden"></div>
     <div class="game-bottom">
+      <div class="power-bar" id="powerBar"></div>
       <div class="moves" id="moveInfo"></div>
       <div class="game-row">
         <button class="btn undo-btn" id="undoBtn" data-act="undo" aria-label="Geri al">↶<span id="undoCount"></span></button>

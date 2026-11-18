@@ -169,11 +169,13 @@ export class Stage {
     this.door = makeDoor(); this.door.position.copy(this.cellPos(board.door)).add(new THREE.Vector3(0, 0.18, -0.12));
     this.root.add(this.door);
     this._setDoorOpen(doorOpen(state), false);
-    this.robot = makeRobot(this.skin || SKINS[0]); this.robot.position.copy(this.cellPos(state.pos)).add(new THREE.Vector3(0, 0.18, 0));
+    this.robot = makeRobot(this.skin || SKINS[0]);
+    this._pendingFrozen = (state.frozen || 0) > 0; this.robot.position.copy(this.cellPos(state.pos)).add(new THREE.Vector3(0, 0.18, 0));
     this.robot.userData.turn.rotation.y = 0;
     this.root.add(this.robot);
     this.mood = 'idle'; setRobotFace(this.robot, 'idle');
     this.fitCamera();
+    this.setFrozen(this._pendingFrozen);
   }
 
   cellPos(i) {
@@ -223,6 +225,7 @@ export class Stage {
       else if (e.t === 'caught') await this._caughtAnim();
       else if (e.t === 'bridgeOpen') this._openBridges();
       else if (e.t === 'wake') this._wake();
+      else if (e.t === 'frozen') this.setFrozen(e.left > 0);
       else if (e.t === 'step') await this._step(e);
       else if (e.t === 'key') this._takeKey(e.index);
       else if (e.t === 'doorOpen') this._setDoorOpen(true, true);
@@ -307,6 +310,31 @@ export class Stage {
     this.zzz = [];
     if (this.onSound) this.onSound('wake');
   }
+  /** Dondur gücü: düşmanlar buz mavisi parlar */
+  setFrozen(on) {
+    const list = [...(this.enemyMeshes || []), this.bossMesh].filter(Boolean);
+    for (const m of list) m.traverse((o) => {
+      if (!o.material || !o.material.emissive) return;
+      if (o.userData.em0 === undefined) { o.userData.em0 = o.material.emissive.getHex(); o.userData.ei0 = o.material.emissiveIntensity; }
+      if (on) { o.material.emissive.set(0x3a9aff); o.material.emissiveIntensity = 0.7; } else { o.material.emissive.setHex(o.userData.em0); o.material.emissiveIntensity = o.userData.ei0; }
+    });
+    this.frozenOn = on;
+  }
+  /** Yol Haritası gücü: sonraki hamlelerin okları */
+  showPath(steps) {
+    this.clearHint();
+    const g = new THREE.Group();
+    steps.forEach(({ from, dir }, k) => {
+      const a = new THREE.Group();
+      const mat = new THREE.MeshBasicMaterial({ color: k === 0 ? 0xffd54a : 0xffe9a0, transparent: true, opacity: 0.95 - k * 0.2, depthTest: false });
+      const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.4), mat); shaft.position.z = 0.15; a.add(shaft);
+      const head = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.26, 3), mat); head.rotation.x = Math.PI / 2; head.position.z = 0.45; a.add(head);
+      a.rotation.y = DIR_ANGLE[dir]; a.position.copy(this.cellPos(from)).setY(0.3); a.renderOrder = 10; a.children.forEach((c) => (c.renderOrder = 10));
+      g.add(a);
+    });
+    this.root.add(g); this.hintMesh = g;
+    if (steps[0]) this.face(steps[0].dir);
+  }
   setDanger(cells) {
     for (const d of this.dangerMarks) this.root.remove(d);
     this.dangerMarks = cells.map((i) => { const m = makeDangerMark(); m.position.copy(this.cellPos(i)).setY(0.2); this.root.add(m); return m; });
@@ -357,16 +385,16 @@ export class Stage {
     return tween(90, (t) => { turn.rotation.y = from + (to - from) * t; }, ease.outQuad);
   }
 
-  async _step({ from, to, slide }) {
+  async _step({ from, to, slide, jump }) {
     const a = this.cellPos(from), b = this.cellPos(to);
     const dir = b.x > a.x ? 'right' : b.x < a.x ? 'left' : b.z > a.z ? 'down' : 'up';
     if (!slide) this.face(dir);
     const r = this.robot, U = r.userData;
     if (this.onSound) this.onSound(slide ? 'slide' : 'step');
     this.mood = 'move';
-    await tween(slide ? 110 : 170, (t) => {
+    await tween(slide ? 110 : jump ? 320 : 170, (t) => {
       r.position.x = a.x + (b.x - a.x) * t; r.position.z = a.z + (b.z - a.z) * t;
-      r.position.y = 0.18 + (slide ? 0 : Math.sin(Math.PI * t) * 0.28);
+      r.position.y = 0.18 + (slide ? 0 : Math.sin(Math.PI * t) * (jump ? 0.9 : 0.28));
       const sw = slide ? 0 : Math.sin(t * Math.PI * 2) * 0.6;
       U.legL.rotation.x = sw; U.legR.rotation.x = -sw; U.armL.rotation.x = -sw; U.armR.rotation.x = sw;
       U.body.rotation.x = slide ? -0.18 : 0;
@@ -511,7 +539,7 @@ export class Stage {
     if (this.dangerMarks && this.dangerMarks.length) { const k = 0.55 + Math.abs(Math.sin(t * 5)) * 0.4; for (const d of this.dangerMarks) d.userData.mat.opacity = k; }
     if (this.zzz) for (const z of this.zzz) z.material.rotation = Math.sin(t * 2) * 0.15;
     if (this.arrowTiles) for (const a of this.arrowTiles) a.userData.arrowMat.opacity = 0.6 + Math.abs(Math.sin(t * 4)) * 0.4;
-    if (this.hintMesh) { const k = (Math.sin(t * 6) + 1) / 2; this.hintMesh.children.forEach((c) => (c.material.opacity = 0.5 + k * 0.5)); }
+    if (this.hintMesh) { const k = (Math.sin(t * 6) + 1) / 2; this.hintMesh.traverse((c) => { if (c.material) c.material.opacity = 0.5 + k * 0.5; }); }
     if (this.door && this.doorOpen) this.door.userData.light.intensity = 9 + Math.sin(t * 3) * 2;
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
   }

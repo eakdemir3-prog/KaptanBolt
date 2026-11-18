@@ -41,16 +41,14 @@ export const isUnlocked = (d, id) => {
 };
 export const totalStars = (d) => Object.values(d.stars).reduce((a, b) => a + b, 0);
 
-/** Bölüm sonucu kaydet. Yeni kazanılan 3 yıldız için ipucu ödülü verir. */
-export function recordWin(d, id, stars, moves, maxId) {
+/** Bölüm sonucu kaydet. noBest: güç kullanıldıysa en iyi hamle sayısı güncellenmez. */
+export function recordWin(d, id, stars, moves, maxId, noBest = false) {
   const prev = d.stars[id] || 0;
-  let bonusHint = 0;
-  if (stars === 3 && prev < 3) { d.hints += 1; bonusHint = 1; }
   d.stars[id] = Math.max(prev, stars);
-  d.best[id] = Math.min(d.best[id] ?? Infinity, moves);
+  if (!noBest) d.best[id] = Math.min(d.best[id] ?? Infinity, moves);
   d.last = Math.min(maxId, id + 1);
   save(d);
-  return { bonusHint, newBest: stars > prev };
+  return { prev, newBest: stars > prev };
 }
 
 /** Devam Et: ilk tamamlanmamış açık bölüm */

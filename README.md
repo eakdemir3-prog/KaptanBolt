@@ -46,3 +46,10 @@ Menü teması, boss parçası ve her dünya için ayrı oyun teması varyasyonu 
 1. `src/ads.js` → `testing: false`, kendi ödüllü ve geçiş reklamı birim kimlikleri
 2. `android/app/src/main/AndroidManifest.xml` → `com.google.android.gms.ads.APPLICATION_ID` kendi uygulama kimliğin
 Yerleşimler: enerji (+1, günde 5), bölüm sonu altın x2, ipucu, kaybedince devam; geçiş reklamı bölüm 11'den sonra her 4 bölümde bir.
+
+## Mağaza, güçler ve satın alma
+- Güçler (altınla): Onarım, Dondur, Zıpla, Kalkan, Yol Haritası, +3 Geri Al — `src/economy.js` POWERS
+- Altın sadece bölüm/boss/günlük/görev/başarım/reklam ile kazanılır; tekrar oynamada sadece yeni yıldızların karşılığı verilir
+- Gerçek para: `src/purchases.js` (RevenueCat). Yayından önce `IAP.apiKey` doldurulmalı; Play Console ürün kimlikleri:
+  kb_coins_500, kb_coins_1300, kb_coins_3000, kb_coins_8000 (tüketilebilir), kb_pro_lifetime (tek seferlik), kb_pro_monthly (abonelik). RevenueCat yetki (entitlement) adı: `pro`
+- Pro: geçiş reklamı yok, sınırsız enerji, günlük 100 altın, 2x bölüm altını, Pro Kaptan kostümü

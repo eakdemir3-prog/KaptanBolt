@@ -89,10 +89,11 @@ test('ilerleme kaydı: kazanınca yıldız, kilit açılır, ipucu ödülü', ()
   assert.equal(Save.isUnlocked(d, 2), true);           // test modu varsayılan açık
   d.settings.unlockAll = false;
   assert.equal(Save.isUnlocked(d, 2), false);
-  const r = Save.recordWin(d, 1, 3, 10, 60);
-  assert.equal(r.bonusHint, 1);
+  Save.recordWin(d, 1, 3, 10, 60);
   const d2 = Save.load();
-  assert.equal(d2.stars[1], 3); assert.equal(Save.isUnlocked(d2, 2), true); assert.equal(d2.hints, 6);
+  assert.equal(d2.stars[1], 3); assert.equal(Save.isUnlocked(d2, 2), true); assert.equal(d2.best[1], 10);
+  Save.recordWin(d2, 1, 3, 4, 60, true);
+  assert.equal(Save.load().best[1], 10); // güç kullanılınca en iyi değişmez
   Save.recordWin(d2, 1, 1, 8, 60);
   assert.equal(Save.load().stars[1], 3); // daha düşük yıldız eskiyi silmez
 });
@@ -236,4 +237,26 @@ test('enerji asla 5i geçmez, taşan ödül altına dönüşür', () => {
   assert.equal(Eco.addEnergy(d, 3), 2 * Eco.OVERFLOW_COINS);
   assert.equal(d.energy, 5); assert.equal(d.coins, 40);
   d.energy = 7; Eco.tickEnergy(d); assert.equal(d.energy, 5);
+});
+
+test('güç: zıpla bir boşluğun üstünden atlar', () => {
+  const s = newState(parseLevel({ id: 0, grid: ['S#.K', '###D'] }));
+  assert.equal(canMove(s, 'right'), false);
+  const ev = move(s, 'right', { jump: true });
+  assert.ok(ev); assert.equal(s.pos, 2); assert.equal(s.collapsed[0], 1);
+});
+test('güç: dondur düşmanları bekletir', () => {
+  const s = LV(['S....', '.....', 'K...D'], { enemies: [{ type: 'patrol', at: [3, 1], dir: 'right' }] });
+  s.frozen = 2;
+  move(s, 'down'); assert.equal(s.enemies[0].pos, 8); assert.equal(s.frozen, 1);
+  move(s, 'down'); assert.equal(s.enemies[0].pos, 8); assert.equal(s.frozen, 0);
+  move(s, 'right'); assert.notEqual(s.enemies[0].pos, 8);
+});
+
+test('altın: ilk bitiriş taban+yıldız, tekrar sadece yeni yıldız, boss fazla, Pro 2 kat', () => {
+  assert.equal(Eco.winCoins({ stars: 3 }), 14);
+  assert.equal(Eco.winCoins({ stars: 3, prevStars: 3 }), 0);
+  assert.equal(Eco.winCoins({ stars: 3, prevStars: 1 }), 6);
+  assert.equal(Eco.winCoins({ stars: 3, boss: true }), 105);
+  assert.equal(Eco.winCoins({ stars: 2, pro: true }), 22);
 });

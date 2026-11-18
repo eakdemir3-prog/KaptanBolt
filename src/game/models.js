@@ -189,6 +189,7 @@ export const SKINS = [
   { id: 'lav', name: 'Lav Robotu', stars: 220, body: 0x3a2a2a, grey: 0x5a3a2a, cap: 0xff5a1a, band: 0xffcf3a, eye: 0xffa01a, bag: 0x8a2a10 },
   { id: 'neon', name: 'Neon', stars: 300, body: 0x1a1030, grey: 0x2a1a4a, cap: 0xff3ae0, band: 0x3affe0, eye: 0x3affe0, bag: 0x5a2ab0 },
   { id: 'kral', name: 'Kral Bolt', stars: 400, body: 0xffffff, grey: 0xffd54a, cap: 0x6a1ab0, band: 0xffd54a, eye: 0x7affb0, bag: 0xd02a6a, metal: true },
+  { id: 'pro', name: 'Pro Kaptan', stars: 0, pro: true, body: 0x1c1c24, grey: 0xffcf3a, cap: 0xffcf3a, band: 0x1c1c24, eye: 0xffe14a, bag: 0xffcf3a, metal: true },
 ];
 export function makeRobot(skin = SKINS[0]) {
   const met = skin.metal ? { metalness: 0.6, roughness: 0.25 } : { roughness: 0.3 };

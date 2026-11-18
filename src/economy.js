@@ -3,9 +3,21 @@ export const ENERGY_MAX = 5;
 export const ENERGY_MS = 25 * 60 * 1000;      // 25 dakikada 1 enerji
 export const OVERFLOW_COINS = 20;              // enerji doluyken gelen her enerji ödülü altına dönüşür
 export const AD_ENERGY_PER_DAY = 5;
-export const REFILL_COST = 200;
-export const HINT_COST = 100;
-export const SKIN_PRICES = { klasik: 0, altin: 500, korsan: 1000, ninja: 1500, buz: 2500, lav: 4000, neon: 6000, kral: 9000 };
+export const REFILL_COST = 300;
+export const HINT_COST = 120;
+export const HINT5_COST = 500;
+export const SKIN_PRICES = { klasik: 0, altin: 800, korsan: 1500, ninja: 2200, buz: 3000, lav: 4000, neon: 5000, kral: 6500, pro: -1 };
+export const AD_COINS = 25, AD_COINS_PER_DAY = 5;
+export const PRO_DAILY_COINS = 100;
+/** Bölüm içi güçler (altınla alınır) */
+export const POWERS = [
+  { id: 'repair', ic: '🔨', name: 'Onarım', desc: 'Son çöken kareyi geri getirir', price: 250 },
+  { id: 'freeze', ic: '🧊', name: 'Dondur', desc: 'Düşmanlar ve boss 3 hamle durur', price: 300 },
+  { id: 'jump', ic: '🦘', name: 'Zıpla', desc: 'Bir boşluğun üstünden atlarsın', price: 300 },
+  { id: 'shield', ic: '🛡', name: 'Kalkan', desc: 'Bir kez yakalanmaktan korur', price: 350 },
+  { id: 'map', ic: '🔍', name: 'Yol Haritası', desc: 'Sonraki 3 doğru hamleyi gösterir', price: 200 },
+  { id: 'undo3', ic: '↶', name: '+3 Geri Al', desc: 'Bu bölümde 3 geri alma daha', price: 150 },
+];
 export const WORLD_STARS = (w) => (w - 1) * 25;   // dünya w'nin yıldız eşiği
 
 export function ensure(d) {
@@ -16,6 +28,8 @@ export function ensure(d) {
   d.stats ??= {};
   d.ach ??= {};
   d.quests ??= null;
+  d.powers ??= Object.fromEntries(POWERS.map((p) => [p.id, 1])); // başlangıç hediyesi: her güçten 1
+  d.pro ??= { active: false, lifetime: false, until: 0, lastDaily: '' };
   return d;
 }
 
@@ -43,7 +57,7 @@ export function fullEnergyIn(d, now = Date.now()) {
 }
 export function spendEnergy(d, now = Date.now()) {
   tickEnergy(d, now);
-  if (d.settings && d.settings.infiniteEnergy) return true;
+  if ((d.settings && d.settings.infiniteEnergy) || isPro(d)) return true;
   if (d.energy <= 0) return false;
   if (d.energy >= ENERGY_MAX) d.energyAt = now;
   d.energy--;
@@ -59,34 +73,35 @@ export function addEnergy(d, n) {
   const coins = over * OVERFLOW_COINS; d.coins = (d.coins || 0) + coins;
   return coins;
 }
-export const hasEnergy = (d) => !!(d.settings && d.settings.infiniteEnergy) || tickEnergy(d) > 0;
+export const hasEnergy = (d) => !!(d.settings && d.settings.infiniteEnergy) || isPro(d) || tickEnergy(d) > 0;
 export function fmtTime(ms) {
   const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}` : `${m}:${String(x).padStart(2, '0')}`;
 }
 
 // ---------------- Altın ----------------
-/** Bölüm ödülü: ilk bitirişte tam, tekrarlarda az. Boss +50. */
-export function winCoins({ stars, firstTime, boss }) {
-  let c = firstTime ? 10 + stars * 5 : 5;
-  if (boss && firstTime) c += 50;
-  return c;
+/** Bölüm ödülü (sadece altın): ilk bitirişte taban + yıldız; tekrar oynamada sadece yeni yıldızların karşılığı. Pro 2 kat. */
+export function winCoins({ stars, prevStars = 0, boss = false, pro = false }) {
+  const per = boss ? 15 : 3, base = boss ? 60 : 5;
+  let c = prevStars ? Math.max(0, stars - prevStars) * per : base + stars * per;
+  return pro ? c * 2 : c;
 }
+export const isPro = (d) => !!(d.pro && (d.pro.lifetime || (d.pro.active && d.pro.until > Date.now())));
 
 // ---------------- İstatistik ----------------
 export function stat(d, k, n = 1) { ensure(d); d.stats[k] = (d.stats[k] || 0) + n; questProgress(d, k, n); }
 
 // ---------------- Günlük görevler ----------------
 const QUEST_POOL = [
-  { k: 'wins', min: 2, max: 4, t: (n) => `${n} bölüm bitir`, ic: '🏁', r: { coins: 100 } },
-  { k: 'stars3', min: 1, max: 3, t: (n) => `${n} bölümü 3 yıldızla bitir`, ic: '⭐', r: { hints: 1 } },
-  { k: 'bosses', min: 1, max: 1, t: () => '1 boss yen', ic: '👹', r: { energy: 2 } },
-  { k: 'keys', min: 4, max: 10, t: (n) => `${n} anahtar topla`, ic: '🔑', r: { coins: 80 } },
-  { k: 'collapsed', min: 40, max: 120, step: 10, t: (n) => `${n} kare çökert`, ic: '🧱', r: { coins: 120 } },
-  { k: 'enemyFalls', min: 1, max: 3, t: (n) => `${n} düşmanı boşluğa düşür`, ic: '🤖', r: { coins: 150 } },
-  { k: 'daily', min: 1, max: 1, t: () => 'Günlük bulmacayı çöz', ic: '🧩', r: { energy: 1 } },
+  { k: 'wins', min: 2, max: 4, t: (n) => `${n} bölüm bitir`, ic: '🏁', r: { coins: 40 } },
+  { k: 'stars3', min: 1, max: 3, t: (n) => `${n} bölümü 3 yıldızla bitir`, ic: '⭐', r: { coins: 60 } },
+  { k: 'bosses', min: 1, max: 1, t: () => '1 boss yen', ic: '👹', r: { coins: 60 } },
+  { k: 'keys', min: 4, max: 10, t: (n) => `${n} anahtar topla`, ic: '🔑', r: { coins: 30 } },
+  { k: 'collapsed', min: 40, max: 120, step: 10, t: (n) => `${n} kare çökert`, ic: '🧱', r: { coins: 40 } },
+  { k: 'enemyFalls', min: 1, max: 3, t: (n) => `${n} düşmanı boşluğa düşür`, ic: '🤖', r: { coins: 50 } },
+  { k: 'daily', min: 1, max: 1, t: () => 'Günlük bulmacayı çöz', ic: '🧩', r: { coins: 30 } },
 ];
-export const QUEST_BONUS = 250;
+export const QUEST_BONUS = 100;
 
 function seeded(str) { let s = 0; for (const c of str) s = (s * 31 + c.charCodeAt(0)) | 0; return () => { s |= 0; s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
@@ -132,13 +147,13 @@ export const ACHIEVEMENTS = [
   { id: 'boss5', ic: '👑', name: 'Boss Kralı', desc: '5 farklı boss yen', goal: 5, val: (d) => bossesDone(d), coins: 500 },
   { id: 'kusursuz', ic: '💎', name: 'Kusursuz', desc: '10 bölümü 3 yıldızla bitir', goal: 10, val: (d) => Object.values(d.stars || {}).filter((x) => x === 3).length, coins: 200 },
   { id: 'yildiz100', ic: '⭐', name: 'Yıldız Toplayıcı', desc: '100 yıldız topla', goal: 100, val: (d) => d.totalStars || 0, coins: 300 },
-  { id: 'yildiz300', ic: '🌟', name: 'Yıldız Ustası', desc: '300 yıldız topla', goal: 300, val: (d) => d.totalStars || 0, coins: 1000 },
+  { id: 'yildiz300', ic: '🌟', name: 'Yıldız Ustası', desc: '300 yıldız topla', goal: 300, val: (d) => d.totalStars || 0, coins: 500 },
   { id: 'dusur', ic: '🤖', name: 'Tuzak Ustası', desc: '10 düşmanı boşluğa düşür', goal: 10, val: (d) => d.stats.enemyFalls || 0, coins: 300 },
   { id: 'anahtar', ic: '🔑', name: 'Anahtarcı', desc: '100 anahtar topla', goal: 100, val: (d) => d.stats.keys || 0, coins: 300 },
   { id: 'cokert', ic: '🧱', name: 'Yıkım Ekibi', desc: '1000 kare çökert', goal: 1000, val: (d) => d.stats.collapsed || 0, coins: 400 },
   { id: 'seri7', ic: '🔥', name: 'Sadık Kaptan', desc: '7 gün üst üste günlük bulmaca', goal: 7, val: (d) => (d.daily && d.daily.best) || 0, coins: 500 },
   { id: 'kostum4', ic: '🎩', name: 'Koleksiyoncu', desc: '4 kostüme sahip ol', goal: 4, val: (d) => (d.owned || []).length, coins: 400 },
-  { id: 'hepsi', ic: '🏆', name: 'Efsane Kaptan', desc: '200 bölümün hepsini bitir', goal: 200, val: (d) => Object.keys(d.stars || {}).length, coins: 3000 },
+  { id: 'hepsi', ic: '🏆', name: 'Efsane Kaptan', desc: '200 bölümün hepsini bitir', goal: 200, val: (d) => Object.keys(d.stars || {}).length, coins: 1000 },
 ];
 export function achState(d) {
   ensure(d);
