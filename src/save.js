@@ -5,7 +5,7 @@ const DEFAULT = () => ({
   best: {},           // { bölümNo: en az hamle }
   last: 1,            // kalınan bölüm
   hints: 5,
-  settings: { sound: true, music: true, vibration: true, quality: 'high' },
+  settings: { sound: true, music: true, vibration: true, quality: 'high', unlockAll: true },
   seenTutorial: {},
 });
 
@@ -25,7 +25,8 @@ export function save(data) { try { store && store.setItem(KEY, JSON.stringify(da
 export function reset() { const d = DEFAULT(); save(d); return d; }
 
 export const isDone = (d, id) => (d.stars[id] || 0) > 0;
-export const isUnlocked = (d, id) => id === 1 || isDone(d, id - 1);
+// TEST MODU: unlockAll açıkken tüm bölümler açıktır (Play Store sürümünden önce varsayılanı false yapılacak)
+export const isUnlocked = (d, id) => id === 1 || !!d.settings.unlockAll || isDone(d, id - 1);
 export const totalStars = (d) => Object.values(d.stars).reduce((a, b) => a + b, 0);
 
 /** Bölüm sonucu kaydet. Yeni kazanılan 3 yıldız için ipucu ödülü verir. */

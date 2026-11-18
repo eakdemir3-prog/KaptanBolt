@@ -244,6 +244,7 @@ function settingsModal() {
       <div class="row">🔊 Ses efektleri ${tg('sound')}</div>
       <div class="row">🎵 Müzik ${tg('music')}</div>
       <div class="row">📳 Titreşim ${tg('vibration')}</div>
+      <div class="row">🔓 Tüm bölümler açık (test) ${tg('unlockAll')}</div>
       <div class="row">✨ Grafik <div class="seg"><button class="${s.quality === 'high' ? 'on' : ''}" data-quality="high">Yüksek</button><button class="${s.quality !== 'high' ? 'on' : ''}" data-quality="low">Dengeli</button></div></div>
     </div>
     <button class="btn" data-act="howto">Nasıl Oynanır?</button>

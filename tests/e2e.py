@@ -13,7 +13,8 @@ with sync_playwright() as p:
     errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.on("console", lambda m: m.type == "error" and errs.append(m.text))
-    pg.goto(URL); pg.wait_for_timeout(2500)
+    pg.goto(URL); pg.wait_for_timeout(1000)
+    pg.evaluate("localStorage.setItem('kaptanbolt.save.v1', JSON.stringify({settings:{unlockAll:false}}))"); pg.reload(); pg.wait_for_timeout(2500)
     pg.screenshot(path=OUT+"01_menu.png")
     check("ana menü açıldı", pg.evaluate("KB.screen") == "menu")
     pg.click("[data-act=levels]"); pg.wait_for_timeout(1200)
