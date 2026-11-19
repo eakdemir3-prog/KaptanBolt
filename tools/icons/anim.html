@@ -20,7 +20,7 @@ for (const [name, face, skin] of [['idle','idle',0],['walk','idle',0],['jump','h
   const r = makeRobot(SKINS[skin]); setRobotFace(r, face); r.rotation.y = -0.4; sc.add(r);
   const A = r.userData.anim; const dur = A.play(name, { fade: 0, once: true }) / 1000;
   const frames = [];
-  for (let i = 0; i < 5; i++) { A.mixer.setTime(dur * (i + 0.5) / 5); comp.render(); frames.push(R.domElement.toDataURL('image/png')); }
+  for (let i = 0; i < 5; i++) { A.mixer.setTime(dur * (i + 0.5) / 5); A.update(0); comp.render(); frames.push(R.domElement.toDataURL('image/png')); }
   out[name + (skin ? '_' + skin : '')] = frames; sc.remove(r);
 }
 window.OUT = out; window.DONE = 1;

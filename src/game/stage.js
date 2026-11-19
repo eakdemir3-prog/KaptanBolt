@@ -531,7 +531,7 @@ export class Stage {
       const A = this.robot.userData.anim;
       if (this.menuMode && this.mood === 'idle' && A.current() !== 'wave') A.play('wave', { fade: 0.3 });
       else if (!this.menuMode && A.current() === 'wave') A.play('idle', { fade: 0.3 });
-      A.mixer.update(dt);
+      A.update(dt);
     }
     if (this.keys) for (const key of this.keys.values()) {
       if (key.userData.taken) continue;

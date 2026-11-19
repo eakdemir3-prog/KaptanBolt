@@ -160,6 +160,8 @@ function makeModelRobot(skin) {
   addAccessories(skin, head);
   const dummy = () => { const o = new THREE.Group(); o.userData.y0 = 0; o.userData.hand = new THREE.Group(); body.add(o); return o; };
   const anim = makeAnimator(model);
+  // beyaz dolgu ışığı: ortamın renkli meşaleleri gövdeyi pembe/mor boyamasın
+  const fill = new THREE.PointLight(0xfff6ee, 10, 3.4, 1.2); fill.position.set(0.25, 1.7, 1.3); root.add(fill);
   root.scale.setScalar(1.2);
   root.userData = { body, turn, head: wrap, eyeL: dummy(), eyeR: dummy(), legL: dummy(), legR: dummy(), armL: dummy(), armR: dummy(), eyeMat: mat, eyeColor: skin.eye, glb: true, mat, anim, headBone, headGroup: head };
   if (headBone) { // aksesuarları kafa kemiğine taşı (kemik ölçeğini dengele)

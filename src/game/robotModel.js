@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 
+export const STANCE = 0.22; // kalça açısı (radyan, ~9°)
 export const MODEL_HEIGHT = 1.1;    // robotun kendi boyu; robot kökü 1.2 ölçekli (oyunda ~1.32 birim)
 let template = null, clips = {};
 
@@ -82,6 +83,23 @@ export function makeAnimator(model) {
     a.play(); cur = a;
     return (a.getClip().duration / speed) * 1000;
   };
-  play('idle', { fade: 0 }); mixer.update(0.4);
-  return { mixer, play, has: (n) => !!acts[n], current: () => (cur ? cur.getClip().name : null) };
+  // Ayak duruşu: hareketler insan oranına göre; kalın bacaklı robotta çizmeler birleşmesin diye
+  // kalçaları her karede biraz dışa aç, ayak tabanını yere paralel tut
+  const bone = (n) => { let b = null; model.traverse((o) => { if (o.isBone && o.name.endsWith(n)) b = o; }); return b; };
+  const legs = [[bone('LeftUpLeg'), bone('LeftFoot'), 1], [bone('RightUpLeg'), bone('RightFoot'), -1]].filter((l) => l[0] && l[1]);
+  const qz = new THREE.Quaternion(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), Z = new THREE.Vector3(0, 0, 1), ax = new THREE.Vector3();
+  const spread = () => {
+    for (const [up, foot, sx] of legs) {
+      foot.updateWorldMatrix(true, false); foot.getWorldQuaternion(qa);
+      // ileri ekseni (modelin +Z'si) kalçanın üst kemiğinin ebeveyn uzayına çevir, o eksende dışa aç
+      model.getWorldQuaternion(qb); ax.copy(Z).applyQuaternion(qb);
+      up.parent.getWorldQuaternion(qb); ax.applyQuaternion(qb.invert()).normalize();
+      qz.setFromAxisAngle(ax, sx * STANCE); up.quaternion.premultiply(qz);
+      up.updateMatrixWorld(true);
+      foot.parent.getWorldQuaternion(qb); foot.quaternion.copy(qb.invert().multiply(qa));
+    }
+  };
+  const update = (dt) => { mixer.update(dt); spread(); };
+  play('idle', { fade: 0 }); update(0.4);
+  return { mixer, update, play, has: (n) => !!acts[n], current: () => (cur ? cur.getClip().name : null) };
 }
