@@ -238,51 +238,64 @@ function evaluate(id, cand, isBoss) {
 
 // [ilk, son, dünya, w, h, seçenekler, etiket]
 const SEG = [
-  // Dünya 1: hızlı öğrenme + sonraki dünyalardan tadımlıklar (8: iki anahtar, 12: devriye, 16: buz)
+  // Dünya 1: hızlı öğrenme + tadımlıklar (8: iki anahtar, 10: lazer nöbetçi, 12: devriye, 14: kemirici böcek, 16: buz)
   [2, 4, 1, 5, 5, { len: [6, 9], keys: [1, 1] }, 'easy'],
   [5, 7, 1, 5, 5, { len: [11, 15], keys: [1, 1] }],
   [8, 8, 1, 5, 5, { len: [12, 16], keys: [2, 2] }],
-  [9, 11, 1, 5, 5, { len: [14, 19], keys: [1, 1] }],
+  [9, 9, 1, 5, 5, { len: [14, 19], keys: [1, 1] }],
+  [10, 10, 1, 5, 5, { len: [11, 15], keys: [1, 1], sentries: 1 }, 'easy'],
+  [11, 11, 1, 5, 5, { len: [14, 19], keys: [1, 1] }],
   [12, 12, 1, 5, 5, { len: [12, 16], keys: [1, 1], patrols: 1 }, 'easy'],
-  [13, 15, 1, 6, 6, { len: [16, 22], keys: [1, 2] }],
+  [13, 13, 1, 6, 6, { len: [16, 22], keys: [1, 2] }],
+  [14, 14, 1, 5, 5, { len: [12, 16], keys: [1, 1], gnawers: 1 }, 'easy'],
+  [15, 15, 1, 6, 6, { len: [16, 22], keys: [1, 2] }],
   [16, 16, 1, 5, 5, { len: [12, 16], keys: [1, 1], ice: 0.45 }, 'easy'],
-  [17, 19, 1, 6, 6, { len: [18, 26], keys: [1, 2] }],
+  [17, 17, 1, 6, 6, { len: [18, 26], keys: [1, 2] }],
+  [18, 18, 1, 6, 6, { len: [16, 22], keys: [1, 2], sentries: 1 }],
+  [19, 19, 1, 6, 6, { len: [16, 22], keys: [1, 2], gnawers: 1 }],
   [20, 20, 1, 6, 6, { boss: true, keys: 1, every: 2 }],
-  [21, 30, 2, 5, 5, { len: [14, 22], keys: [2, 2] }],
-  [31, 39, 2, 6, 6, { len: [20, 30], keys: [2, 3] }],
+  [21, 27, 2, 5, 5, { len: [14, 22], keys: [2, 2] }],
+  [28, 28, 2, 5, 5, { len: [12, 16], keys: [1, 1], sentries: 1 }, 'easy'],
+  [29, 30, 2, 5, 5, { len: [14, 22], keys: [2, 2] }],
+  [31, 35, 2, 6, 6, { len: [20, 30], keys: [2, 3] }],
+  [36, 36, 2, 5, 5, { len: [12, 16], keys: [1, 1], gnawers: 1 }, 'easy'],
+  [37, 39, 2, 6, 6, { len: [20, 30], keys: [2, 3] }],
   [40, 40, 2, 6, 6, { boss: true, keys: 2, every: 2 }],
   [41, 45, 3, 5, 5, { len: [10, 16], keys: [1, 1], ice: 0.55 }, 'easy'],
   [46, 52, 3, 6, 6, { len: [16, 24], keys: [1, 2], ice: 0.5 }],
-  [53, 59, 3, 6, 6, { len: [22, 32], keys: [2, 3], ice: 0.45 }],
+  [53, 55, 3, 6, 6, { len: [20, 30], keys: [1, 2], ice: 0.4, sentries: 1 }],
+  [56, 59, 3, 6, 6, { len: [22, 32], keys: [2, 3], ice: 0.45, gnawers: 1 }],
   [60, 60, 3, 6, 6, { boss: true, keys: 1, every: 2, ice: 0.12 }],
   // Dünya 4: Devriye
   [61, 65, 4, 5, 5, { len: [12, 18], keys: [1, 1], patrols: 1 }, 'easy'],
   [66, 72, 4, 6, 6, { len: [16, 26], keys: [1, 2], patrols: 1 }],
-  [73, 79, 4, 6, 6, { len: [20, 30], keys: [2, 2], patrols: 2 }],
+  [73, 75, 4, 6, 6, { len: [20, 30], keys: [2, 2], patrols: 2 }],
+  [76, 79, 4, 6, 6, { len: [20, 30], keys: [2, 2], patrols: 1, sentries: 1 }],
   [80, 80, 4, 6, 6, { boss: true, keys: 1, every: 2, patrols: 1 }],
   // Dünya 5: Sağlam Taş
   [81, 85, 5, 5, 5, { len: [10, 16], keys: [1, 1], strong: true }, 'easy'],
-  [86, 92, 5, 6, 6, { len: [16, 26], keys: [1, 2], strong: true }],
+  [86, 92, 5, 6, 6, { len: [16, 26], keys: [1, 2], strong: true, gnawers: 1 }],
   [93, 99, 5, 7, 7, { len: [22, 32], keys: [2, 2], strong: true, sentries: 1 }],
   [100, 100, 5, 7, 7, { boss: true, keys: 2, every: 2, strong: 0.12 }],
   // Dünya 6: Işınlanma
   [101, 105, 6, 6, 6, { len: [12, 18], keys: [1, 1], portal: true }, 'easy'],
-  [106, 112, 6, 7, 7, { len: [18, 28], keys: [1, 2], portal: true }],
+  [106, 112, 6, 7, 7, { len: [18, 28], keys: [1, 2], portal: true, gnawers: 1 }],
   [113, 119, 6, 7, 7, { len: [24, 34], keys: [2, 3], portal: true, ice: 0.2, sentries: 1 }],
   [120, 120, 6, 7, 7, { boss: true, keys: 1, every: 2, portal: true }],
   // Dünya 7: Takipçi
   [121, 125, 7, 6, 6, { len: [12, 18], keys: [1, 1], chasers: 1 }, 'easy'],
   [126, 132, 7, 6, 6, { len: [16, 26], keys: [1, 2], chasers: 1 }],
-  [133, 139, 7, 7, 7, { len: [20, 32], keys: [2, 2], chasers: 1, patrols: 1 }],
+  [133, 135, 7, 7, 7, { len: [20, 32], keys: [2, 2], chasers: 1, patrols: 1 }],
+  [136, 139, 7, 7, 7, { len: [20, 32], keys: [2, 2], chasers: 1, sentries: 1 }],
   [140, 140, 7, 7, 7, { boss: true, keys: 2, every: 2, chasers: 1 }],
   // Dünya 8: Düğme ve Köprü
   [141, 145, 8, 6, 6, { len: [12, 18], keys: [1, 1], bridge: true }, 'easy'],
-  [146, 152, 8, 7, 7, { len: [18, 28], keys: [1, 2], bridge: true }],
+  [146, 152, 8, 7, 7, { len: [18, 28], keys: [1, 2], bridge: true, sentries: 1 }],
   [153, 159, 8, 7, 7, { len: [22, 32], keys: [2, 2], bridge: true, gnawers: 1 }],
   [160, 160, 8, 7, 7, { boss: true, keys: 1, every: 2, bridge: true }],
   // Dünya 9: Ok Labirenti
   [161, 165, 9, 6, 6, { len: [12, 18], keys: [1, 1], arrows: 0.3 }, 'easy'],
-  [166, 172, 9, 7, 7, { len: [18, 28], keys: [1, 2], arrows: 0.3 }],
+  [166, 172, 9, 7, 7, { len: [18, 28], keys: [1, 2], arrows: 0.3, sentries: 1 }],
   [173, 179, 9, 7, 7, { len: [22, 32], keys: [2, 2], arrows: 0.25, ice: 0.15, gnawers: 1 }],
   [180, 180, 9, 7, 7, { boss: true, keys: 1, every: 2, arrows: 0.1 }],
   // Dünya 10: Son Kale (karışık)
@@ -291,7 +304,7 @@ const SEG = [
 ];
 const MIX = [{ ice: 0.25 }, { strong: true }, { portal: true }, { bridge: true }, { arrows: 0.2 }, { patrols: 1 }, { chasers: 1 }, { sentries: 1 }, { gnawers: 1 }];
 
-const TUT = { 1: 'swipe', 8: 'keys', 12: 'patrol', 16: 'ice', 20: 'boss', 21: 'keys', 41: 'ice', 61: 'patrol', 81: 'strong', 101: 'portal', 121: 'chaser', 141: 'bridge', 161: 'arrow', 181: 'castle', 93: 'sentry', 153: 'gnawer' };
+const TUT = { 1: 'swipe', 8: 'keys', 12: 'patrol', 16: 'ice', 20: 'boss', 21: 'keys', 41: 'ice', 61: 'patrol', 81: 'strong', 101: 'portal', 121: 'chaser', 141: 'bridge', 161: 'arrow', 181: 'castle', 10: 'sentry', 14: 'gnawer' };
 
 const only = process.argv[2] ? +process.argv[2] : 0; // hızlı deneme: belirli bir segment
 const levels = [{ id: 1, world: 1, grid: ['#####', 'S...K', '####.', 'D....', '#####'] }];
