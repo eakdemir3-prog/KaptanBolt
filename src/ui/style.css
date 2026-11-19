@@ -253,10 +253,12 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 /* ---------- harita işareti / başlık ---------- */
 .map-fade { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--st) + 190px); background: linear-gradient(#0f0b2c 0%, #0f0b2cf2 70%, #0f0b2c00 100%); pointer-events: none; }
 .maphead { background: rgba(20, 16, 56, .97); }
-.pin { position: absolute; width: 66px; height: 82px; margin: -118px 0 0 -33px; pointer-events: none; animation: bob 1.4s ease-in-out infinite; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .55)); }
+.pin { position: absolute; width: 66px; height: 66px; margin: -33px 0 0 -33px; pointer-events: none; animation: bob 1.4s ease-in-out infinite; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .55)); z-index: 2; }
 .pin .ring { width: 66px; height: 66px; border-radius: 50%; background: radial-gradient(circle at 50% 35%, #2a4a9a, #141038); border: 3px solid #ffd54a; box-shadow: 0 0 16px rgba(255, 213, 74, .7); overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .pin .ring img { width: 76px; height: 76px; }
-.pin::after { content: ""; position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); border: 10px solid transparent; border-top: 14px solid #ffd54a; }
+.pin::after { content: ""; position: absolute; top: 50%; transform: translateY(-50%); border: 9px solid transparent; }
+.pin.r::after { left: -15px; border-right: 13px solid #ffd54a; }
+.pin.l::after { right: -15px; border-left: 13px solid #ffd54a; }
 
 /* ---------- mağaza ---------- */
 .shop-tabs { position: absolute; top: calc(var(--st) + 66px); left: 12px; right: 12px; display: flex; gap: 6px; overflow-x: auto; pointer-events: auto; padding-bottom: 4px; }
@@ -290,3 +292,29 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 .menu-row .btn.small { white-space: nowrap; flex-direction: row; font-size: 13px; }
 .menu-row .icon-only { flex: none !important; width: 48px; padding: 0 !important; font-size: 18px !important; }
+
+/* ---------- kayma düzeltmeleri ---------- */
+.maphead { align-items: center; }
+.mh-text { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.mh-text b, .mh-text span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mh-text b { font-size: clamp(14px, 4.3vw, 17px); } .mh-text span { font-size: 12px; opacity: .75; margin-top: 2px; }
+.maphead .chip { flex: none; height: 36px; font-size: 14px; }
+.shop-tabs { background: linear-gradient(#18113f, #18113f 80%, #18113f00); padding: 4px 0 8px; margin: -4px 0 0; z-index: 2; scrollbar-width: none; }
+.shop-tabs::-webkit-scrollbar { display: none; }
+.shop-list { top: calc(var(--st) + 116px); }
+.item .it { min-width: 0; } .item .it small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item .ii svg { display: block; }
+.menu-row .btn { position: relative; }
+.menu-row .badge { position: absolute; top: -6px; right: -6px; margin: 0; }
+.top-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.wc .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc .meta span { white-space: nowrap; }
+.btn { white-space: nowrap; }
+.chip { white-space: nowrap; }
+
+@media (max-height: 700px) {
+  .card { max-height: 94vh; padding: 18px 16px 16px; }
+  .card .btn { height: 46px; margin-top: 8px; font-size: 16px; }
+  .card .emoji { font-size: 40px; }
+  .card h2 { font-size: 22px; }
+}

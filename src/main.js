@@ -10,7 +10,7 @@ import * as Save from './save.js';
 import * as Eco from './economy.js';
 import { sfx, unlock as audioUnlock, setSound, setMusic, setTrack, suspend, resume } from './audio.js';
 import { initAds, showRewarded, maybeInterstitial } from './ads.js';
-import { IAP, initPurchases, buy as iapBuy, proStatus, restore as iapRestore } from './purchases.js';
+import { IAP, initPurchases, buy as iapBuy, proStatus, restore as iapRestore, purchasesReady } from './purchases.js';
 import { vibrate, setVibration, onBack, exitApp, onPause } from './platform.js';
 
 const MAX = LEVELS.length;
@@ -79,16 +79,18 @@ function showcase() {
 /** Menüde 3D tahta logonun altı ile düğmelerin üstü arasına yerleşir (hiçbir telefonda üst üste binmez) */
 function layoutMenu() {
   const top = $('menuLogo').getBoundingClientRect().bottom + 8;
-  const bottom = innerHeight - $('menuBottom').getBoundingClientRect().top + 8;
+  const bottom = innerHeight - $('menuBottom').getBoundingClientRect().top + 26;
   stage.setSafe(top, bottom);
 }
 
 function renderRes() {
   Eco.tickEnergy(data);
-  const inf = data.settings.infiniteEnergy;
+  const inf = data.settings.infiniteEnergy || Eco.isPro(data);
   const next = Eco.nextEnergyIn(data);
-  for (const el of $$('.energy-chip')) el.innerHTML = `${BOLT()}<span>${inf ? '∞' : `${data.energy}/${Eco.ENERGY_MAX}`}</span>${!inf && next ? `<span class="lbl t">${Eco.fmtTime(next)}</span>` : ''}`;
-  for (const el of $$('.coin-chip')) el.innerHTML = `${COIN}<span>${fmtNum(data.coins)}</span>`;
+  const eh = `${BOLT()}<span>${inf ? '∞' : `${data.energy}/${Eco.ENERGY_MAX}`}</span>${!inf && next ? `<span class="lbl t">${Eco.fmtTime(next)}</span>` : ''}`;
+  const ch = `${COIN}<span>${fmtNum(data.coins)}</span>`;
+  for (const el of $$('.energy-chip')) if (el._h !== eh) { el.innerHTML = eh; el._h = eh; }
+  for (const el of $$('.coin-chip')) if (el._h !== ch) { el.innerHTML = ch; el._h = ch; }
 }
 setInterval(() => { if (screen !== 'game') renderRes(); if (energyModalOpen) renderEnergyModal(); }, 1000);
 
@@ -141,7 +143,7 @@ function renderMap() {
     const stars = st ? `<span class="st">${'★'.repeat(st)}${'☆'.repeat(3 - st)}</span>` : '';
     if (boss) nodes += `<button class="node boss ${cls}" data-lv="${id}" ${open ? '' : 'data-locked="1"'} style="left:${x}px;top:${y}px"><img src="${bossImg(w)}" alt="">${stars}</button>`;
     else nodes += `<button class="node ${cls}" data-lv="${id}" ${open ? '' : 'data-locked="1"'} style="left:${x}px;top:${y}px">${id}${stars}</button>`;
-    if (cls === 'cur' && curY === null) { nodes += `<div class="pin" style="left:${x}px;top:${y - (boss ? 22 : 0)}px"><div class="ring"><img src="${head}" alt=""></div></div>`; curY = y; }
+    if (cls === 'cur' && curY === null) { const side = x > W / 2 ? -1 : 1; nodes += `<div class="pin ${side < 0 ? 'l' : 'r'}" style="left:${x + side * (boss ? 92 : 74)}px;top:${y}px"><div class="ring"><img src="${head}" alt=""></div></div>`; curY = y; }
   });
   if (curY === null) curY = pts[n - 1][1];
   const dots = Array.from({ length: 60 }, (_, i) => `<circle cx="${(i * 97) % W}" cy="${(i * 233) % H}" r="${1 + (i % 3)}" fill="${hex(th.particle)}" opacity=".45"/>`).join('');
@@ -150,7 +152,7 @@ function renderMap() {
   $('mapInner').innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><defs><filter id="gl"><feGaussianBlur stdDeviation="6"/></filter></defs>${dots}
     <path d="${d}" stroke="${hex(th.tile)}" stroke-width="22" fill="none" opacity=".35" filter="url(#gl)"/>
     <path d="${d}" stroke="#e8fbff" stroke-width="10" fill="none" stroke-dasharray="2 16" stroke-linecap="round"/></svg>${nodes}`;
-  $('mapHead').innerHTML = `<div><b>Dünya ${w}: ${th.name}</b><br><span>${MECH[w]} • 👑 Boss: ${last}. bölüm</span></div><div class="chip">⭐ ${worldStars(w)}/${n * 3}</div>`;
+  $('mapHead').innerHTML = `<div class="mh-text"><b>Dünya ${w}: ${th.name}</b><span>${MECH_TAG[w]} • 👑 Boss ${last}</span></div><div class="chip">⭐ ${worldStars(w)}/${n * 3}</div>`;
   requestAnimationFrame(() => { $('mapScroll').scrollTop = Math.max(0, curY - innerHeight * 0.55); });
 }
 
@@ -212,7 +214,7 @@ function questsModal() {
     <button class="btn primary" data-act="close">Kapat</button>`);
 }
 
-let energyModalOpen = false, energyThen = null;
+let energyModalOpen = false, energyThen = null, lastEnergyShown = -1;
 function energyModal(then) { energyThen = then || null; renderEnergyModal(true); energyModalOpen = true; }
 function renderEnergyModal(first) {
   Eco.tickEnergy(data);
@@ -223,12 +225,16 @@ function renderEnergyModal(first) {
     <h2>${data.energy > 0 ? 'Enerji' : 'Enerjin Bitti'}</h2>
     <p>Kaybettiğin her bölüm 1 enerji harcar. Kazandığın bölümler enerji harcamaz. En fazla ${Eco.ENERGY_MAX} enerji birikir.</p>
     <div class="bolts">${Array.from({ length: Eco.ENERGY_MAX }, (_, i) => BOLT(i < data.energy ? '' : 'off')).join('')}</div>
-    <div class="stat"><div><b>${next ? Eco.fmtTime(next) : '—'}</b>sonraki enerji</div><div><b>${full ? Eco.fmtTime(full) : 'Dolu'}</b>tamamı dolar</div></div>
+    <div class="stat"><div><b id="enNext">${next ? Eco.fmtTime(next) : '—'}</b>sonraki enerji</div><div><b id="enFull">${full ? Eco.fmtTime(full) : 'Dolu'}</b>tamamı dolar</div></div>
     ${data.energy < Eco.ENERGY_MAX && Eco.adCount(data, 'energy', dateKey()) < Eco.AD_ENERGY_PER_DAY ? `<button class="btn primary" data-act="adEnergy">📺 Reklam izle: ${BOLT()} +1 <small style="opacity:.75;font-size:12px">(${Eco.AD_ENERGY_PER_DAY - Eco.adCount(data, 'energy', dateKey())} hak)</small></button>` : ''}
     ${data.energy < Eco.ENERGY_MAX ? `<button class="btn gold" data-act="refill">${COIN} ${Eco.REFILL_COST} ile doldur</button>` : ''}
     
     <button class="linkbtn" data-act="closeEnergy">Kapat</button>`;
-  if (first) openModal(html, 'fail'); else if (!$('modal').classList.contains('hidden')) $('card').innerHTML = html;
+  if (first || lastEnergyShown !== data.energy) { lastEnergyShown = data.energy; if (first) openModal(html, 'fail'); else if (!$('modal').classList.contains('hidden')) $('card').innerHTML = html; return; }
+  // Her saniye sadece sayaçları güncelle (düğmeler yerinde kalsın, dokunuşlar kaybolmasın)
+  const n = $('enNext'), f = $('enFull');
+  if (n) n.textContent = next ? Eco.fmtTime(next) : '—';
+  if (f) f.textContent = full ? Eco.fmtTime(full) : 'Dolu';
 }
 
 // ---------------- Oyun ----------------
@@ -386,7 +392,7 @@ function onWin() {
     ${starsHtml(stars)}
     <div class="stat"><div><b>${s.moves}</b>hamle</div>${s.board.stars.mode === 'moves' ? `<div><b>≤${s.board.stars.par[0]}</b>hedef</div>` : `<div><b>${cnt}/${tgt}</b>çöken kare</div>`}<div><b>+${coins}</b>altın</div></div>
     ${stars < 3 ? `<div class="tip">${s.board.stars.mode === 'moves' ? `⭐⭐⭐ için en fazla <b>${s.board.stars.par[0]} hamlede</b> bitir!` : `⭐⭐⭐ için kapıya girmeden önce <b>bütün kareleri</b> çökert!`}</div>` : ''}
-    ${coins > 0 ? `<button class="btn gold" data-act="adDouble" data-c="${coins}">📺 Reklam izle: altını 2 katına çıkar (+${coins})</button>` : `<div class="tip">Tekrar oynamada altın sadece yeni yıldızlar için verilir.</div>`}
+    ${coins > 0 ? `<button class="btn gold" data-act="adDouble" data-c="${coins}">📺 Reklam izle: 2× altın (+${coins})</button>` : `<div class="tip">Tekrar oynamada altın sadece yeni yıldızlar için verilir.</div>`}
     ${nextOpen ? '<button class="btn primary" data-act="next">Sonraki Bölüm →</button>' : `<div class="tip">🔒 Dünya ${Save.worldOf(id + 1)} için ⭐ ${Eco.WORLD_STARS(Save.worldOf(id + 1))} gerekiyor. Yıldızları artırmak için bölümleri tekrar oyna!</div>`}
     <button class="btn" data-act="restart"><span class="i-restart"></span>Tekrar Oyna</button>
     <button class="linkbtn" data-act="map">Haritaya dön</button>`);
@@ -430,7 +436,7 @@ function onLose(kind) {
     <h2>${caught ? 'Yakalandın!' : 'Yol Kapandı'}</h2>
     <p>${caught ? 'Bir düşman robot Kaptan Bolt\'a yetişti. Kırmızı X olan karelere gitme!' : 'Gidecek kare kalmadı. Rotanı yeniden planla, Kaptan!'}</p>
     ${cost}
-    ${game.history.length && !game.adContinueUsed ? '<button class="btn primary" data-act="adContinue">📺 Reklam izle, kaldığın yerden devam et</button>' : ''}
+    ${game.history.length && !game.adContinueUsed ? '<button class="btn primary" data-act="adContinue">📺 Reklamla devam et</button>' : ''}
     ${undoBtnHtml()}
     <button class="btn primary" data-act="restart"><span class="i-restart"></span>Yeniden Başla</button>
     <button class="btn purple" data-act="${daily ? 'menu' : 'map'}">${daily ? 'Ana Menü' : 'Haritaya dön'}</button>`, 'fail');
@@ -493,18 +499,14 @@ function usePower(id) {
     consume(); s.collapsed[c] = 0; if (s.board.cells[c] === STRONG) s.hits[c] = 1;
     stage.build(s.board, s); $('banner').classList.add('hidden'); toast('🔨 Kare onarıldı'); updateDanger(); return updateHud();
   }
-  if (id === 'map') {
-    const r = shortest(s, 400000, 2500);
-    if (!r || r.unknown || !r.moves.length) return toast(!r ? 'Buradan çıkış yok. Geri al ya da Onarım kullan!' : 'Yol hesaplanamadı, biraz ilerleyip tekrar dene.');
-    consume();
-    const c = cloneState(s), steps = [];
-    for (const d of r.moves.slice(0, 3)) { steps.push({ from: c.pos, dir: d }); move(c, d); }
-    stage.showPath(steps); return updateHud();
-  }
 }
 
 // ---------------- Mağaza ----------------
 let shopTab = 'powers';
+/** Gerçek para düğmesi: mağaza bağlantısı kurulmadıysa "Yakında" görünür */
+const moneyBtn = (k, label, cls = 'money') => (purchasesReady() ? `<button class="buy ${cls === 'gold' ? '' : 'money'}" data-act="iap" data-k="${k}">${label}</button>` : '<span class="buy dis">Yakında</span>');
+/** Üst üste altın simgesi (tek satır, taşmaz) */
+const coinStack = (n) => `<svg viewBox="0 0 40 40" width="42" height="42">${Array.from({ length: n }, (_, i) => `<g transform="translate(${4 + i * 4},${14 - i * 5})"><ellipse cx="14" cy="16" rx="12" ry="5" fill="#b07a00"/><ellipse cx="14" cy="13" rx="12" ry="5" fill="#ffcf3a" stroke="#b07a00" stroke-width="1.5"/></g>`).join('')}</svg>`;
 const SHOP_TABS = [['powers', '⚡ Güçler'], ['pro', '👑 Pro'], ['coins', '🪙 Altın'], ['hints', '💡 İpucu'], ['skins', '🎩 Kostüm'], ['energy', '🔋 Enerji']];
 function renderShop() {
   $('shopTabs').innerHTML = SHOP_TABS.map(([k, t]) => `<button class="${k === shopTab ? 'on' : ''}" data-shoptab="${k}">${t}</button>`).join('');
@@ -531,15 +533,15 @@ function renderShop() {
   } else if (shopTab === 'coins') {
     const left = Eco.AD_COINS_PER_DAY - Eco.adCount(data, 'coins', today);
     h = `<div class="item"><div class="ii">📺</div><div class="it">Reklam izle: +${Eco.AD_COINS} altın<small>Bugün ${left} hak kaldı</small></div><button class="buy ad ${left > 0 ? '' : 'dis'}" data-act="adCoins">İzle</button></div>`
-      + ['coins500', 'coins1300', 'coins3000', 'coins8000'].map((k, i) => { const p = IAP.products[k]; return `<div class="item"><div class="ii">${'🪙'.repeat(Math.min(3, i + 1))}</div><div class="it">${fmtNum(p.coins)} Altın<small>${['Başlangıç', 'Popüler', 'Avantajlı', 'En iyi değer'][i]}</small></div><button class="buy money" data-act="iap" data-k="${k}">${p.price}</button></div>`; }).join('')
+      + ['coins500', 'coins1300', 'coins3000', 'coins8000'].map((k, i) => { const p = IAP.products[k]; return `<div class="item"><div class="ii">${coinStack(i + 1)}</div><div class="it">${fmtNum(p.coins)} Altın<small>${['Başlangıç', 'Popüler', 'Avantajlı', 'En iyi değer'][i]}</small></div>${moneyBtn(k, p.price)}</div>`; }).join('')
       + '<p class="shop-note">Ödemeler Google Play üzerinden yapılır.</p>';
   } else if (shopTab === 'pro') {
     const pro = Eco.isPro(data);
     h = `<div class="pro-card"><h3>👑 Kaptan Bolt PRO</h3>
       <ul><li>Geçiş reklamı yok</li><li>Sınırsız enerji</li><li>Her gün ${Eco.PRO_DAILY_COINS} altın hediye</li><li>Bölüm altınları 2 katı</li><li>Özel "Pro Kaptan" kostümü</li></ul>
       ${pro ? `<div class="tip">✔ Pro üyesisin${data.pro.lifetime ? ' (ömür boyu)' : data.pro.until ? ` • ${new Date(data.pro.until).toLocaleDateString('tr-TR')} tarihine kadar` : ''}</div>` : `<div class="row2">
-        <button class="buy money" data-act="iap" data-k="proMonthly">Aylık<small>${IAP.products.proMonthly.price}</small></button>
-        <button class="buy" data-act="iap" data-k="proLifetime">Ömür Boyu<small>${IAP.products.proLifetime.price}</small></button></div>`}
+        ${moneyBtn('proMonthly', `Aylık<small>${IAP.products.proMonthly.price}</small>`)}
+        ${moneyBtn('proLifetime', `Ömür Boyu<small>${IAP.products.proLifetime.price}</small>`, 'gold')}</div>`}
       </div><button class="btn small" data-act="restore" style="width:100%">Satın alımları geri yükle</button>
       <p class="shop-note">Aylık abonelik Google Play'den istediğin zaman iptal edilebilir.</p>`;
   }
@@ -613,9 +615,6 @@ function settingsModal() {
       ${tile('vibration', '📳', 'Titreşim')}
       <div class="set-tile q"><span class="si">✨</span>Grafik<div class="seg"><button class="${s.quality === 'high' ? 'on' : ''}" data-quality="high">Yüksek</button><button class="${s.quality !== 'high' ? 'on' : ''}" data-quality="low">Dengeli</button></div></div>
     </div>
-    <div class="set-test"><span>🧪 Test</span>
-      <button class="mini ${s.unlockAll ? 'on' : ''}" data-toggle="unlockAll">🔓 Tüm bölümler</button>
-      <button class="mini ${s.infiniteEnergy ? 'on' : ''}" data-toggle="infiniteEnergy">⚡ Sınırsız enerji</button></div>
     <div class="set-row"><button class="btn small" data-act="howto">❔ Yardım</button><button class="btn small purple" data-act="resetask">♻ Sıfırla</button></div>
     <button class="btn primary" data-act="close">Kapat</button>
     <div class="foot">Kaptan Bolt v1.0 • EA Vision Labs</div>`);

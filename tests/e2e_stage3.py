@@ -57,9 +57,12 @@ with sync_playwright() as p:
     # 5) kostümler
     pg.click("#card [data-act=menu]"); pg.wait_for_timeout(800)
     pg.click("[data-act=garage]"); pg.wait_for_timeout(1200)
+    pg.evaluate("KB.data().coins=5000")
     pg.click("[data-skin=korsan]"); pg.wait_for_timeout(600)
+    pg.screenshot(path=OUT+"s3_garage_buy.png")
+    pg.click("#card [data-act=buyskin]"); pg.wait_for_timeout(600)
     pg.screenshot(path=OUT+"s3_garage.png")
-    check("kostüm seçildi ve kaydedildi (test modunda açık)", pg.evaluate("KB.data().skin")=="korsan")
+    check("kostüm altınla alındı ve seçildi", pg.evaluate("KB.data().skin")=="korsan" and pg.evaluate("KB.data().coins")<5000)
     check("hata yok", not errs); print(errs[:3])
     b.close()
 sys.exit(0 if all(res) else 1)

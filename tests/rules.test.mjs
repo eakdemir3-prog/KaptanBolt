@@ -86,8 +86,7 @@ test('çözücü: en kısa çözüm ve 3 yıldız çözümü bulur, çıkmazı t
 test('ilerleme kaydı: kazanınca yıldız, kilit açılır, ipucu ödülü', () => {
   const mem = {}; Save._setStorage({ getItem: (k) => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } });
   const d = Save.load();
-  assert.equal(Save.isUnlocked(d, 2), true);           // test modu varsayılan açık
-  d.settings.unlockAll = false;
+  assert.equal(d.settings.unlockAll, false);           // test modu kapalı
   assert.equal(Save.isUnlocked(d, 2), false);
   Save.recordWin(d, 1, 3, 10, 60);
   const d2 = Save.load();

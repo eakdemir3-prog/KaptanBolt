@@ -5,7 +5,7 @@ const DEFAULT = () => ({
   best: {},           // { bölümNo: en az hamle }
   last: 1,            // kalınan bölüm
   hints: 5,
-  settings: { sound: true, music: true, vibration: true, quality: 'high', unlockAll: true, infiniteEnergy: false },
+  settings: { sound: true, music: true, vibration: true, quality: 'high', unlockAll: false, infiniteEnergy: false },
   seenTutorial: {},
 });
 
@@ -18,14 +18,15 @@ export function load() {
     if (!raw) return DEFAULT();
     const d = JSON.parse(raw);
     const def = DEFAULT();
-    return { ...def, ...d, settings: { ...def.settings, ...(d.settings || {}) } };
+    // Yayın sürümü: test ayarları her açılışta kapalı (eski test kayıtları dahil)
+    return { ...def, ...d, settings: { ...def.settings, ...(d.settings || {}), unlockAll: false, infiniteEnergy: false } };
   } catch { return DEFAULT(); }
 }
 export function save(data) { try { store && store.setItem(KEY, JSON.stringify(data)); } catch { /* yer yok */ } }
 export function reset() { const d = DEFAULT(); save(d); return d; }
 
 export const isDone = (d, id) => (d.stars[id] || 0) > 0;
-// TEST MODU: unlockAll açıkken tüm bölümler açıktır (Play Store sürümünden önce varsayılanı false yapılacak)
+// unlockAll / infiniteEnergy yalnızca otomatik testlerde kullanılır; uygulamada her zaman kapalıdır
 export const WORLD_SIZE = 20;
 export const worldOf = (id) => Math.ceil(id / WORLD_SIZE);
 /** Dünya açık mı: önceki dünyanın boss'u yenildiyse veya yeterli yıldız varsa */
