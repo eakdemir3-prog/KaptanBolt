@@ -6,7 +6,7 @@ export const AD_ENERGY_PER_DAY = 5;
 export const REFILL_COST = 300;
 export const HINT_COST = 120;
 export const HINT5_COST = 500;
-export const SKIN_PRICES = { klasik: 0, altin: 800, korsan: 1500, ninja: 2200, buz: 3000, lav: 4000, neon: 5000, kral: 6500, pro: -1 };
+export const SKIN_PRICES = { klasik: 0, kaptan: 0, altin: 800, korsan: 1500, ninja: 2200, buz: 3000, lav: 4000, neon: 5000, kral: 6500, pro: -1 };
 export const AD_COINS = 25, AD_COINS_PER_DAY = 5;
 export const PRO_DAILY_COINS = 100;
 /** Bölüm içi güçler (altınla alınır) */
@@ -24,6 +24,7 @@ export function ensure(d) {
   d.energy ??= ENERGY_MAX;
   d.energyAt ??= Date.now();
   d.owned ??= ['klasik'];
+  if (!d.owned.includes('kaptan')) d.owned.push('kaptan');
   d.stats ??= {};
   d.ach ??= {};
   d.quests ??= null;

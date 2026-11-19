@@ -180,68 +180,7 @@ export function makeDoor() {
 }
 
 // --- Kaptan Bolt ---
-export const SKINS = [
-  { id: 'klasik', name: 'Klasik Kaptan', stars: 0, body: 0xf3f6ff, grey: 0xcfd8e8, cap: 0x1d2a6b, band: 0xffc531, eye: 0x6ff6ff, bag: 0xb5733b },
-  { id: 'altin', name: 'Altın Kaptan', stars: 30, body: 0xffe08a, grey: 0xe8b84a, cap: 0x7a1a1a, band: 0xffffff, eye: 0x6ff6ff, bag: 0x8a5a2a, metal: true },
-  { id: 'korsan', name: 'Korsan', stars: 60, body: 0xe8e2d4, grey: 0x9a8a70, cap: 0x1a1a1a, band: 0xd02a2a, eye: 0xffd54a, bag: 0x6a3a1a },
-  { id: 'ninja', name: 'Ninja', stars: 100, body: 0x2a2d3a, grey: 0x1a1c24, cap: 0xc0182a, band: 0x1a1c24, eye: 0xff4a5a, bag: 0x3a3d4a },
-  { id: 'buz', name: 'Buz Kristali', stars: 150, body: 0xd8f4ff, grey: 0x9ad8f4, cap: 0x3a8ad0, band: 0xffffff, eye: 0x3affff, bag: 0x6ab8e0 },
-  { id: 'lav', name: 'Lav Robotu', stars: 220, body: 0x3a2a2a, grey: 0x5a3a2a, cap: 0xff5a1a, band: 0xffcf3a, eye: 0xffa01a, bag: 0x8a2a10 },
-  { id: 'neon', name: 'Neon', stars: 300, body: 0x1a1030, grey: 0x2a1a4a, cap: 0xff3ae0, band: 0x3affe0, eye: 0x3affe0, bag: 0x5a2ab0 },
-  { id: 'kral', name: 'Kral Bolt', stars: 400, body: 0xffffff, grey: 0xffd54a, cap: 0x6a1ab0, band: 0xffd54a, eye: 0x7affb0, bag: 0xd02a6a, metal: true },
-  { id: 'pro', name: 'Pro Kaptan', stars: 0, pro: true, body: 0x1c1c24, grey: 0xffcf3a, cap: 0xffcf3a, band: 0x1c1c24, eye: 0xffe14a, bag: 0xffcf3a, metal: true },
-];
-export function makeRobot(skin = SKINS[0]) {
-  const met = skin.metal ? { metalness: 0.6, roughness: 0.25 } : { roughness: 0.3 };
-  const M = {
-    white: std(skin.body, met), grey: std(skin.grey, { roughness: 0.4 }), visor: std(0x10162e, { roughness: 0.15, metalness: 0.3 }),
-    eye: new THREE.MeshBasicMaterial({ color: skin.eye }), dark: std(0x39425e), bag: std(skin.bag, { roughness: 0.7 }), bag2: std(0x3a2a1a),
-    cap: std(skin.cap, { roughness: 0.5 }), capBand: std(skin.band, { metalness: 0.6, roughness: 0.3, emissive: skin.band, emissiveIntensity: 0.15 }),
-  };
-  const root = new THREE.Group();      // konum
-  const body = new THREE.Group();      // zıplama/sallanma
-  const turn = new THREE.Group();      // yön
-  root.add(turn); turn.add(body);
-  body.add(mesh(new RoundedBoxGeometry(0.3, 0.34, 0.2, 3, 0.06), M.bag, [0, 0.42, -0.2]));
-  body.add(mesh(new THREE.BoxGeometry(0.24, 0.08, 0.06), M.bag2, [0, 0.36, -0.31]));
-  const legL = mesh(new THREE.CapsuleGeometry(0.065, 0.08, 6, 12), M.dark, [-0.09, 0.1, 0]);
-  const legR = mesh(new THREE.CapsuleGeometry(0.065, 0.08, 6, 12), M.dark, [0.09, 0.1, 0]);
-  body.add(legL, legR);
-  body.add(mesh(new RoundedBoxGeometry(0.38, 0.32, 0.3, 4, 0.11), M.white, [0, 0.36, 0]));
-  body.add(mesh(new RoundedBoxGeometry(0.18, 0.08, 0.02, 2, 0.02), M.visor, [0, 0.38, 0.155]));
-  const armL = mesh(new THREE.CapsuleGeometry(0.05, 0.14, 6, 12), M.grey, [-0.24, 0.36, 0]); armL.rotation.z = 0.25;
-  const armR = mesh(new THREE.CapsuleGeometry(0.05, 0.14, 6, 12), M.grey, [0.24, 0.36, 0]); armR.rotation.z = -0.25;
-  body.add(armL, armR);
-  const head = new THREE.Group(); head.position.y = 0.76; body.add(head);
-  head.add(mesh(new RoundedBoxGeometry(0.58, 0.46, 0.48, 5, 0.19), M.white));
-  head.add(mesh(new RoundedBoxGeometry(0.44, 0.28, 0.06, 4, 0.1), M.visor, [0, 0, 0.22]));
-  const eyeGeo = new THREE.CapsuleGeometry(0.04, 0.07, 6, 12);
-  const eyeL = mesh(eyeGeo, M.eye, [-0.09, 0.01, 0.26], false), eyeR = mesh(eyeGeo, M.eye, [0.09, 0.01, 0.26], false);
-  head.add(eyeL, eyeR);
-  for (const sx of [-1, 1]) {
-    const e0 = mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.06, 20), M.visor, [sx * 0.3, 0, 0]); e0.rotation.z = Math.PI / 2; head.add(e0);
-    const e1 = mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.07, 20), M.eye, [sx * 0.31, 0, 0], false); e1.rotation.z = Math.PI / 2; head.add(e1);
-  }
-  // Kaptan şapkası
-  const cap = new THREE.Group(); cap.position.set(0, 0.24, -0.02); cap.rotation.x = -0.12; head.add(cap);
-  cap.add(mesh(new THREE.CylinderGeometry(0.22, 0.25, 0.12, 24), M.cap, [0, 0.04, 0]));
-  cap.add(mesh(new THREE.CylinderGeometry(0.255, 0.255, 0.04, 24), M.capBand, [0, -0.01, 0]));
-  const brim = mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.025, 24, 1, false, -Math.PI / 2, Math.PI), M.cap, [0, -0.03, 0.08]); brim.scale.z = 1.2; cap.add(brim);
-  cap.add(mesh(new THREE.OctahedronGeometry(0.045), M.capBand, [0, 0.04, 0.23]));
-  const ant = mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.16, 8), M.grey, [0.16, 0.38, -0.05]); head.add(ant);
-  const antTip = mesh(new THREE.SphereGeometry(0.045, 16, 16), M.eye, [0.16, 0.47, -0.05], false); head.add(antTip);
-  const light = new THREE.PointLight(0x6ff6ff, 1.4, 1.3); light.position.set(0, 0.8, 0.5); root.add(light);
-  root.scale.setScalar(1.2);
-  root.userData = { body, turn, head, eyeL, eyeR, legL, legR, armL, armR, eyeMat: M.eye, eyeColor: skin.eye };
-  return root;
-}
-
-export function setRobotFace(robot, face) {
-  const { eyeL, eyeR, eyeMat } = robot.userData;
-  if (face === 'happy') { eyeL.scale.set(1.2, 0.45, 1); eyeR.scale.set(1.2, 0.45, 1); eyeL.position.y = eyeR.position.y = 0.03; eyeMat.color.set(robot.userData.eyeColor); }
-  else if (face === 'sad') { eyeL.scale.set(1, 0.4, 1); eyeR.scale.set(1, 0.4, 1); eyeL.position.y = eyeR.position.y = -0.03; eyeMat.color.set(0x7fa8ff); }
-  else { eyeL.scale.set(1, 1, 1); eyeR.scale.set(1, 1, 1); eyeL.position.y = eyeR.position.y = 0.01; eyeMat.color.set(robot.userData.eyeColor); }
-}
+export { SKINS, makeRobot, setRobotFace } from './robot.js';
 
 // --- Düşman robotlar ---
 export function makeEnemy(type) {

@@ -33,7 +33,7 @@ const grp = (...xs) => { const g = new THREE.Group(); xs.forEach(([o, p]) => { o
 export function skinImg(skin, big = false) {
   return memo('skin:' + skin.id + big, () => {
     const r = makeRobot(skin); setRobotFace(r, big ? 'happy' : 'idle');
-    if (big) { r.userData.armR.rotation.z = -1.9; return shot(r, { w: 360, h: 360, dist: 3.1, y: 0.3, look: 0.6, el: 0.1, rotY: -0.5 }); }
+    if (big) { r.userData.armR.rotation.z = 2.4; return shot(r, { w: 360, h: 360, dist: 3.1, y: 0.3, look: 0.6, el: 0.1, rotY: -0.5 }); }
     return shot(r, { w: 148, h: 168, dist: 2.6, y: 0.2, look: 0.62, el: 0.12 });
   });
 }

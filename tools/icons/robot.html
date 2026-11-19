@@ -1,0 +1,42 @@
+<!doctype html><html><body style="margin:0"><script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { makeRobot, setRobotFace, SKINS, makeKey } from '../../src/game/models.js';
+import { loadRobotModel } from '../../src/game/robotModel.js';
+await loadRobotModel();
+const S = 1200;
+const R = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+R.setPixelRatio(1); R.setSize(S, S, false); R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = 0.85;
+R.shadowMap.enabled = true; R.shadowMap.type = THREE.PCFSoftShadowMap;
+function bgTex(top, bot) { const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d'); const l = g.createLinearGradient(0, 0, 0, 256); l.addColorStop(0, top); l.addColorStop(1, bot); g.fillStyle = l; g.fillRect(0, 0, 4, 256); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
+function shot({ skin = SKINS[0], face = 'idle', rotY = -0.3, pose = null, cam = [0, 0.9, 3.4], look = [0, 0.75, 0], fov = 30, bg = ['#2a1f78', '#0b0828'], key = false }) {
+  const sc = new THREE.Scene(); sc.background = bgTex(...bg);
+  sc.add(new THREE.HemisphereLight(0xd8d0ff, 0x302060, 1.1));
+  const d = new THREE.DirectionalLight(0xffffff, 2.6); d.position.set(-2.5, 4, 4); d.castShadow = true; d.shadow.mapSize.set(2048, 2048); sc.add(d);
+  const r1 = new THREE.PointLight(0x3fe2ff, 22, 8); r1.position.set(2, 1.8, -1.2); sc.add(r1);
+  const r2 = new THREE.PointLight(0xb060ff, 18, 8); r2.position.set(-2, 1.4, -1); sc.add(r2);
+  const fl = new THREE.Mesh(new THREE.CircleGeometry(1.2, 48), new THREE.ShadowMaterial({ opacity: 0.35 })); fl.rotation.x = -Math.PI / 2; fl.receiveShadow = true; sc.add(fl);
+  const r = makeRobot(skin); setRobotFace(r, face); r.rotation.y = rotY; sc.add(r);
+  const U = r.userData;
+  if (pose === 'wave') { U.armR.rotation.z = 2.5; }
+  if (pose === 'key') { U.armR.rotation.z = 2.35; U.armR.rotation.x = -0.35; U.armL.rotation.x = -0.9; U.armL.rotation.z = -0.4; U.head.rotation.y = -0.15;
+    const k = makeKey(); k.userData.shadow.visible = false; k.scale.setScalar(1.15); const hp = new THREE.Vector3(); r.updateMatrixWorld(true); U.armR.userData.hand.getWorldPosition(hp); k.position.copy(hp).add(new THREE.Vector3(0.03, 0.24, 0.08)); k.rotation.z = -0.25; sc.add(k); }
+  if (pose === 'jump') { r.position.y = 0.25; U.legL.rotation.x = 0.9; U.legR.rotation.x = -0.6; U.armL.rotation.x = -0.9; U.armR.rotation.x = 0.8; U.armL.rotation.z = -0.6; U.armR.rotation.z = 0.7; U.body.rotation.x = 0.15; fl.visible = false; }
+  const c = new THREE.PerspectiveCamera(fov, 1, 0.1, 50); c.position.set(...cam); c.lookAt(...look);
+  const comp = new EffectComposer(R); comp.setSize(S, S);
+  comp.addPass(new RenderPass(sc, c)); comp.addPass(new UnrealBloomPass(new THREE.Vector2(S / 2, S / 2), 0.22, 0.35, 0.88)); comp.addPass(new OutputPass());
+  comp.render(); return R.domElement.toDataURL('image/png');
+}
+const out = [];
+out.push(shot({ rotY: -0.35, face: 'idle' }));
+out.push(shot({ rotY: 0.0, face: 'idle', cam: [0, 1.1, 1.75], look: [0, 1.04, 0] }));
+out.push(shot({ rotY: -0.5, face: 'happy', pose: 'wave', bg: ['#3a2a9e', '#120a38'] }));
+out.push(shot({ rotY: -0.4, face: 'happy', pose: 'key', cam: [0.2, 1.1, 3.0], look: [0.15, 1.0, 0], bg: ['#7a2ad8', '#3a0c80'] }));
+out.push(shot({ rotY: -0.9, face: 'happy', pose: 'jump', cam: [0, 0.95, 3.4], look: [0, 0.85, 0], bg: ['#1a3a9e', '#0a0a40'] }));
+out.push(shot({ rotY: -2.6, face: 'idle' }));
+for (const k of SKINS) out.push(shot({ skin: k, rotY: -0.35 }));
+window.OUT = out; window.DONE = 1;
+</script></body></html>

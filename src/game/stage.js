@@ -170,6 +170,7 @@ export class Stage {
     this.root.add(this.door);
     this._setDoorOpen(doorOpen(state), false);
     this.robot = makeRobot(this.skin || SKINS[0]);
+    if (!this.robot.userData.glb) this.robot.userData.head.rotation.x = -0.42; // üstten bakan kamerada yüz görünsün
     this._pendingFrozen = (state.frozen || 0) > 0; this.robot.position.copy(this.cellPos(state.pos)).add(new THREE.Vector3(0, 0.18, 0));
     this.robot.userData.turn.rotation.y = 0;
     this.root.add(this.robot);
@@ -342,7 +343,7 @@ export class Stage {
   setSkin(skin) {
     this.skin = skin;
     if (!this.robot) return;
-    const r = makeRobot(skin); r.position.copy(this.robot.position); r.userData.turn.rotation.y = this.robot.userData.turn.rotation.y;
+    const r = makeRobot(skin); r.position.copy(this.robot.position); r.userData.turn.rotation.y = this.robot.userData.turn.rotation.y; if (!r.userData.glb) r.userData.head.rotation.x = -0.42;
     this.root.remove(this.robot); this.robot = r; this.root.add(r);
   }
 
@@ -529,7 +530,7 @@ export class Stage {
       U.body.position.y = Math.sin(t * 2.4) * 0.015;
       const blink = (t % 3.4) < 0.12 ? 0.1 : 1;
       if (this.mood === 'idle') { U.eyeL.scale.y = U.eyeR.scale.y = blink; }
-      if (this.menuMode) { U.armR.rotation.z = -0.25 - Math.max(0, Math.sin(t * 3)) * 1.6; U.turn.rotation.y = Math.sin(t * 0.6) * 0.4; }
+      if (this.menuMode) { U.armR.rotation.z = 0.18 + Math.max(0, Math.sin(t * 3)) * 2.2; U.turn.rotation.y = Math.sin(t * 0.6) * 0.4; }
     }
     if (this.flames) for (const f of this.flames) { const k = 1 + Math.sin(t * 9 + f.seed) * 0.08 + Math.sin(t * 23 + f.seed) * 0.05; f.f.scale.set(k, 1.6 * k, k); f.tl.intensity = 14 * k; }
     if (this.particles) { this.particles.rotation.y = t * 0.03; this.particles.position.y = this.world === 3 ? -((t * 0.25) % 2) + 1 : Math.sin(t * 0.3) * 0.2; }
