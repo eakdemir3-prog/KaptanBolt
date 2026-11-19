@@ -15,7 +15,7 @@ export const POWERS = [
   { id: 'freeze', ic: '🧊', name: 'Dondur', desc: 'Düşmanlar ve boss 3 hamle durur', price: 300 },
   { id: 'jump', ic: '🦘', name: 'Zıpla', desc: 'Bir boşluğun üstünden atlarsın', price: 300 },
   { id: 'shield', ic: '🛡', name: 'Kalkan', desc: 'Bir kez yakalanmaktan korur', price: 350 },
-  { id: 'undo3', ic: '↶', name: '+3 Geri Al', desc: 'Bu bölümde 3 geri alma daha', price: 150 },
+  { id: 'undo3', ic: '↶', name: 'Geri Al', desc: 'Son hamleni geri alır', price: 100 },
 ];
 export const WORLD_STARS = (w) => (w - 1) * 25;   // dünya w'nin yıldız eşiği
 

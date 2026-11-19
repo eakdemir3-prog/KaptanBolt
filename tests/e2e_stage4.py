@@ -46,7 +46,7 @@ with sync_playwright() as p:
     pg.wait_for_timeout(900)
     pg.screenshot(path=OUT+"s4_lose.png")
     pg.click("#card [data-act=adContinue]"); pg.wait_for_timeout(2800)
-    check("reklam izleyip devam: oyun sürüyor, Geri Al hakkı azalmadı, enerji gitmedi", st("status")=="play" and pg.evaluate("KB.data().energy")==e0 and pg.locator("#undoCount").inner_text()=="3")
+    check("reklam izleyip devam: oyun sürüyor, Geri Al hakkı azalmadı, enerji gitmedi", st("status")=="play" and pg.evaluate("KB.data().energy")==e0)
     pg.keyboard.press(KEY[seq[-1]]); idle(); pg.wait_for_timeout(900)
     pg.click("#card [data-act=restart]"); pg.wait_for_timeout(800)
     check("kaybedip yeniden başlayınca 1 enerji gitti", pg.evaluate("KB.data().energy")==e0-1)

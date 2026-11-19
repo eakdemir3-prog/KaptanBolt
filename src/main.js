@@ -288,8 +288,6 @@ function updateHud() {
   const bc = $('chipBoss');
   if (s.boss) { bc.classList.remove('hidden'); bc.innerHTML = s.boss.alive ? '👹 <span class="lbl">Boss</span>' : '💥 <span class="lbl">Yenildi</span>'; } else bc.classList.add('hidden');
   $('hintCount').textContent = data.hints;
-  $('undoCount').textContent = game.undos;
-  $('undoBtn').classList.toggle('off', !game.history.length || game.undos <= 0);
   const best = game.level.daily ? null : data.best[game.level.id];
   $('moveInfo').textContent = `Hamle: ${s.moves}` + (best != null ? `  •  En iyi: ${best}` : '') + (game.powerUsed ? '  •  ⚡ güç kullanıldı' : '');
   renderPowers();
@@ -491,7 +489,7 @@ function usePower(id) {
   if (id === 'jump') { game.jumpArmed = !game.jumpArmed; toast(game.jumpArmed ? '🦘 Zıplamak için bir yöne kaydır' : 'Zıplama iptal'); return renderPowers(); }
   if (id === 'shield') { if (game.shield) return toast('🛡 Kalkan zaten açık'); if (!s.enemies.length && !s.boss) return toast('Bu bölümde düşman yok.'); consume(); game.shield = true; toast('🛡 Kalkan açık: bir kez yakalanmazsın'); return updateHud(); }
   if (id === 'freeze') { if (!s.enemies.length && !s.boss) return toast('Bu bölümde düşman yok.'); consume(); s.frozen = 3; stage.setFrozen(true); toast('🧊 Düşmanlar 3 hamle donduruldu'); updateDanger(); return updateHud(); }
-  if (id === 'undo3') { consume(); game.undos += 3; toast('↶ +3 geri alma'); return updateHud(); }
+  if (id === 'undo3') { if (game.busy || !game.history.length) return toast('Geri alınacak hamle yok.'); consume(); return undo(true); }
   if (id === 'repair') {
     let c = null;
     while (game.collapseOrder.length) { const x = game.collapseOrder.pop(); if (s.collapsed[x] && x !== s.pos) { c = x; break; } }
@@ -663,14 +661,16 @@ document.addEventListener('click', (e) => {
   switch (el.dataset.act) {
     case 'continue': { const n = Save.continueLevel(data, MAX); currentWorld = Save.worldOf(n); return startLevel(n); }
     case 'worlds': stage.board = null; return show('worlds');
-    case 'map': settleLoss(); if (game.level && !game.level.daily) currentWorld = game.level.world; stage.board = null; return show('map');
-    case 'menu': settleLoss(); stage.board = null; return show('menu');
+    case 'map': if ($('modal').classList.contains('hidden') && guardLeave('map')) return; settleLoss(); if (game.level && !game.level.daily) currentWorld = game.level.world; stage.board = null; return show('map');
+    case 'menu': if ($('modal').classList.contains('hidden') && guardLeave('menu')) return; settleLoss(); stage.board = null; return show('menu');
     case 'back': return back();
     case 'settings': return settingsModal();
     case 'howto': return howtoModal();
     case 'close': return closeModal();
     case 'closeEnergy': closeModal(); renderRes(); return;
-    case 'restart': return startLevel(game.level.daily ? game.level : game.level.id);
+    case 'stay': return closeModal();
+    case 'leave': return leaveNow(el.dataset.to);
+    case 'restart': if ($('modal').classList.contains('hidden') && guardLeave('restart')) return; return startLevel(game.level.daily ? game.level : game.level.id);
     case 'next': { const id = game.level.id; closeModal(); return (Eco.isPro(data) ? Promise.resolve() : maybeInterstitial(id)).then(() => startLevel(id + 1)); }
     case 'undo': return undo();
     case 'hint': return useHint();
@@ -703,12 +703,40 @@ document.addEventListener('click', (e) => {
 });
 for (const el of $$('.energy-chip')) el.addEventListener('click', () => { audioUnlock(); energyModal(); });
 
+/** Oyun ortasında çıkış/yeniden başlama: uyar, onaylanırsa 1 enerji düşer */
+function midGame() {
+  const s = game.state;
+  return screen === 'game' && s && s.status === 'play' && s.moves > 0 && game.level && !game.level.daily;
+}
+function guardLeave(to) {
+  if (!midGame()) return false;
+  const free = data.settings.infiniteEnergy || Eco.isPro(data);
+  const again = to === 'restart';
+  openModal(`
+    <div class="emoji">⚠️</div>
+    <h2>${again ? 'Baştan başlansın mı?' : 'Bölümden çıkılsın mı?'}</h2>
+    <p>Bölüm yarıda kalacak${free ? '.' : ' ve <b>1 enerji</b> düşecek.'}</p>
+    ${free ? '' : `<div class="energy-pill">${BOLT()} Şu an ${data.energy} enerjin var</div>`}
+    <button class="btn primary" data-act="stay">Oyuna devam et</button>
+    <button class="btn purple" data-act="leave" data-to="${to}">${again ? 'Baştan başla' : 'Çık'}${free ? '' : ' (−1 enerji)'}</button>`, 'fail');
+  return true;
+}
+function leaveNow(to) {
+  closeModal();
+  Eco.spendEnergy(data); save(); renderRes();
+  game.state.status = 'quit';
+  stage.board = null;
+  if (to === 'restart') return startLevel(game.level.id);
+  if (to === 'menu') return show('menu');
+  currentWorld = game.level.world; return show('map');
+}
+
 function back() {
   if (!$('modal').classList.contains('hidden')) {
     if (screen === 'game' && game.state && game.state.status !== 'play') { settleLoss(); stage.board = null; return show(game.level.daily ? 'menu' : 'map'); }
     return closeModal();
   }
-  if (screen === 'game') { settleLoss(); stage.board = null; if (game.level.daily) return show('menu'); currentWorld = game.level.world; return show('map'); }
+  if (screen === 'game') { if (guardLeave('map')) return; settleLoss(); stage.board = null; if (game.level.daily) return show('menu'); currentWorld = game.level.world; return show('map'); }
   if (screen === 'map') return show('worlds');
   if (screen !== 'menu') { stage.board = null; return show('menu'); }
   exitApp();

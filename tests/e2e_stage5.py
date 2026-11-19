@@ -29,7 +29,9 @@ with sync_playwright() as p:
     c2=pg.evaluate("KB.data().coins")
     check(f"boss bölümü çok altın verir (+{c2-c1})", c2-c1>=60)
     # reklamla altın (test reklamı)
-    pg.keyboard.press("Escape"); pg.wait_for_timeout(500); pg.keyboard.press("Escape"); pg.wait_for_timeout(500); pg.keyboard.press("Escape"); pg.wait_for_timeout(800)
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(500)
+    if pg.locator("#card [data-act=leave]").count(): pg.click("#card [data-act=leave]"); pg.wait_for_timeout(500)
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(500); pg.keyboard.press("Escape"); pg.wait_for_timeout(800)
     pg.click("[data-act=shop]"); pg.wait_for_timeout(800)
     pg.click("[data-shoptab=coins]"); pg.wait_for_timeout(300)
     c3=pg.evaluate("KB.data().coins")
@@ -57,13 +59,13 @@ with sync_playwright() as p:
     mv=pg.evaluate("KB.solve()") or []
     if mv: pg.keyboard.press(KEY[mv[0]]); idle()
     check("dondurulmuş düşman hareket etmedi", pg.evaluate("KB.state.enemies.map(e=>e.pos).join()")==epos)
-    u0=pg.locator("#undoCount").inner_text()
-    pg.click("[data-power=undo3]"); pg.wait_for_timeout(300)
-    check("+3 Geri Al", int(pg.locator("#undoCount").inner_text())==int(u0)+3)
     # onarım
     col=pg.evaluate("[...KB.state.collapsed].reduce((a,b)=>a+b,0)")
     pg.click("[data-power=repair]"); pg.wait_for_timeout(600)
     check("Onarım: çöken kare geri geldi", pg.evaluate("[...KB.state.collapsed].reduce((a,b)=>a+b,0)")==col-1)
+    m0=st("moves")
+    pg.click("[data-power=undo3]"); pg.wait_for_timeout(500)
+    check("Geri Al gücü son hamleyi geri aldı", st("moves")==m0-1)
     # zıpla: boşluk üstünden atlama olan bir bölüm
     pg.evaluate("KB.start(9)"); pg.wait_for_timeout(1000)
     d=pg.evaluate("['up','down','left','right'].find(d=>{const s=KB._clone(KB.state); return KB._move(s,d,{jump:true})})")
@@ -83,7 +85,9 @@ with sync_playwright() as p:
     pg.wait_for_timeout(900)
     check("Kalkan: yakalanınca oyun devam etti", st("status")=="play" and pg.is_hidden("#card [data-act=restart]"))
     # Pro
-    pg.keyboard.press("Escape"); pg.wait_for_timeout(500); pg.keyboard.press("Escape"); pg.wait_for_timeout(500); pg.keyboard.press("Escape"); pg.wait_for_timeout(800)
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(500)
+    if pg.locator("#card [data-act=leave]").count(): pg.click("#card [data-act=leave]"); pg.wait_for_timeout(500)
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(500); pg.keyboard.press("Escape"); pg.wait_for_timeout(800)
     pg.click("[data-act=shop]"); pg.wait_for_timeout(700); pg.click("[data-shoptab=pro]"); pg.wait_for_timeout(300)
     c4=pg.evaluate("KB.data().coins")
     pg.click("[data-act=iap][data-k=proLifetime]"); pg.wait_for_timeout(1300)

@@ -40,23 +40,27 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug bundleRelease --no-daemon
 
-      - name: APK'yı adlandır
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk KaptanBolt-debug.apk
+      - name: APK'yı ve AAB'yi adlandır
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk KaptanBolt-debug.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab KaptanBolt-release-unsigned.aab
 
       - name: APK'yı iş akışına ekle
         uses: actions/upload-artifact@v4
         with:
           name: KaptanBolt-debug-apk
-          path: KaptanBolt-debug.apk
+          path: |
+            KaptanBolt-debug.apk
+            KaptanBolt-release-unsigned.aab
 
       - name: APK'yı "Releases" sayfasına koy (telefondan kolay indirme)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release delete son-surum -y --cleanup-tag || true
-          gh release create son-surum KaptanBolt-debug.apk \
+          gh release create son-surum KaptanBolt-debug.apk KaptanBolt-release-unsigned.aab \
             --title "Kaptan Bolt – son debug APK" \
             --notes "Otomatik üretildi: ${GITHUB_SHA::7}. Telefona indirip kurabilirsin." \
             --prerelease

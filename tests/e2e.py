@@ -39,7 +39,9 @@ with sync_playwright() as p:
     for k in ["ArrowRight","ArrowRight"]: pg.keyboard.press(k); wait_idle()
     pg.screenshot(path=OUT+"04_level1_mid.png")
     # yeniden başla
-    pg.click("[data-act=restart]"); pg.wait_for_timeout(800)
+    pg.click("[data-act=restart]"); pg.wait_for_timeout(500)
+    if pg.locator("#card [data-act=leave]").count(): pg.click("#card [data-act=leave]")
+    pg.wait_for_timeout(800)
     s2 = st(); check("yeniden başla bölümü sıfırlar", s2["moves"] == 0 and s2["col"] == 0 and s2["pos"] == s0["pos"])
     # çözümü oyna: sağ x4, aşağı x2, sol x4
     for k in ["ArrowRight"]*4 + ["ArrowDown"]*2: pg.keyboard.press(k); wait_idle()
