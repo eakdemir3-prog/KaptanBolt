@@ -23,6 +23,8 @@ public class MainActivity extends BridgeActivity {
         WebView web = bridge.getWebView();
         // Telefonun "yazı boyutu" ayarı oyunun yazılarını büyütüp taşırmasın
         web.getSettings().setTextZoom(100);
+        // Giriş videosu sesli başlayabilsin
+        web.getSettings().setMediaPlaybackRequiresUserGesture(false);
         // Android 15+ kenardan kenara çizim: oyun durum/gezinme çubuklarının altına girmesin
         ViewCompat.setOnApplyWindowInsetsListener(web, (View v, WindowInsetsCompat insets) -> {
             Insets b = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());

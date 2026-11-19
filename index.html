@@ -13,6 +13,12 @@
 <div id="ui">
 
   <!-- ANA MENÜ -->
+  <div id="intro" class="hidden">
+    <video id="introVid" playsinline preload="auto"></video>
+    <button class="intro-skip" data-act="introSkip">Geç ▶</button>
+    <button class="intro-sound hidden" id="introSound" data-act="introSound">🔊 Sesi aç</button>
+  </div>
+
   <section id="menu" class="screen">
     <div class="topbar">
       <button class="chip quest-btn" data-act="quests">🎯 <span>Görevler</span><b class="badge hidden" id="questBadge"></b></button>

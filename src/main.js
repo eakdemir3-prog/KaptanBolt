@@ -239,6 +239,29 @@ function renderEnergyModal(first) {
 }
 
 // ---------------- Oyun ----------------
+// ---------- Giriş videosu ----------
+let introDone = null;
+function playIntro(first = false) {
+  const box = $('intro'), v = $('introVid');
+  if (!v.src) v.src = new URL('intro.mp4', document.baseURI).href;
+  box.classList.remove('hidden'); $('introSound').classList.add('hidden');
+  stage.paused = true; setMusic(false);
+  v.currentTime = 0; v.muted = false;
+  const p = v.play();
+  if (p && p.catch) p.catch(() => { v.muted = true; $('introSound').classList.remove('hidden'); v.play().catch(() => endIntro()); });
+  v.onended = () => endIntro();
+  v.onerror = () => endIntro();
+  return new Promise((ok) => { introDone = ok; });
+}
+function endIntro() {
+  const box = $('intro'), v = $('introVid');
+  if (box.classList.contains('hidden')) return;
+  v.pause(); box.classList.add('hidden');
+  data.introSeen = true; data.storySeen = true; save();
+  setMusic(data.settings.music); stage.paused = !(screen === 'menu' || screen === 'game');
+  if (introDone) { const f = introDone; introDone = null; f(); }
+}
+
 /** Bonus altın: her 3 bölümden birinde, alınmamışsa, sıradan bir karede durur (bölüm başına bir kez) */
 const BONUS_COINS = 15;
 function bonusCellFor(lv, board) {
@@ -718,7 +741,9 @@ document.addEventListener('click', (e) => {
     case 'quests': return questsModal();
     case 'ship': return shipModal();
     case 'storyGo': closeModal(); return startLevel(1);
-    case 'story': return openModal(STORY_HTML + '<button class="btn primary" data-act="ship">🚀 Gemiyi gör</button><button class="btn" data-act="close">Kapat</button>', 'story');
+    case 'introSkip': return endIntro();
+    case 'introSound': { const v = $('introVid'); v.muted = false; $('introSound').classList.add('hidden'); return; }
+    case 'story': closeModal(); return playIntro().then(shipModal);
     case 'claimq': { const r = Eco.claimQuest(data, +el.dataset.i); if (r) { save(); sfx.coin(); toast('Ödül alındı: ' + Eco.rewardText(r)); renderRes(); renderMenu(); } return questsModal(); }
     case 'claimbonus': if (Eco.claimBonus(data)) { save(); sfx.win(); renderRes(); renderMenu(); } return questsModal();
     case 'claimach': { const c = Eco.claimAch(data, el.dataset.id); if (c) { save(); sfx.coin(); toast(`+${c} altın!`); renderRes(); } return renderAch(); }
@@ -771,6 +796,7 @@ function leaveNow(to) {
 }
 
 function back() {
+  if (!$('intro').classList.contains('hidden')) return endIntro();
   if (!$('modal').classList.contains('hidden')) {
     if (screen === 'game' && game.state && game.state.status !== 'play') { settleLoss(); stage.board = null; return show(game.level.daily ? 'menu' : 'map'); }
     return closeModal();
@@ -809,4 +835,6 @@ window.addEventListener('resize', () => { if (screen === 'game') layoutGame(); e
 initAds();
 initPurchases().then(() => proStatus()).then((st) => { if (st) { data.pro = { ...data.pro, ...st }; save(); } proDaily(); renderMenu(); });
 show('menu');
+// ilk açılışta hikâye videosu (otomatik testlerde atlanır)
+if (!data.introSeen && !(navigator.webdriver && !location.hash.includes('intro'))) playIntro(true);
 if (document.fonts) document.fonts.ready.then(() => { if (screen === 'game') layoutGame(); if (screen === 'menu') layoutMenu(); });
