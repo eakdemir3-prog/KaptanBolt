@@ -10,7 +10,9 @@ const OPP = { up: 'down', down: 'up', left: 'right', right: 'left' };
  * Bölüm verisi:
  * grid: . kare  # boşluk  i buz  o sağlam taş  S başlangıç  K anahtar  D kapı  1-4 portal çiftleri
  *       b düğme  = köprü (düğmeye basılınca açılır)  ^ v < > ok kareler
- * enemies: [{ type: 'patrol'|'chaser', at: [x, y], dir?: 'left'|... }]
+ * enemies: [{ type: 'patrol'|'chaser'|'sentry'|'gnawer', at: [x, y], dir?: 'left'|... }]
+ *   sentry: yerinden kıpırdamaz; iki hamlede bir baktığı yöne lazer atar (bir hamle önce uyarır)
+ *   gnawer: devriye gibi gidip gelir, terk ettiği kareyi çökertir; yakalamaz, üstüne basınca ezilir
  * boss: { at: [x, y] (2x2 sol üst), every: 1|2 }
  */
 export function parseLevel(level) {
@@ -49,6 +51,7 @@ export function parseLevel(level) {
   let tileCount = 0, strongCount = 0;
   for (let i = 0; i < cells.length; i++) { if (cells[i] !== HOLE) tileCount++; if (cells[i] === STRONG) strongCount++; }
   const enemies = (level.enemies || []).map((e) => ({ type: e.type, pos: e.at[1] * w + e.at[0], dir: e.dir || 'right' }));
+  tileCount -= enemies.filter((e) => e.type === 'sentry').length; // nöbetçinin karesi hiç çökmez
   const boss = level.boss ? { pos: level.boss.at[1] * w + level.boss.at[0], every: level.boss.every || 2 } : null;
   return { id: level.id, w, h, cells, portal, keys, start, door, tileCount, strongCount, enemies, boss, stars: level.stars || { mode: 'cover' } };
 }
@@ -60,7 +63,7 @@ export function newState(board) {
     collapsed: new Uint8Array(board.w * board.h),
     hits: new Uint8Array(board.w * board.h),
     keysTaken: board.keys.map(() => false),
-    enemies: board.enemies.map((e) => ({ ...e, alive: true })),
+    enemies: board.enemies.map((e) => ({ ...e, alive: true, tick: 0 })),
     boss: board.boss ? { pos: board.boss.pos, every: board.boss.every, alive: true, tick: 0 } : null,
     pressed: false,
     frozen: 0,
@@ -98,9 +101,9 @@ export function isGap(s, i) {
   return c === HOLE || s.collapsed[i] === 1 || (c === BRIDGE && !s.pressed);
 }
 
-/** Bu karede düşman veya boss var mı */
-export function occupied(s, i, skip) {
-  for (const e of s.enemies) if (e !== skip && e.alive && e.pos === i) return true;
+/** Bu karede düşman veya boss var mı (forPlayer: kemirici böcek robotun önünü kesmez, ezilir) */
+export function occupied(s, i, skip, forPlayer = false) {
+  for (const e of s.enemies) if (e !== skip && e.alive && e.pos === i && !(forPlayer && e.type === 'gnawer')) return true;
   if (s.boss && s.boss.alive && s.boss !== skip && bossCells(s.board, s.boss.pos).includes(i)) return true;
   return false;
 }
@@ -111,7 +114,7 @@ export function enterable(s, i) {
   const b = s.board;
   if (isGap(s, i)) return false;
   if (i === b.door && !doorOpen(s)) return false; // kilitli kapı duvardır
-  if (occupied(s, i)) return false;                 // düşmanın üstüne yürünmez
+  if (occupied(s, i, null, true)) return false;     // düşmanın üstüne yürünmez (böcek hariç)
   return true;
 }
 
@@ -138,6 +141,7 @@ function checkDoor(s, wasOpen, events) {
 /** Robot i karesine vardı: anahtar, kapı, portal. true => hareket bitti (kazandı veya ışınlandı) */
 function arrive(s, i, events) {
   const b = s.board;
+  for (const e of s.enemies) if (e.alive && e.type === 'gnawer' && e.pos === i) { e.alive = false; events.push({ t: 'squash', id: s.enemies.indexOf(e), cell: i }); }
   const k = b.keys.indexOf(i);
   if (k >= 0 && !s.keysTaken[k]) {
     const was = doorOpen(s);
@@ -171,6 +175,23 @@ function moveEnemies(s, events) {
         break;
       }
       if (!moved) events.push({ t: 'enemyWait', id: s.enemies.indexOf(e) });
+    } else if (e.type === 'sentry') {
+      e.tick++;
+      const beam = laserCells(b, e);
+      if (e.tick % 2 === 0) {
+        events.push({ t: 'laser', id: s.enemies.indexOf(e), cells: beam });
+        if (beam.includes(s.pos)) { s.status = 'caught'; events.push({ t: 'caught', by: 'laser' }); return; }
+      } else events.push({ t: 'laserCharge', id: s.enemies.indexOf(e), cells: beam });
+      continue;
+    } else if (e.type === 'gnawer') {
+      const nx = gnawerNext(s, e);
+      if (!nx) { events.push({ t: 'enemyWait', id: s.enemies.indexOf(e) }); continue; }
+      const from = e.pos;
+      events.push({ t: 'enemyMove', id: s.enemies.indexOf(e), from, to: nx.n, dir: nx.d });
+      e.pos = nx.n; e.dir = nx.d;
+      const ki = b.keys.indexOf(from);
+      if (!(ki >= 0 && !s.keysTaken[ki])) leave(s, from, events);
+      continue;
     } else {
       chase(s, e, 1, events);
     }
@@ -183,6 +204,25 @@ function moveEnemies(s, events) {
     else events.push({ t: 'bossCharge' });
     if (bo.alive && bossCells(b, bo.pos).includes(s.pos)) { s.status = 'caught'; events.push({ t: 'caught', by: 'boss' }); }
   }
+}
+
+/** Nöbetçinin lazerinin geçtiği kareler (kendi karesi hariç, tahta kenarına kadar) */
+export function laserCells(b, e) {
+  const out = []; let n = step(b, e.pos, e.dir);
+  while (n >= 0) { out.push(n); n = step(b, n, e.dir); }
+  return out;
+}
+/** Kemirici böceğin bir sonraki karesi: önü kapalıysa geri döner. Sadece düz/buz/sağlam karelerde yürür. */
+export function gnawerNext(s, e) {
+  const b = s.board;
+  for (const d of [e.dir, OPP[e.dir]]) {
+    const n = step(b, e.pos, d);
+    if (n < 0 || isGap(s, n) || n === b.door || n === s.pos || occupied(s, n, e) || b.portal[n] >= 0) continue;
+    const c = b.cells[n];
+    if (c !== TILE && c !== ICE && c !== STRONG) continue;
+    return { n, d };
+  }
+  return null;
 }
 
 /** Takipçi / boss: oyuncuya doğru bir adım. Önündeki çukuru görmez, düşer. */

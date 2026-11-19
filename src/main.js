@@ -266,7 +266,7 @@ function endIntro(failed = false) {
 const BONUS_COINS = 15;
 function bonusCellFor(lv, board) {
   if (lv.daily || lv.final || lv.id % 3 !== 0 || (data.bonusTaken || {})[lv.id]) return -1;
-  const bad = new Set([board.start, board.door, ...board.keys]);
+  const bad = new Set([board.start, board.door, ...board.keys, ...board.enemies.map((e) => e.pos)]);
   const cand = [];
   board.cells.forEach((c, i) => { if ((c === TILE || c === ICE) && !bad.has(i) && board.portal[i] < 0) cand.push(i); });
   if (!cand.length) return -1;
@@ -627,6 +627,8 @@ const TUTORIALS = {
   strong: T('🛡️ <b>Sağlam taş!</b>', 'Metal kuşaklı taşlar ilk ayrılışta sadece çatlar, ikinci ayrılışta çöker.'),
   portal: T('🌀 <b>Portallar!</b>', 'Aynı renkli portala basınca diğerine ışınlanırsın. Girdiğin portal arkandan çöker.'),
   chaser: T('👁️ <b>Takipçi robot!</b>', 'Her hamlende sana bir adım yaklaşır ama önüne bakmaz: onu çöken karelere ya da boşluklara çekip düşür!'),
+  sentry: T('🔴 <b>Lazer Nöbetçi!</b>', 'Yerinden kıpırdamaz. Bir hamlede ışın yolu yanıp söner, sonraki hamlede lazer atar. Işının üstünde durma, zamanlamanı iyi ayarla!'),
+  gnawer: T('🐛 <b>Kemirici Böcek!</b>', 'Seni yakalamaz ama gidip gelirken arkasındaki kareleri yer! Yoluna ihtiyacın varsa yetiş ve üstüne basıp ez.'),
   boss: T('👹 <b>BOSS!</b>', 'Dev robot kapıyı kilitli tutuyor. Onu boşluklara ya da çöken karelere çekip düşür, sonra kapıya koş! Takılırsan Geri Al var.', 'Hazırım!'),
   bridge: T('🌉 <b>Düğme ve köprü!</b>', 'Kırmızı düğmeye basınca soluk görünen köprüler açılır. Açılmadan önce oralar boşluktur.'),
   arrow: T('➡️ <b>Ok kareler!</b>', 'Ok kareye basınca robot okun yönüne itilir. Önü kapalıysa okun üstünde durur.'),

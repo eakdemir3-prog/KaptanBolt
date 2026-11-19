@@ -1,5 +1,6 @@
 // 3D modeller: Kaptan Bolt robotu, anahtar, kapı, kareler. Hepsi basit geometrilerden üretilir.
 import * as THREE from 'three';
+import { hasEnemyModel, cloneEnemyModel } from './robotModel.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 export const THEMES = {
@@ -183,7 +184,34 @@ export function makeDoor() {
 export { SKINS, makeRobot, setRobotFace } from './robot.js';
 
 // --- Düşman robotlar ---
+const ENEMY_FILE = { patrol: 'devriye', chaser: 'takipci', sentry: 'nobetci', gnawer: 'bocek' };
+const ENEMY_LIGHT = { patrol: 0xffb03a, chaser: 0xff2a4a, sentry: 0xff3ad8, gnawer: 0x9aff3a };
+/** Meshy modeli varsa onu kullan; yoksa basit şekillerle çiz */
 export function makeEnemy(type) {
+  if (hasEnemyModel(ENEMY_FILE[type])) {
+    const root = new THREE.Group(), turn = new THREE.Group(), body = new THREE.Group();
+    root.add(turn); turn.add(body); body.add(cloneEnemyModel(ENEMY_FILE[type]));
+    const l = new THREE.PointLight(ENEMY_LIGHT[type], 1.6, 1.3); l.position.set(0, 0.6, 0.45); root.add(l);
+    root.userData = { body, turn, glb: true };
+    return root;
+  }
+  if (type === 'sentry' || type === 'gnawer') return makeSimpleEnemy(type);
+  return makeEnemyOld(type);
+}
+function makeSimpleEnemy(type) {
+  const root = new THREE.Group(), body = new THREE.Group(), turn = new THREE.Group(); root.add(turn); turn.add(body);
+  if (type === 'sentry') {
+    body.add(mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.3, 8), std(0x3a3d4a), [0, 0.15, 0]));
+    body.add(mesh(new RoundedBoxGeometry(0.4, 0.32, 0.46, 3, 0.08), std(0x2a4ad0), [0, 0.52, 0]));
+    body.add(mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.06, 20), new THREE.MeshBasicMaterial({ color: 0xff3ad8 }), [0, 0.52, 0.24], false).rotateX(Math.PI / 2));
+  } else {
+    const sh = mesh(new THREE.SphereGeometry(0.28, 20, 14), std(0x8ae02a, { roughness: 0.35 }), [0, 0.2, 0]); sh.scale.set(1, 0.6, 1.25); body.add(sh);
+    for (const sx of [-1, 1]) body.add(mesh(new THREE.SphereGeometry(0.045, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffe14a }), [sx * 0.08, 0.27, 0.3], false));
+  }
+  root.userData = { body, turn };
+  return root;
+}
+function makeEnemyOld(type) {
   const patrol = type === 'patrol';
   const M = {
     body: std(patrol ? 0xd8452f : 0x3a2a5a, { roughness: 0.35, metalness: 0.3 }),
@@ -213,8 +241,18 @@ export function makeEnemy(type) {
 }
 
 // Boss: Bolt ile aynı yumuşak, yuvarlak tarz; koyu metal gövde, altın süsler, tek geniş vizör ve kızgın kırmızı gözler
+// Meshy boss'unun mor zırhı her dünyada bu renge boyanır (1. dünya: orijinal mor)
+const BOSS_TINT = { 2: 0xd0802a, 3: 0x3a8ae0, 4: 0xd03a2a, 5: 0x3aa04a, 6: 0xe03ac0, 7: 0x7a8aa0, 8: 0xc8a030, 9: 0x2ab0a8, 10: 0x30303e };
 export const BOSS_COLORS = { 1: 0x5a4aa0, 2: 0x7a4a2a, 3: 0x3a7ab0, 4: 0xa03a2a, 5: 0x3a7a4a, 6: 0x8a2aa0, 7: 0x8a2a2a, 8: 0x8a5a2a, 9: 0x2a8a8a, 10: 0x4a2a5a };
 export function makeBoss(world = 10) {
+  if (hasEnemyModel('boss')) {
+    const root = new THREE.Group(), turn = new THREE.Group(), body = new THREE.Group(), head = new THREE.Group();
+    root.add(turn); turn.add(body); body.add(head);
+    head.add(cloneEnemyModel('boss', world === 1 ? null : BOSS_TINT[world]));
+    const l = new THREE.PointLight(0xff3a2a, 2.5, 3); l.position.set(0, 1.4, 1.1); root.add(l);
+    root.userData = { body, turn, head, eyes: [], light: l, glb: true };
+    return root;
+  }
   const tint = BOSS_COLORS[world] || BOSS_COLORS[10];
   const M = {
     body: std(0x2b2e44, { roughness: 0.32, metalness: 0.45 }),

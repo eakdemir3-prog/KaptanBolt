@@ -144,6 +144,35 @@ function buildPath(w, h, o) {
     const c = pick(cand); occupiedCells.add(c);
     enemies.push({ type: 'chaser', at: [c % w, (c / w) | 0] });
   }
+  // Lazer nöbetçi: yolun dışında bir karede durur, ışını yolu en az 2 yerden keser
+  for (let n = 0; n < (o.sentries || 0); n++) {
+    const cand = [];
+    const near = new Set(path.slice(0, 3));
+    for (let c = 0; c < w * h; c++) {
+      if (get(c) !== '#') continue;
+      for (const [dir, dx, dy] of [['right', 1, 0], ['left', -1, 0], ['down', 0, 1], ['up', 0, -1]]) {
+        let x = c % w + dx, y = ((c / w) | 0) + dy, hit = 0, bad = false;
+        while (x >= 0 && y >= 0 && x < w && y < h) { const i = y * w + x; if (get(i) !== '#') hit++; if (near.has(i)) bad = true; x += dx; y += dy; }
+        if (hit >= 2 && !bad) cand.push({ c, dir });
+      }
+    }
+    if (!cand.length) return null;
+    const p = pick(cand); put(p.c, '.'); occupiedCells.add(p.c);
+    enemies.push({ type: 'sentry', at: [p.c % w, (p.c / w) | 0], dir: p.dir });
+  }
+  // Kemirici böcek: yolun ortasında, yol boyunca gidip gelir
+  for (let n = 0; n < (o.gnawers || 0); n++) {
+    const cand = [];
+    for (let k = 4; k < path.length - 2; k++) {
+      const c = path[k];
+      if (get(c) !== '.' || occupiedCells.has(c) || dist(w, c, path[0]) < 3) continue;
+      const d = path[k + 1] - c;
+      cand.push({ c, dir: d === 1 ? 'right' : d === -1 ? 'left' : d === w ? 'down' : 'up' });
+    }
+    if (!cand.length) return null;
+    const p = pick(cand); occupiedCells.add(p.c);
+    enemies.push({ type: 'gnawer', at: [p.c % w, (p.c / w) | 0], dir: p.dir });
+  }
   return { grid: g.map((r) => r.join('')), enemies };
 }
 
@@ -234,12 +263,12 @@ const SEG = [
   // Dünya 5: Sağlam Taş
   [81, 85, 5, 5, 5, { len: [10, 16], keys: [1, 1], strong: true }, 'easy'],
   [86, 92, 5, 6, 6, { len: [16, 26], keys: [1, 2], strong: true }],
-  [93, 99, 5, 7, 7, { len: [22, 32], keys: [2, 2], strong: true, patrols: 1 }],
+  [93, 99, 5, 7, 7, { len: [22, 32], keys: [2, 2], strong: true, sentries: 1 }],
   [100, 100, 5, 7, 7, { boss: true, keys: 2, every: 2, strong: 0.12 }],
   // Dünya 6: Işınlanma
   [101, 105, 6, 6, 6, { len: [12, 18], keys: [1, 1], portal: true }, 'easy'],
   [106, 112, 6, 7, 7, { len: [18, 28], keys: [1, 2], portal: true }],
-  [113, 119, 6, 7, 7, { len: [24, 34], keys: [2, 3], portal: true, ice: 0.2 }],
+  [113, 119, 6, 7, 7, { len: [24, 34], keys: [2, 3], portal: true, ice: 0.2, sentries: 1 }],
   [120, 120, 6, 7, 7, { boss: true, keys: 1, every: 2, portal: true }],
   // Dünya 7: Takipçi
   [121, 125, 7, 6, 6, { len: [12, 18], keys: [1, 1], chasers: 1 }, 'easy'],
@@ -249,20 +278,20 @@ const SEG = [
   // Dünya 8: Düğme ve Köprü
   [141, 145, 8, 6, 6, { len: [12, 18], keys: [1, 1], bridge: true }, 'easy'],
   [146, 152, 8, 7, 7, { len: [18, 28], keys: [1, 2], bridge: true }],
-  [153, 159, 8, 7, 7, { len: [22, 32], keys: [2, 2], bridge: true, patrols: 1 }],
+  [153, 159, 8, 7, 7, { len: [22, 32], keys: [2, 2], bridge: true, gnawers: 1 }],
   [160, 160, 8, 7, 7, { boss: true, keys: 1, every: 2, bridge: true }],
   // Dünya 9: Ok Labirenti
   [161, 165, 9, 6, 6, { len: [12, 18], keys: [1, 1], arrows: 0.3 }, 'easy'],
   [166, 172, 9, 7, 7, { len: [18, 28], keys: [1, 2], arrows: 0.3 }],
-  [173, 179, 9, 7, 7, { len: [22, 32], keys: [2, 2], arrows: 0.25, ice: 0.15 }],
+  [173, 179, 9, 7, 7, { len: [22, 32], keys: [2, 2], arrows: 0.25, ice: 0.15, gnawers: 1 }],
   [180, 180, 9, 7, 7, { boss: true, keys: 1, every: 2, arrows: 0.1 }],
   // Dünya 10: Son Kale (karışık)
   [181, 199, 10, 7, 7, { mix: true, len: [22, 34], keys: [2, 3] }],
   [200, 200, 10, 7, 7, { boss: true, keys: 2, every: 1, chasers: 1, patrols: 1 }],
 ];
-const MIX = [{ ice: 0.25 }, { strong: true }, { portal: true }, { bridge: true }, { arrows: 0.2 }, { patrols: 1 }, { chasers: 1 }];
+const MIX = [{ ice: 0.25 }, { strong: true }, { portal: true }, { bridge: true }, { arrows: 0.2 }, { patrols: 1 }, { chasers: 1 }, { sentries: 1 }, { gnawers: 1 }];
 
-const TUT = { 1: 'swipe', 8: 'keys', 12: 'patrol', 16: 'ice', 20: 'boss', 21: 'keys', 41: 'ice', 61: 'patrol', 81: 'strong', 101: 'portal', 121: 'chaser', 141: 'bridge', 161: 'arrow', 181: 'castle' };
+const TUT = { 1: 'swipe', 8: 'keys', 12: 'patrol', 16: 'ice', 20: 'boss', 21: 'keys', 41: 'ice', 61: 'patrol', 81: 'strong', 101: 'portal', 121: 'chaser', 141: 'bridge', 161: 'arrow', 181: 'castle', 93: 'sentry', 153: 'gnawer' };
 
 const only = process.argv[2] ? +process.argv[2] : 0; // hızlı deneme: belirli bir segment
 const levels = [{ id: 1, world: 1, grid: ['#####', 'S...K', '####.', 'D....', '#####'] }];
@@ -277,7 +306,7 @@ for (const [a, b, world, w, h, o, tag] of SEG) {
   while (pool.length < target && tries < maxTries) {
     tries++;
     let oo = o;
-    if (o.mix) { const a2 = MIX.slice().sort(() => rnd() - 0.5).slice(0, 2); oo = Object.assign({}, o, ...a2); if (oo.patrols && oo.chasers) delete oo.chasers; }
+    if (o.mix) { const a2 = MIX.slice().sort(() => rnd() - 0.5).slice(0, 2); oo = Object.assign({}, o, ...a2); { const ek = ['patrols', 'chasers', 'sentries', 'gnawers'].filter((k) => oo[k]); for (const k of ek.slice(1)) delete oo[k]; } }
     const cand = isBoss ? buildBoss(w, h, oo) : buildPath(w, h, { ...oo, len: ri(...oo.len), keys: ri(...oo.keys) });
     if (!cand) continue;
     const k = cand.grid.join('/') + JSON.stringify(cand.enemies) + JSON.stringify(cand.boss || '');
@@ -286,7 +315,7 @@ for (const [a, b, world, w, h, o, tag] of SEG) {
     const ev = evaluate(a, cand, isBoss);
     if (!ev || ev.min < (isBoss ? 8 : 4)) continue;
     // kestirme yol olmasın: en kısa çözüm karelerin en az yarısı kadar (öğreticiler hariç)
-    if (!isBoss && tag !== 'easy' && ev.min < Math.ceil(ev.tiles * (o.patrols || o.chasers ? 0.42 : 0.5))) continue;
+    if (!isBoss && tag !== 'easy' && ev.min < Math.ceil(ev.tiles * (o.patrols || o.chasers || o.sentries || o.gnawers ? 0.42 : 0.5))) continue;
     pool.push(ev);
   }
   pool.sort((x, y) => x.score - y.score);
@@ -296,7 +325,7 @@ for (const [a, b, world, w, h, o, tag] of SEG) {
     let q;
     if (isBoss) q = 0.6;
     else if (tag === 'easy') q = 0.12 + (0.83 * k) / Math.max(1, need - 1);
-    else if (o.patrols || o.chasers) q = 0.25 + (0.65 * k) / Math.max(1, need - 1); // düşmanlı bölümler bir kademe kolay
+    else if (o.patrols || o.chasers || o.sentries || o.gnawers) q = 0.25 + (0.65 * k) / Math.max(1, need - 1); // düşmanlı bölümler bir kademe kolay
     else q = 0.4 + (0.58 * k) / Math.max(1, need - 1);
     const ev = pool[Math.min(pool.length - 1, Math.floor(q * pool.length))];
     pool.splice(pool.indexOf(ev), 1);

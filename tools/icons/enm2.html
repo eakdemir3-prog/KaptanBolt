@@ -1,0 +1,21 @@
+<!doctype html><html><body style="margin:0"><script type="module">
+import * as THREE from 'three';
+import { loadEnemyModels } from '../../src/game/robotModel.js';
+await loadEnemyModels();
+const { makeEnemy, makeBoss } = await import('../../src/game/models.js');
+const S = 300, R = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+R.setPixelRatio(1); R.setSize(S, S, false); R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = 0.85;
+const out = [];
+const objs = ['patrol', 'chaser', 'sentry', 'gnawer'].map((t) => [t, makeEnemy(t)]);
+for (let w = 1; w <= 10; w++) objs.push(['boss' + w, makeBoss(w)]);
+for (const [n, o] of objs) {
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(0x1a1450);
+  sc.add(new THREE.HemisphereLight(0x9d8cff, 0x140c30, 0.9)); const d = new THREE.DirectionalLight(0xdfe8ff, 1.6); d.position.set(-3, 9, 5); sc.add(d);
+  const tile = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.36, 0.9), new THREE.MeshStandardMaterial({ color: 0x34d6f2 })); tile.position.y = -0.18; sc.add(tile);
+  sc.add(o); o.rotation.y = -0.4;
+  const big = n.startsWith('boss');
+  const c = new THREE.PerspectiveCamera(35, 1, 0.01, 50); c.position.set(0, big ? 2.2 : 1.3, big ? 3.6 : 2); c.lookAt(0, big ? 0.7 : 0.3, 0);
+  R.render(sc, c); out.push([n, R.domElement.toDataURL()]);
+}
+window.OUT = out; window.DONE = 1;
+</script></body></html>

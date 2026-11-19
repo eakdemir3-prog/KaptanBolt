@@ -259,3 +259,47 @@ test('altın: ilk bitiriş taban+yıldız, tekrar sadece yeni yıldız, boss faz
   assert.equal(Eco.winCoins({ stars: 3, boss: true }), 105);
   assert.equal(Eco.winCoins({ stars: 2, pro: true }), 22);
 });
+
+test('lazer nöbetçi: bir hamle uyarır, sonraki hamle ateş eder', () => {
+  // nöbetçi (0,0) aşağı bakıyor: x=0 sütunu
+  const s = newState(parseLevel({ id: 0, grid: ['.....', '.....', 'S...D', '.....'], enemies: [{ type: 'sentry', at: [0, 0], dir: 'down' }] }));
+  assert.equal(s.board.tileCount, 19); // nöbetçinin karesi sayılmaz
+  let ev = move(s, 'right'); // hamle 1: uyanır
+  assert.ok(ev.some((e) => e.t === 'wake'));
+  ev = move(s, 'up');        // hamle 2: uyarı
+  assert.ok(ev.some((e) => e.t === 'laserCharge'));
+  ev = move(s, 'left');      // hamle 3: (0,1) sütunda -> ateş, yakalanır
+  assert.ok(ev.some((e) => e.t === 'laser'));
+  assert.equal(s.status, 'caught');
+});
+
+test('lazer nöbetçi: ışın dışında kalınca güvende, üstüne yürünmez', () => {
+  const s = newState(parseLevel({ id: 0, grid: ['.....', 'S...D'], enemies: [{ type: 'sentry', at: [0, 0], dir: 'right' }] }));
+  assert.equal(canMove(s, 'up'), false);
+  move(s, 'right'); move(s, 'right'); move(s, 'right');
+  assert.equal(s.status, 'play');
+});
+
+test('kemirici böcek: arkasındaki kareyi çökertir, yakalamaz, üstüne basınca ezilir', () => {
+  const s = newState(parseLevel({ id: 0, grid: ['S....D', '......'], enemies: [{ type: 'gnawer', at: [3, 1], dir: 'right' }] }));
+  move(s, 'down'); // uyanır
+  const c0 = collapsedCount(s);
+  const ev = move(s, 'right'); // böcek (3,1)->(4,1), (3,1) çöker
+  assert.ok(ev.some((e) => e.t === 'enemyMove'));
+  assert.equal(s.collapsed[1 * 6 + 3], 1);
+  assert.equal(collapsedCount(s), c0 + 2);
+  assert.equal(s.status, 'play');
+  // böceğin yanına gel ve üstüne bas
+  const s2 = newState(parseLevel({ id: 0, grid: ['S.D', '...'], enemies: [{ type: 'gnawer', at: [1, 1], dir: 'left' }] }));
+  assert.equal(canMove(s2, 'down'), true);
+  move(s2, 'right'); // uyanır
+  const e2 = move(s2, 'down'); // (1,1)'deki böceğin üstüne
+  assert.ok(e2.some((e) => e.t === 'squash'));
+  assert.equal(s2.enemies[0].alive, false);
+});
+
+test('kemirici böcek anahtarlı kareyi çökertmez', () => {
+  const s = newState(parseLevel({ id: 0, grid: ['S...D', '#.K.#'], enemies: [{ type: 'gnawer', at: [2, 1], dir: 'right' }] }));
+  move(s, 'right'); move(s, 'right');
+  assert.equal(s.collapsed[1 * 5 + 2], 0);
+});

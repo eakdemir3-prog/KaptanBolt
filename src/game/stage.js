@@ -8,7 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { THEMES, PORTAL_COLORS, makeMaterials, makeTile, makeStrongTile, makePortalTile, makePit, makeKey, makeDoor, makeRobot, setRobotFace, makeEnemy, makeBoss, makeBridgeTile, makeBridgeGhost, makeButtonTile, makeArrowTile, makeZzz, makeDangerMark, SKINS } from './models.js';
 import { tween, ease, updateTweens, clearTweens, wait } from './tween.js';
-import { HOLE, ICE, STRONG, BRIDGE, BUTTON, ARROW_DIR, doorOpen } from '../logic/rules.js';
+import { HOLE, ICE, STRONG, BRIDGE, BUTTON, ARROW_DIR, doorOpen, gnawerNext, laserCells } from '../logic/rules.js';
 
 const DIR_ANGLE = { down: 0, up: Math.PI, right: Math.PI / 2, left: -Math.PI / 2 };
 const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
@@ -150,12 +150,14 @@ export class Stage {
       t.position.copy(p); this.root.add(t); this.tiles.set(i, t);
     }
     // düşmanlar ve boss
+    this.lasers = [];
     this.enemyMeshes = state.enemies.map((e) => {
       if (!e.alive) return null;
       const m = makeEnemy(e.type); m.position.copy(this.cellPos(e.pos)).add(new THREE.Vector3(0, 0.18, 0));
       m.userData.turn.rotation.y = DIR_ANGLE[e.dir] ?? 0; m.userData.type = e.type; m.userData.phase = Math.random() * 6;
       this.root.add(m);
-      if (e.type === 'patrol') { const a = makeArrow(0xffd23a); m.userData.arrow = a; this.root.add(a); this._placeArrow(m, e); }
+      if (e.type === 'patrol' || e.type === 'gnawer') { const a = makeArrow(e.type === 'gnawer' ? 0x9aff3a : 0xffd23a); m.userData.arrow = a; this.root.add(a); this._placeArrow(m, e); }
+      if (e.type === 'sentry') m.userData.beams = [];
       if (state.moves === 0) { const z = makeZzz(); z.position.copy(m.position).add(new THREE.Vector3(0.15, 0.95, 0)); this.root.add(z); this.zzz.push(z); }
       return m;
     });
@@ -225,7 +227,7 @@ export class Stage {
     const group = [];
     const flush = async () => { if (group.length) { await Promise.all(group.splice(0)); } };
     for (const e of events) {
-      const enemyEv = ['enemyMove', 'enemyFall', 'enemyWait', 'bossMove', 'bossFall', 'bossWait', 'bossCharge'].includes(e.t);
+      const enemyEv = ['enemyMove', 'enemyFall', 'enemyWait', 'bossMove', 'bossFall', 'bossWait', 'bossCharge', 'laser', 'laserCharge'].includes(e.t);
       if (enemyEv) { group.push(this._enemyEvent(e)); continue; }
       await flush();
       if (e.t === 'collapse') this._collapse(e.cell);
@@ -240,6 +242,7 @@ export class Stage {
       else if (e.t === 'doorOpen') this._setDoorOpen(true, true);
       else if (e.t === 'win') await this._winAnim();
       else if (e.t === 'stuck') await this._stuckAnim();
+      else if (e.t === 'squash') await this._squash(e);
     }
     await flush();
     if (state) this.enemyMeshes.forEach((m, k) => { if (m && m.userData.arrow) this._placeArrow(m, state.enemies[k]); });
@@ -254,6 +257,14 @@ export class Stage {
     if (!e.alive) { a.visible = false; return; }
     // devriyenin bir sonraki adımı (önü kapalıysa geri döner)
     const st = this.state, b = this.board;
+    if (e.type === 'gnawer') {
+      const nx = st ? gnawerNext(st, e) : { d: e.dir };
+      if (!nx) { a.visible = false; return; }
+      const [gx, gz] = DIR_VEC[nx.d];
+      a.visible = true; a.rotation.y = DIR_ANGLE[nx.d];
+      a.position.copy(this.cellPos(e.pos)).add(new THREE.Vector3(gx * 0.55, 0.2, gz * 0.55));
+      return;
+    }
     let d = e.dir;
     const free = (dir) => { const [dx, dz] = DIR_VEC[dir]; const x = e.pos % b.w + dx, y = Math.floor(e.pos / b.w) + dz; if (x < 0 || y < 0 || x >= b.w || y >= b.h) return false; const n = y * b.w + x; return b.cells[n] !== HOLE && !(st && st.collapsed[n]) && n !== b.door; };
     const OPP = { up: 'down', down: 'up', left: 'right', right: 'left' };
@@ -265,10 +276,12 @@ export class Stage {
   }
 
   async _enemyEvent(e) {
+    if (e.t === 'laserCharge') return this._laserCharge(e);
+    if (e.t === 'laser') return this._laserFire(e);
     if (e.t === 'bossCharge') {
       const bm = this.bossMesh; if (!bm) return;
       const U = bm.userData;
-      return tween(260, (t) => { U.body.scale.y = 1 - Math.sin(Math.PI * t) * 0.08; U.light.intensity = 10 + Math.sin(Math.PI * t) * 25; });
+      return tween(260, (t) => { U.body.scale.y = 1 - Math.sin(Math.PI * t) * 0.08; U.light.intensity = (bm.userData.glb ? 2.5 : 10) + Math.sin(Math.PI * t) * (bm.userData.glb ? 10 : 25); });
     }
     if (e.t === 'enemyWait' || e.t === 'bossWait') return wait(120);
     const isBoss = e.id === 'boss';
@@ -294,6 +307,49 @@ export class Stage {
       this.root.remove(m);
       if (isBoss) this.bossMesh = null; else this.enemyMeshes[e.id] = null;
     }
+  }
+
+  /** Nöbetçi ateşe hazırlanıyor: ışın yolu kırmızı yanıp söner */
+  _laserCharge(e) {
+    this._clearLaser(e.id);
+    const m = this.enemyMeshes[e.id]; if (!m || !e.cells.length) return wait(80);
+    const g = this._beam(m, e.cells, 0.035, 0xff3ad8, 0.55); g.userData.blink = true;
+    this.lasers.push({ id: e.id, g });
+    if (this.onSound) this.onSound('wake');
+    return tween(200, (t) => { m.userData.body.scale.setScalar(1 + Math.sin(Math.PI * t) * 0.08); });
+  }
+  /** Nöbetçi ateş eder: kalın, parlak ışın */
+  async _laserFire(e) {
+    this._clearLaser(e.id);
+    const m = this.enemyMeshes[e.id]; if (!m || !e.cells.length) return;
+    if (this.onSound) this.onSound('crack');
+    const g = this._beam(m, e.cells, 0.12, 0xff6ae8, 1);
+    const glowL = new THREE.PointLight(0xff3ad8, 6, 3); glowL.position.copy(this.cellPos(e.cells[Math.floor(e.cells.length / 2)])).setY(0.6); this.root.add(glowL);
+    this.shake(0.04, 160);
+    await tween(380, (t) => { g.children[0].scale.x = g.children[0].scale.z = 1 + Math.sin(Math.PI * t) * 0.6; g.children[0].material.opacity = 1 - t * t; glowL.intensity = 6 * (1 - t); });
+    this.root.remove(g); this.root.remove(glowL);
+  }
+  _beam(m, cells, r, color, opacity) {
+    const a = m.position.clone().setY(0.62), b = this.cellPos(cells[cells.length - 1]).setY(0.62);
+    const dir = b.clone().sub(a); const len = dir.length() + 0.45; dir.normalize();
+    const g = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, toneMapped: false });
+    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 10), mat);
+    cyl.position.y = len / 2; g.add(cyl);
+    g.position.copy(a); g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    g.renderOrder = 6; this.root.add(g);
+    return g;
+  }
+  _clearLaser(id) { this.lasers = this.lasers.filter((l) => { if (l.id === id) { this.root.remove(l.g); return false; } return true; }); }
+  /** Robot böceğin üstüne bastı: böcek ezilir */
+  async _squash(e) {
+    const m = this.enemyMeshes[e.id]; if (!m) return;
+    this.enemyMeshes[e.id] = null;
+    if (m.userData.arrow) this.root.remove(m.userData.arrow);
+    if (this.onSound) this.onSound('enemyFall');
+    this._burst(m.position.clone().setY(0.4), 0x9aff3a, 30);
+    await tween(260, (t) => { m.scale.set(1 + t * 0.5, 1 - t * 0.9, 1 + t * 0.5); });
+    this.root.remove(m);
   }
 
   _pressButton(animate = true) {
@@ -324,8 +380,9 @@ export class Stage {
     const list = [...(this.enemyMeshes || []), this.bossMesh].filter(Boolean);
     for (const m of list) m.traverse((o) => {
       if (!o.material || !o.material.emissive) return;
-      if (o.userData.em0 === undefined) { o.userData.em0 = o.material.emissive.getHex(); o.userData.ei0 = o.material.emissiveIntensity; }
-      if (on) { o.material.emissive.set(0x3a9aff); o.material.emissiveIntensity = 0.7; } else { o.material.emissive.setHex(o.userData.em0); o.material.emissiveIntensity = o.userData.ei0; }
+      if (o.userData.em0 === undefined) { o.userData.em0 = o.material.emissive.getHex(); o.userData.ei0 = o.material.emissiveIntensity; o.userData.emap = o.material.emissiveMap; }
+      if (on) { o.material.emissive.set(0x3a9aff); o.material.emissiveIntensity = 0.55; o.material.emissiveMap = null; } else { o.material.emissive.setHex(o.userData.em0); o.material.emissiveIntensity = o.userData.ei0; o.material.emissiveMap = o.userData.emap; }
+      o.material.needsUpdate = true;
     });
     this.frozenOn = on;
   }
@@ -620,7 +677,8 @@ export class Stage {
     if (this.flames) for (const f of this.flames) { const k = 1 + Math.sin(t * 9 + f.seed) * 0.08 + Math.sin(t * 23 + f.seed) * 0.05; f.f.scale.set(k, 1.6 * k, k); f.tl.intensity = 14 * k; }
     if (this.particles) { this.particles.rotation.y = t * 0.03; this.particles.position.y = this.world === 3 ? -((t * 0.25) % 2) + 1 : Math.sin(t * 0.3) * 0.2; }
     if (this.portals) for (const p of this.portals) if (p.userData.swirl) p.userData.swirl.rotation.y = -t * 2.5;
-    if (this.enemyMeshes) for (const m of this.enemyMeshes) if (m) { m.userData.body.position.y = Math.sin(t * 4 + m.userData.phase) * 0.03; if (m.userData.siren) m.userData.siren.scale.setScalar(0.8 + Math.abs(Math.sin(t * 6)) * 0.5); if (m.userData.arrow && m.userData.arrow.visible) m.userData.arrow.children[0].material.opacity = 0.5 + Math.abs(Math.sin(t * 4)) * 0.5; }
+    if (this.enemyMeshes) for (const m of this.enemyMeshes) if (m) { m.userData.body.position.y = m.userData.type === 'sentry' ? 0 : m.userData.type === 'chaser' && m.userData.glb ? 0.04 + Math.sin(t * 3 + m.userData.phase) * 0.06 : Math.sin(t * 4 + m.userData.phase) * 0.03; if (m.userData.siren) m.userData.siren.scale.setScalar(0.8 + Math.abs(Math.sin(t * 6)) * 0.5); if (m.userData.arrow && m.userData.arrow.visible) m.userData.arrow.children[0].material.opacity = 0.5 + Math.abs(Math.sin(t * 4)) * 0.5; }
+    if (this.lasers) for (const l of this.lasers) if (l.g.userData.blink) l.g.children[0].material.opacity = 0.25 + Math.abs(Math.sin(t * 9)) * 0.55;
     if (this.bossMesh) { const U = this.bossMesh.userData; U.head.rotation.y = Math.sin(t * 0.9) * 0.15; U.body.position.y = Math.sin(t * 1.8) * 0.03; U.eyes.forEach((e) => (e.scale.y = 1 + Math.abs(Math.sin(t * 3)) * 0.4)); }
     if (this.dangerMarks && this.dangerMarks.length) { const k = 0.55 + Math.abs(Math.sin(t * 5)) * 0.4; for (const d of this.dangerMarks) d.userData.mat.opacity = k; }
     if (this.zzz) for (const z of this.zzz) z.material.rotation = Math.sin(t * 2) * 0.15;

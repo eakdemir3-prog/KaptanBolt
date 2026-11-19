@@ -29,6 +29,55 @@ export function loadRobotModel() {
 }
 export const hasRobotModel = () => !!template;
 
+// ---------- Düşman modelleri (models/*.glb) ----------
+// boy: oyundaki hedef boyut; yaw: modelin önünü +Z'ye çevirmek için dönüş; lift: yerden yükseklik
+const ENEMY_SPEC = {
+  devriye: { fit: 'width', size: 0.88, yaw: Math.PI / 2 },
+  takipci: { fit: 'height', size: 0.8, lift: 0.12 },
+  nobetci: { fit: 'height', size: 1.08 },
+  bocek: { fit: 'width', size: 0.86 },
+  boss: { fit: 'width', size: 1.75 },
+};
+const enemyTpl = {};
+export function loadEnemyModels() {
+  const L = new GLTFLoader();
+  return Promise.all(Object.entries(ENEMY_SPEC).map(([n, sp]) => new Promise((ok) => {
+    L.load(new URL(`models/${n}.glb`, document.baseURI).href, (gltf) => {
+      const g = gltf.scene; const wrap = new THREE.Group();
+      g.rotation.y = sp.yaw || 0; wrap.add(g); wrap.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(wrap), sz = box.getSize(new THREE.Vector3());
+      const s = sp.size / (sp.fit === 'height' ? sz.y : Math.max(sz.x, sz.z));
+      wrap.scale.setScalar(s);
+      const c = box.getCenter(new THREE.Vector3());
+      wrap.position.set(-c.x * s, -box.min.y * s + (sp.lift || 0), -c.z * s);
+      g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; o.material.emissiveIntensity = 1.4; } });
+      const holder = new THREE.Group(); holder.add(wrap);
+      enemyTpl[n] = holder; ok();
+    }, undefined, () => ok());
+  })));
+}
+export const hasEnemyModel = (n) => !!enemyTpl[n];
+/** Düşman modelinin kopyası (malzemeler ayrı: dondurma ve boss renklendirme için) */
+export function cloneEnemyModel(n, tint) {
+  const m = enemyTpl[n].clone(true);
+  m.traverse((o) => {
+    if (!o.isMesh) return;
+    o.material = o.material.clone();
+    if (tint != null) {
+      const u = { uTint: { value: new THREE.Color(tint) } };
+      o.material.onBeforeCompile = (sh) => {
+        Object.assign(sh.uniforms, u);
+        // mor zırhı dünya rengine boya (altın ve kırmızı ışıklar kalır)
+        sh.fragmentShader = 'uniform vec3 uTint;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+{ vec3 c = diffuseColor.rgb; float purple = clamp((min(c.r, c.b) - c.g) * 6.0, 0.0, 1.0) * (1.0 - clamp((c.r - c.b) * 4.0, 0.0, 1.0));
+  float lum = max(c.r, max(c.g, c.b)); diffuseColor.rgb = mix(c, uTint * (lum / 0.45), purple); }`);
+      };
+      o.material.customProgramCacheKey = () => 'bossTint';
+    }
+  });
+  return m;
+}
+
 const TINT_GLSL = `
 #include <map_fragment>
 {
