@@ -248,16 +248,16 @@ function playIntro(first = false) {
   stage.paused = true; setMusic(false);
   v.currentTime = 0; v.muted = false;
   const p = v.play();
-  if (p && p.catch) p.catch(() => { v.muted = true; $('introSound').classList.remove('hidden'); v.play().catch(() => endIntro()); });
+  if (p && p.catch) p.catch(() => { v.muted = true; $('introSound').classList.remove('hidden'); v.play().catch(() => endIntro(true)); });
   v.onended = () => endIntro();
-  v.onerror = () => endIntro();
+  v.onerror = () => endIntro(true);
   return new Promise((ok) => { introDone = ok; });
 }
-function endIntro() {
+function endIntro(failed = false) {
   const box = $('intro'), v = $('introVid');
   if (box.classList.contains('hidden')) return;
   v.pause(); box.classList.add('hidden');
-  data.introSeen = true; data.storySeen = true; save();
+  if (failed) data.introFailed = true; else data.storySeen = true; save();
   setMusic(data.settings.music); stage.paused = !(screen === 'menu' || screen === 'game');
   if (introDone) { const f = introDone; introDone = null; f(); }
 }
@@ -285,7 +285,12 @@ function startLevel(id) {
   if (typeof id === 'object') lv = id;
   else { id = Math.max(1, Math.min(MAX, id)); lv = LEVELS[id - 1]; }
   settleLoss();
-  if (!lv.daily && lv.id === 1 && !data.storySeen) { data.storySeen = true; save(); openModal(STORY_HTML + '<button class="btn primary" data-act="storyGo">Maceraya başla →</button>', 'story'); return; }
+  if (!lv.daily && lv.id === 1 && !data.storySeen) {
+    // 1. bölümden önce hikâye videosu; video açılamazsa (veya otomatik testte) yazılı hikâye
+    const canVideo = !data.introFailed && !(navigator.webdriver && !location.hash.includes('intro'));
+    if (canVideo) { playIntro().then(() => startLevel(1)); return; }
+    data.storySeen = true; save(); openModal(STORY_HTML + '<button class="btn primary" data-act="storyGo">Maceraya başla →</button>', 'story'); return;
+  }
   if (!lv.daily && !Eco.hasEnergy(data)) return energyModal(() => startLevel(id));
   game.level = lv;
   game.history = []; game.undos = UNDOS; game.lossPending = false; game.adContinueUsed = false;
@@ -835,6 +840,4 @@ window.addEventListener('resize', () => { if (screen === 'game') layoutGame(); e
 initAds();
 initPurchases().then(() => proStatus()).then((st) => { if (st) { data.pro = { ...data.pro, ...st }; save(); } proDaily(); renderMenu(); });
 show('menu');
-// ilk açılışta hikâye videosu (otomatik testlerde atlanır)
-if (!data.introSeen && !(navigator.webdriver && !location.hash.includes('intro'))) playIntro(true);
 if (document.fonts) document.fonts.ready.then(() => { if (screen === 'game') layoutGame(); if (screen === 'menu') layoutMenu(); });
