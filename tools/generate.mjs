@@ -209,9 +209,15 @@ function evaluate(id, cand, isBoss) {
 
 // [ilk, son, dünya, w, h, seçenekler, etiket]
 const SEG = [
-  [2, 5, 1, 5, 5, { len: [7, 10], keys: [1, 1] }, 'easy'],
-  [6, 12, 1, 5, 5, { len: [11, 16], keys: [1, 1] }],
-  [13, 19, 1, 5, 5, { len: [16, 22], keys: [1, 1] }],
+  // Dünya 1: hızlı öğrenme + sonraki dünyalardan tadımlıklar (8: iki anahtar, 12: devriye, 16: buz)
+  [2, 4, 1, 5, 5, { len: [6, 9], keys: [1, 1] }, 'easy'],
+  [5, 7, 1, 5, 5, { len: [11, 15], keys: [1, 1] }],
+  [8, 8, 1, 5, 5, { len: [12, 16], keys: [2, 2] }],
+  [9, 11, 1, 5, 5, { len: [14, 19], keys: [1, 1] }],
+  [12, 12, 1, 5, 5, { len: [12, 16], keys: [1, 1], patrols: 1 }, 'easy'],
+  [13, 15, 1, 6, 6, { len: [16, 22], keys: [1, 2] }],
+  [16, 16, 1, 5, 5, { len: [12, 16], keys: [1, 1], ice: 0.45 }, 'easy'],
+  [17, 19, 1, 6, 6, { len: [18, 26], keys: [1, 2] }],
   [20, 20, 1, 6, 6, { boss: true, keys: 1, every: 2 }],
   [21, 30, 2, 5, 5, { len: [14, 22], keys: [2, 2] }],
   [31, 39, 2, 6, 6, { len: [20, 30], keys: [2, 3] }],
@@ -256,7 +262,7 @@ const SEG = [
 ];
 const MIX = [{ ice: 0.25 }, { strong: true }, { portal: true }, { bridge: true }, { arrows: 0.2 }, { patrols: 1 }, { chasers: 1 }];
 
-const TUT = { 1: 'swipe', 20: 'boss', 21: 'keys', 41: 'ice', 61: 'patrol', 81: 'strong', 101: 'portal', 121: 'chaser', 141: 'bridge', 161: 'arrow', 181: 'castle' };
+const TUT = { 1: 'swipe', 8: 'keys', 12: 'patrol', 16: 'ice', 20: 'boss', 21: 'keys', 41: 'ice', 61: 'patrol', 81: 'strong', 101: 'portal', 121: 'chaser', 141: 'bridge', 161: 'arrow', 181: 'castle' };
 
 const only = process.argv[2] ? +process.argv[2] : 0; // hızlı deneme: belirli bir segment
 const levels = [{ id: 1, world: 1, grid: ['#####', 'S...K', '####.', 'D....', '#####'] }];

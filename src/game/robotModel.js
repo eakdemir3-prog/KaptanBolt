@@ -99,7 +99,16 @@ export function makeAnimator(model) {
       foot.parent.getWorldQuaternion(qb); foot.quaternion.copy(qb.invert().multiply(qa));
     }
   };
-  const update = (dt) => { mixer.update(dt); spread(); };
+  // Kafa eğimi: üstten bakan oyun kamerasında yüz görünsün diye kafa hafifçe yukarı bakar
+  const head = bone('Head'), X = new THREE.Vector3(1, 0, 0);
+  const st = { headUp: 0 };
+  const tilt = () => {
+    if (!head || !st.headUp) return;
+    model.getWorldQuaternion(qb); ax.copy(X).applyQuaternion(qb);
+    head.parent.getWorldQuaternion(qb); ax.applyQuaternion(qb.invert()).normalize();
+    qz.setFromAxisAngle(ax, -st.headUp); head.quaternion.premultiply(qz);
+  };
+  const update = (dt) => { mixer.update(dt); spread(); tilt(); };
   play('idle', { fade: 0 }); update(0.4);
-  return { mixer, update, play, has: (n) => !!acts[n], current: () => (cur ? cur.getClip().name : null) };
+  return { mixer, update, play, st, has: (n) => !!acts[n], current: () => (cur ? cur.getClip().name : null) };
 }

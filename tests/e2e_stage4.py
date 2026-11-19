@@ -18,7 +18,7 @@ with sync_playwright() as p:
     pg=b.new_page(viewport={"width":412,"height":915},device_scale_factor=2)
     errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
     pg.goto("http://localhost:4173/"); pg.wait_for_timeout(1500)
-    pg.evaluate("Object.assign(KB.data().settings,{unlockAll:false,infiniteEnergy:false}); Object.assign(KB.data().seenTutorial,{patrol:1,boss:1,keys:1})")
+    pg.evaluate("Object.assign(KB.data().settings,{unlockAll:false,infiniteEnergy:false}); Object.assign(KB.data().seenTutorial,{patrol:1,boss:1,keys:1,ice:1}); KB.data().storySeen=true")
     st=lambda k: pg.evaluate(f"KB.state.{k}")
     idle=lambda: pg.wait_for_function("KB.idle()",timeout=15000)
     # dünya kilitleri

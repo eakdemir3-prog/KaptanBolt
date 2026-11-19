@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { makeDecor } from './decor.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { THEMES, PORTAL_COLORS, makeMaterials, makeTile, makeStrongTile, makePortalTile, makePit, makeKey, makeDoor, makeRobot, setRobotFace, makeEnemy, makeBoss, makeBridgeTile, makeBridgeGhost, makeButtonTile, makeArrowTile, makeZzz, makeDangerMark, SKINS } from './models.js';
@@ -24,6 +25,7 @@ export class Stage {
     this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
     this.root = new THREE.Group(); this.scene.add(this.root);
     this.safe = { top: 200, bottom: 140 };
+    this.bonusCell = -1;
     this.paused = false;
     this.clock = new THREE.Clock();
     this._setupLights();
@@ -42,7 +44,7 @@ export class Stage {
     if (q === 'high') {
       this.composer = new EffectComposer(this.renderer);
       this.composer.addPass(new RenderPass(this.scene, this.camera));
-      this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.5, 0.45, 0.8);
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.32, 0.35, 0.93);
       this.composer.addPass(this.bloom);
       this.composer.addPass(new OutputPass());
     } else { this.composer = null; }
@@ -116,6 +118,7 @@ export class Stage {
     const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pa, 3));
     this.particles = new THREE.Points(pg, new THREE.PointsMaterial({ color: th.particle, size: this.world === 3 ? 0.07 : 0.045, transparent: true, opacity: 0.85 }));
     g.add(this.particles);
+    const dec = makeDecor(this.world, pw, pd, bz, rnd, M.rock2); g.add(dec.group); this.decorAnim = dec.anim;
     return g;
   }
 
@@ -166,6 +169,11 @@ export class Stage {
       const key = makeKey(); key.position.copy(this.cellPos(ci)).add(new THREE.Vector3(0, 0.8, 0));
       key.userData.phase = k * 1.3; this.root.add(key); this.keys.set(k, key);
     });
+    // bonus altın
+    this.bonusMesh = null;
+    if (this.bonusCell >= 0 && this.tiles.has(this.bonusCell)) {
+      const c = makeBonusCoin(); c.position.copy(this.cellPos(this.bonusCell)).add(new THREE.Vector3(0, 0.62, 0)); this.root.add(c); this.bonusMesh = c;
+    }
     this.door = makeDoor(); this.door.position.copy(this.cellPos(board.door)).add(new THREE.Vector3(0, 0.18, -0.12));
     this.root.add(this.door);
     this._setDoorOpen(doorOpen(state), false);
@@ -392,6 +400,7 @@ export class Stage {
     const dir = b.x > a.x ? 'right' : b.x < a.x ? 'left' : b.z > a.z ? 'down' : 'up';
     if (!slide) this.face(dir);
     const r = this.robot, U = r.userData;
+    this._lastMoveT = 1e9;
     if (this.onSound) this.onSound(slide ? 'slide' : 'step');
     this.mood = 'move';
     const A = U.anim;
@@ -404,7 +413,7 @@ export class Stage {
       U.body.rotation.x = slide ? -0.18 : 0;
     }, slide ? ease.linear : ease.inOutQuad);
     U.body.rotation.x = 0; U.legL.rotation.x = U.legR.rotation.x = U.armL.rotation.x = U.armR.rotation.x = 0;
-    this.mood = 'idle';
+    this.mood = 'idle'; this._lastMoveT = this.clock.getElapsedTime();
     if (A) this._idleT = setTimeout(() => { if (this.robot === r && this.mood === 'idle') A.play('idle', { fade: 0.25 }); }, 140);
   }
 
@@ -433,6 +442,8 @@ export class Stage {
     }
     tween(120, (u) => { t.position.x = base.x + Math.sin(u * 40) * 0.04; t.position.y = -u * 0.05; }).then(() => {
       t.visible = false; shards.forEach((s) => (s.visible = true));
+      this._dust(base.clone().setY(0.1), this.th ? this.th.side : 0x0e7aa0);
+      this.shake(0.035, 140);
       const spin = shards.map(() => [(Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4]);
       return tween(650, (u) => {
         shards.forEach((s, k) => {
@@ -455,9 +466,19 @@ export class Stage {
     tween(450, (t) => {
       key.position.y = y0 + t * 1.2; key.userData.inner.rotation.y = t * 12;
       key.scale.setScalar(1 + Math.sin(Math.PI * t) * 0.5 - t * 0.9);
-      key.userData.glow.intensity = 3 + t * 10;
+      key.userData.glow.intensity = 2 + t * 4;
     }, ease.outQuad).then(() => this.root.remove(key));
-    this._burst(key.position.clone(), 0xffd54a);
+    this._burst(key.position.clone(), 0xffd54a, 40);
+    this._ring(key.position.clone().setY(0.25), 0xffd54a);
+  }
+
+  takeBonus() {
+    const c = this.bonusMesh; if (!c) return;
+    this.bonusMesh = null; this.bonusCell = -1;
+    if (this.onSound) this.onSound('key');
+    const y0 = c.position.y;
+    this._burst(c.position.clone(), 0xffd54a, 30);
+    tween(500, (t) => { c.position.y = y0 + t * 1.4; c.rotation.y += 0.5; c.scale.setScalar(1 - t * 0.8); }, ease.outQuad).then(() => this.root.remove(c));
   }
 
   _setDoorOpen(open, animate) {
@@ -471,7 +492,7 @@ export class Stage {
     const c0 = new THREE.Color(0xb35cff), c1 = new THREE.Color(0x7ff6ff);
     tween(700, (t) => {
       U.portalMat.color.copy(c0).lerp(c1, t); U.light.color.copy(new THREE.Color(0xb060ff)).lerp(new THREE.Color(0x5ff3ff), t);
-      U.light.intensity = 8 + Math.sin(Math.PI * t) * 25;
+      U.light.intensity = 5 + Math.sin(Math.PI * t) * 10;
       U.lockMat.opacity = 1 - t; U.lock.scale.setScalar(1 + t * 0.8);
       U.ring.material.opacity = (1 - t) * 0.9; U.ring.scale.setScalar(1 + t * 3);
     }, ease.outQuad).then(() => { U.lock.visible = false; });
@@ -480,10 +501,12 @@ export class Stage {
   async _winAnim() {
     this.mood = 'happy'; setRobotFace(this.robot, 'happy');
     const r = this.robot, d = this.door.position;
-    if (r.userData.anim) { clearTimeout(this._idleT); r.userData.anim.play('cheer', { once: true, fade: 0.15, speed: 1.4 }); await new Promise((ok) => setTimeout(ok, 1100)); }
+    this._confetti(r.position.clone().setY(1.2));
+    if (r.userData.anim) { clearTimeout(this._idleT); r.userData.anim.play('cheer', { once: true, fade: 0.15, speed: 1.6 }); await new Promise((ok) => setTimeout(ok, 800)); }
     await tween(380, (t) => { r.position.y = 0.18 + Math.sin(Math.PI * t) * 0.6; r.userData.turn.rotation.y += 0.25; }, ease.linear);
-    this._burst(d.clone().add(new THREE.Vector3(0, 0.6, 0)), 0x7ff6ff);
-    await tween(380, (t) => { r.scale.setScalar(1.2 * (1 - t)); r.position.y = 0.18 + t * 0.5; }, ease.inQuad);
+    this._burst(d.clone().add(new THREE.Vector3(0, 0.6, 0)), 0x7ff6ff, 36);
+    this._ring(d.clone().setY(0.25), 0x7ff6ff);
+    await tween(300, (t) => { r.scale.setScalar(1.2 * (1 - t)); r.position.y = 0.18 + t * 0.5; }, ease.inQuad);
   }
 
   async _stuckAnim() {
@@ -493,11 +516,49 @@ export class Stage {
     await tween(600, (t) => { h.rotation.y = Math.sin(t * Math.PI * 4) * 0.35 * (1 - t); h.rotation.z = -0.15 * t; });
   }
 
-  _burst(pos, color) {
-    const n = 24, geo = new THREE.BufferGeometry(), arr = new Float32Array(n * 3), vel = [];
+  /** Kare çökünce yayılan toz bulutu */
+  _dust(pos, color) {
+    const n = 18, geo = new THREE.BufferGeometry(), arr = new Float32Array(n * 3), vel = [];
+    for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; arr.set([pos.x, pos.y, pos.z], i * 3); vel.push([Math.cos(a) * (0.6 + Math.random() * 0.5), 0.3 + Math.random() * 0.5, Math.sin(a) * (0.6 + Math.random() * 0.5)]); }
+    geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    const mat = new THREE.PointsMaterial({ color: new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.5), size: 0.32, map: softDot(), transparent: true, opacity: 0.85, depthWrite: false });
+    const p = new THREE.Points(geo, mat); this.root.add(p);
+    tween(650, (t) => {
+      const e = 1 - (1 - t) * (1 - t);
+      for (let i = 0; i < n; i++) { arr[i * 3] = pos.x + vel[i][0] * e * 0.7; arr[i * 3 + 1] = pos.y + vel[i][1] * e * 0.5; arr[i * 3 + 2] = pos.z + vel[i][2] * e * 0.7; }
+      geo.attributes.position.needsUpdate = true; mat.opacity = 0.85 * (1 - t); mat.size = 0.32 + t * 0.25;
+    }).then(() => this.root.remove(p));
+  }
+
+  /** Yerde genişleyen ışık halkası */
+  _ring(pos, color) {
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide });
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.28, 0.42, 48), mat); m.rotation.x = -Math.PI / 2; m.position.copy(pos); this.root.add(m);
+    tween(700, (t) => { m.scale.setScalar(1 + t * 1.6); mat.opacity = 0.9 * (1 - t); }, ease.outQuad).then(() => this.root.remove(m));
+  }
+
+  /** Kazanınca renkli konfeti */
+  _confetti(pos) {
+    const cols = [0xffd54a, 0x5ff3ff, 0xff5ad8, 0x8aff6a, 0xffffff], parts = [];
+    const geo = new THREE.PlaneGeometry(0.07, 0.11);
+    for (let i = 0; i < 46; i++) {
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: cols[i % cols.length], side: THREE.DoubleSide, transparent: true }));
+      m.position.copy(pos); this.root.add(m);
+      parts.push({ m, v: new THREE.Vector3((Math.random() - 0.5) * 3.2, 2.5 + Math.random() * 2.2, (Math.random() - 0.5) * 2.4), r: new THREE.Vector3(Math.random() * 12, Math.random() * 12, Math.random() * 12) });
+    }
+    tween(1500, (t) => {
+      for (const p of parts) {
+        p.m.position.set(pos.x + p.v.x * t, pos.y + p.v.y * t - 4.2 * t * t, pos.z + p.v.z * t);
+        p.m.rotation.set(p.r.x * t, p.r.y * t, p.r.z * t); p.m.material.opacity = t > 0.7 ? (1 - t) / 0.3 : 1;
+      }
+    }, ease.linear).then(() => parts.forEach((p) => this.root.remove(p.m)));
+  }
+
+  _burst(pos, color, n = 24) {
+    const geo = new THREE.BufferGeometry(), arr = new Float32Array(n * 3), vel = [];
     for (let i = 0; i < n; i++) { arr.set([pos.x, pos.y, pos.z], i * 3); vel.push(new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 3, (Math.random() - 0.5) * 3)); }
     geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
-    const mat = new THREE.PointsMaterial({ color, size: 0.09, transparent: true });
+    const mat = new THREE.PointsMaterial({ color, size: 0.2, map: softDot(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     const p = new THREE.Points(geo, mat); this.root.add(p);
     tween(700, (t) => {
       for (let i = 0; i < n; i++) { arr[i * 3] = pos.x + vel[i].x * t; arr[i * 3 + 1] = pos.y + vel[i].y * t - 3 * t * t; arr[i * 3 + 2] = pos.z + vel[i].z * t; }
@@ -538,6 +599,15 @@ export class Stage {
       key.userData.inner.rotation.y = t * 1.6 + key.userData.phase;
       key.userData.inner.position.y = Math.sin(t * 2.2 + key.userData.phase) * 0.06;
     }
+    if (this.robot) {
+      const U = this.robot.userData;
+      if (U.fill) U.fill.intensity += ((this.menuMode ? 9 : 4) - U.fill.intensity) * 0.2;
+      if (U.anim) U.anim.st.headUp += ((this.menuMode || this.mood === 'happy' || this.mood === 'sad' ? 0 : 0.42) - U.anim.st.headUp) * Math.min(1, dt * 6);
+      // dururken yüzünü yavaşça kameraya çevir (ipucu oku yokken)
+      if (!this.menuMode && this.mood === 'idle' && !this.hintMesh && t - (this._lastMoveT || 0) > 0.7) {
+        let a = U.turn.rotation.y; a = Math.atan2(Math.sin(a), Math.cos(a)); U.turn.rotation.y = a + (0 - a) * Math.min(1, dt * 4);
+      }
+    }
     if (this.robot && this.mood !== 'move') {
       const U = this.robot.userData;
       U.body.position.y = Math.sin(t * 2.4) * 0.015;
@@ -545,6 +615,8 @@ export class Stage {
       if (this.mood === 'idle') { U.eyeL.scale.y = U.eyeR.scale.y = blink; }
       if (this.menuMode) { if (!U.anim) U.armR.rotation.z = 0.18 + Math.max(0, Math.sin(t * 3)) * 2.2; U.turn.rotation.y = Math.sin(t * 0.6) * 0.4; }
     }
+    if (this.decorAnim) for (const f of this.decorAnim) f(t);
+    if (this.bonusMesh) { this.bonusMesh.rotation.y = t * 2.4; this.bonusMesh.position.y = 0.62 + Math.sin(t * 2.6) * 0.05; }
     if (this.flames) for (const f of this.flames) { const k = 1 + Math.sin(t * 9 + f.seed) * 0.08 + Math.sin(t * 23 + f.seed) * 0.05; f.f.scale.set(k, 1.6 * k, k); f.tl.intensity = 14 * k; }
     if (this.particles) { this.particles.rotation.y = t * 0.03; this.particles.position.y = this.world === 3 ? -((t * 0.25) % 2) + 1 : Math.sin(t * 0.3) * 0.2; }
     if (this.portals) for (const p of this.portals) if (p.userData.swirl) p.userData.swirl.rotation.y = -t * 2.5;
@@ -554,11 +626,27 @@ export class Stage {
     if (this.zzz) for (const z of this.zzz) z.material.rotation = Math.sin(t * 2) * 0.15;
     if (this.arrowTiles) for (const a of this.arrowTiles) a.userData.arrowMat.opacity = 0.6 + Math.abs(Math.sin(t * 4)) * 0.4;
     if (this.hintMesh) { const k = (Math.sin(t * 6) + 1) / 2; this.hintMesh.traverse((c) => { if (c.material) c.material.opacity = 0.5 + k * 0.5; }); }
-    if (this.door && this.doorOpen) this.door.userData.light.intensity = 9 + Math.sin(t * 3) * 2;
+    if (this.door && this.doorOpen) this.door.userData.light.intensity = 4.5 + Math.sin(t * 3) * 1;
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
   }
 }
 
+let _dot = null;
+/** Yumuşak kenarlı yuvarlak parçacık dokusu */
+function softDot() {
+  if (_dot) return _dot;
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.45, 'rgba(255,255,255,0.7)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64); _dot = new THREE.CanvasTexture(c); return _dot;
+}
+/** Bonus altın: dönen büyük para */
+function makeBonusCoin() {
+  const g = new THREE.Group();
+  const m = new THREE.MeshStandardMaterial({ color: 0xffcf3a, emissive: 0xc07a00, emissiveIntensity: 0.45, metalness: 0.75, roughness: 0.25 });
+  const c = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 32), m); c.rotation.x = Math.PI / 2; c.castShadow = true; g.add(c);
+  const star = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.06, 5), new THREE.MeshStandardMaterial({ color: 0xfff1a0, emissive: 0xffd54a, emissiveIntensity: 0.6 })); star.rotation.x = Math.PI / 2; g.add(star);
+  return g;
+}
 function makeArrow(color) {
   const g = new THREE.Group();
   const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false });

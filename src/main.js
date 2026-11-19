@@ -1,6 +1,7 @@
 // Kaptan Bolt — ana uygulama: ekranlar, giriş, oyun akışı ve oyun içi ekonomi
 import LEVELS from './levels/levels.json';
-import { parseLevel, newState, move, canMove, canJump, starsFor, collapsedCount, coverTarget, cloneState, validMoves, STRONG } from './logic/rules.js';
+import { SHIP_PARTS, partsHave, partHas, STORY_HTML } from './story.js';
+import { parseLevel, newState, move, canMove, canJump, starsFor, collapsedCount, coverTarget, cloneState, validMoves, STRONG, TILE, ICE } from './logic/rules.js';
 import { shortest, canWin } from './logic/solver.js';
 import { dailyLevel, dateKey, yesterdayKey } from './logic/daily.js';
 import { Stage } from './game/stage.js';
@@ -45,7 +46,7 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 // Test ve hata ayıklama için dışarıdan erişim
 window.KB = {
   get state() { return game.state; }, get screen() { return screen; }, input: (d) => game.input(d), start: (id) => startLevel(id),
-  data: () => data, idle: () => !game.busy, solve: () => (shortest(game.state, 800000, 20000) || {}).moves,
+  data: () => data, stage: () => stage, idle: () => !game.busy, solve: () => (shortest(game.state, 800000, 20000) || {}).moves,
   _clone: (s) => cloneState(s), _move: (s, d) => move(s, d), dangerCount: () => stage.dangerMarks.length,
   findCaught: () => { const q = [[cloneState(game.state), []]]; let n = 0; while (q.length && n++ < 20000) { const [s, p] = q.shift(); for (const d of validMoves(s)) { const c = cloneState(s); move(c, d); if (c.status === 'caught') return p.concat(d); if (c.status === 'play') q.push([c, p.concat(d)]); } } return null; },
 };
@@ -97,7 +98,7 @@ setInterval(() => { if (screen !== 'game') renderRes(); if (energyModalOpen) ren
 function renderMenu() {
   const n = Save.continueLevel(data, MAX);
   const done = Object.keys(data.stars).length;
-  $('menuSub').textContent = done >= MAX ? `Tüm bölümler tamamlandı • ⭐ ${Save.totalStars(data)}` : `Bölüm ${n} • Dünya ${Save.worldOf(n)} • ⭐ ${Save.totalStars(data)}`;
+  $('menuSub').innerHTML = (done >= MAX ? `Tüm bölümler tamamlandı • ⭐ ${Save.totalStars(data)}` : `Bölüm ${n} • Dünya ${Save.worldOf(n)} • ⭐ ${Save.totalStars(data)}`) + ` • <button class="ship-chip" data-act="ship">🚀 Gemi ${partsHave(data)}/10</button>`;
   const dd = data.daily || {};
   $('dailyInfo').textContent = dd.lastDone === dateKey() ? `✔ Bugün • 🔥${dd.streak}` : (dd.lastDone === yesterdayKey() ? `🔥 ${dd.streak} gün` : 'Yeni bulmaca!');
   const qr = Eco.questsReady(data), ar = Eco.achReady({ ...data, totalStars: Save.totalStars(data) });
@@ -238,17 +239,37 @@ function renderEnergyModal(first) {
 }
 
 // ---------------- Oyun ----------------
+/** Bonus altın: her 3 bölümden birinde, alınmamışsa, sıradan bir karede durur (bölüm başına bir kez) */
+const BONUS_COINS = 15;
+function bonusCellFor(lv, board) {
+  if (lv.daily || lv.final || lv.id % 3 !== 0 || (data.bonusTaken || {})[lv.id]) return -1;
+  const bad = new Set([board.start, board.door, ...board.keys]);
+  const cand = [];
+  board.cells.forEach((c, i) => { if ((c === TILE || c === ICE) && !bad.has(i) && board.portal[i] < 0) cand.push(i); });
+  if (!cand.length) return -1;
+  return cand[(lv.id * 7919) % cand.length];
+}
+function checkBonus(events) {
+  const bc = stage.bonusCell; if (bc < 0) return;
+  if (!events.some((e) => (e.t === 'step' && e.to === bc) || (e.t === 'teleport' && e.to === bc))) return;
+  data.bonusTaken = data.bonusTaken || {}; data.bonusTaken[game.level.id] = 1;
+  data.coins += BONUS_COINS; save(); renderRes();
+  stage.takeBonus(); toast(`🪙 Bonus altın! +${BONUS_COINS}`);
+}
+
 function startLevel(id) {
   let lv;
   if (typeof id === 'object') lv = id;
   else { id = Math.max(1, Math.min(MAX, id)); lv = LEVELS[id - 1]; }
   settleLoss();
+  if (!lv.daily && lv.id === 1 && !data.storySeen) { data.storySeen = true; save(); openModal(STORY_HTML + '<button class="btn primary" data-act="storyGo">Maceraya başla →</button>', 'story'); return; }
   if (!lv.daily && !Eco.hasEnergy(data)) return energyModal(() => startLevel(id));
   game.level = lv;
   game.history = []; game.undos = UNDOS; game.lossPending = false; game.adContinueUsed = false;
   game.powerUsed = false; game.jumpArmed = false; game.shield = false; game.collapseOrder = [];
   const board = parseLevel(lv);
   game.state = newState(board);
+  stage.bonusCell = bonusCellFor(lv, board);
   game.busy = false; game.queued = null; clearTimeout(game.deadTimer);
   stage.menuMode = false;
   setTrack(lv.boss ? 'boss' : lv.world);
@@ -345,6 +366,7 @@ async function input(dir) {
   game.busy = true;
   stage.setDanger([]);
   const p = stage.play(events, s);
+  setTimeout(() => checkBonus(events), 120);
   setTimeout(updateHud, 60);
   await p;
   updateHud();
@@ -387,6 +409,7 @@ function onWin() {
     <div class="emoji">${lv.final ? '🏆' : '🎉'}</div>
     <h2>Bölüm Tamamlandı!</h2>
     <p>${lv.final ? 'Boss yenildi, Kaptan Bolt kapıdan geçti!' : 'Kaptan Bolt kapıdan geçti.'}</p>
+    ${lv.final && !prev ? `<div class="part-won"><span>${SHIP_PARTS[lv.world - 1].ic}</span><div><b>Gemi parçası bulundu: ${SHIP_PARTS[lv.world - 1].name}</b><small>Şimşek gemisi ${partsHave(data)}/10 tamir edildi</small></div></div>` : ''}
     ${starsHtml(stars)}
     <div class="stat"><div><b>${s.moves}</b>hamle</div>${s.board.stars.mode === 'moves' ? `<div><b>≤${s.board.stars.par[0]}</b>hedef</div>` : `<div><b>${cnt}/${tgt}</b>çöken kare</div>`}<div><b>+${coins}</b>altın</div></div>
     ${stars < 3 ? `<div class="tip">${s.board.stars.mode === 'moves' ? `⭐⭐⭐ için en fazla <b>${s.board.stars.par[0]} hamlede</b> bitir!` : `⭐⭐⭐ için kapıya girmeden önce <b>bütün kareleri</b> çökert!`}</div>` : ''}
@@ -598,6 +621,19 @@ function hideTutorial(kind) {
 }
 
 // ---------------- Modal / ayarlar ----------------
+function shipModal() {
+  const have = partsHave(data);
+  openModal(`
+    <h2>🚀 Şimşek Gemisi</h2>
+    <p>Her dünyanın boss'unu yen, gemi parçasını kap!</p>
+    <div class="ship-bar"><i style="width:${have * 10}%"></i><span>${have}/10 parça</span></div>
+    <div class="ship-grid">${SHIP_PARTS.map((p, i) => partHas(data, i)
+      ? `<div class="part on"><span>${p.ic}</span><b>${p.name}</b></div>`
+      : `<div class="part"><span>❔</span><b>Dünya ${i + 1} boss'u</b></div>`).join('')}</div>
+    ${have === 10 ? '<div class="tip">🎉 Gemi tamamen tamir edildi! Kaptan Bolt eve dönmeye hazır.</div>' : ''}
+    <button class="btn" data-act="story">📖 Hikâye</button>
+    <button class="btn primary" data-act="close">Tamam</button>`, 'ship');
+}
 function openModal(html, cls = '') { $('card').className = 'card ' + cls; $('card').innerHTML = html; $('modal').classList.remove('hidden'); }
 function closeModal() { $('modal').classList.add('hidden'); energyModalOpen = false; }
 let toastT = 0;
@@ -680,6 +716,9 @@ document.addEventListener('click', (e) => {
     case 'garage': return show('garage');
     case 'ach': return show('ach');
     case 'quests': return questsModal();
+    case 'ship': return shipModal();
+    case 'storyGo': closeModal(); return startLevel(1);
+    case 'story': return openModal(STORY_HTML + '<button class="btn primary" data-act="ship">🚀 Gemiyi gör</button><button class="btn" data-act="close">Kapat</button>', 'story');
     case 'claimq': { const r = Eco.claimQuest(data, +el.dataset.i); if (r) { save(); sfx.coin(); toast('Ödül alındı: ' + Eco.rewardText(r)); renderRes(); renderMenu(); } return questsModal(); }
     case 'claimbonus': if (Eco.claimBonus(data)) { save(); sfx.win(); renderRes(); renderMenu(); } return questsModal();
     case 'claimach': { const c = Eco.claimAch(data, el.dataset.id); if (c) { save(); sfx.coin(); toast(`+${c} altın!`); renderRes(); } return renderAch(); }

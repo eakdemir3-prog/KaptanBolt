@@ -31,7 +31,7 @@ const mesh = (g, m, p = [0, 0, 0], cast = true) => { const o = new THREE.Mesh(g,
 
 export function makeMaterials(th) {
   return {
-    tile: std(th.tile, { emissive: th.tileEm, emissiveIntensity: 0.28, roughness: 0.45 }),
+    tile: std(new THREE.Color(th.tile).lerp(new THREE.Color(th.side), 0.35).getHex(), { emissive: th.tileEm, emissiveIntensity: 0.12, roughness: 0.6 }),
     side: std(th.side, { emissive: th.tileEm, emissiveIntensity: 0.3 }),
     ice: std(0xeefcff, { emissive: 0x7fd6ff, emissiveIntensity: 0.14, roughness: 0.1, metalness: 0.15 }),
     rock: std(th.rock, { roughness: 0.9 }), rock2: std(th.rock2, { roughness: 0.85 }),
@@ -39,7 +39,7 @@ export function makeMaterials(th) {
     pit: std(0x04020c, { roughness: 1 }),
     crystal: std(th.crystal, { emissive: th.crystalEm, emissiveIntensity: 1.1, roughness: 0.2 }),
     flame: new THREE.MeshBasicMaterial({ color: th.flame }),
-    crack: new THREE.MeshBasicMaterial({ color: th.side, transparent: true, opacity: 0.55 }),
+    crack: new THREE.MeshBasicMaterial({ color: new THREE.Color(th.side).multiplyScalar(0.55).getHex(), transparent: true, opacity: 0.7 }),
     strong: std(0x7d8a9e, { roughness: 0.75, emissive: 0x1a2a3a, emissiveIntensity: 0.3 }),
   };
 }
@@ -146,7 +146,7 @@ export function makeKey() {
   inner.add(mesh(new THREE.BoxGeometry(0.08, 0.05, 0.05), m, [0.06, -0.25, 0]));
   inner.rotation.z = 0.25; inner.scale.setScalar(1.35);
   g.add(inner);
-  const glow = new THREE.PointLight(0xffc040, 3, 2); glow.position.y = 0.1; g.add(glow);
+  const glow = new THREE.PointLight(0xffc040, 2, 1.6); glow.position.y = 0.1; g.add(glow);
   const sh = new THREE.Mesh(new THREE.CircleGeometry(0.22, 24), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 }));
   sh.rotation.x = -Math.PI / 2; sh.position.y = -0.6; g.add(sh);
   g.userData = { inner, glow, shadow: sh, mat: m };
@@ -172,7 +172,7 @@ export function makeDoor() {
   lock.add(mesh(new THREE.ShapeGeometry(kh), lockMat, [0, 0.6, 0.03], false));
   g.add(lock);
   g.add(mesh(new THREE.BoxGeometry(0.98, 0.08, 0.4), stone2, [0, 0.04, 0]));
-  const light = new THREE.PointLight(0xb060ff, 8, 3.2); light.position.set(0, 0.75, 0.5); g.add(light);
+  const light = new THREE.PointLight(0xb060ff, 4, 2.6); light.position.set(0, 0.75, 0.5); g.add(light);
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.26, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 }));
   ring.position.set(0, 0.55, 0.04); g.add(ring);
   g.userData = { portalMat, lock, lockMat, light, ring };
