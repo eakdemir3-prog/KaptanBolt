@@ -1,0 +1,27 @@
+<!doctype html><html><body style="margin:0"><script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { loadRobotModel } from '../../src/game/robotModel.js';
+await loadRobotModel();
+const { makeRobot, setRobotFace, SKINS } = await import('../../src/game/models.js');
+const S = 360, R = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+R.setPixelRatio(1); R.setSize(S, S, false); R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = 0.85;
+const sc = new THREE.Scene(); sc.background = new THREE.Color(0x1a1450);
+sc.add(new THREE.HemisphereLight(0xd8d0ff, 0x302060, 1.1));
+const d = new THREE.DirectionalLight(0xffffff, 2.6); d.position.set(-2.5, 4, 4); sc.add(d);
+const r1 = new THREE.PointLight(0x3fe2ff, 22, 8); r1.position.set(2, 1.8, -1.2); sc.add(r1);
+const c = new THREE.PerspectiveCamera(32, 1, 0.1, 50); c.position.set(0, 1.2, 4.6); c.lookAt(0, 0.85, 0);
+const comp = new EffectComposer(R); comp.addPass(new RenderPass(sc, c)); comp.addPass(new UnrealBloomPass(new THREE.Vector2(S, S), 0.25, 0.4, 0.85)); comp.addPass(new OutputPass());
+const out = {};
+for (const [name, face, skin] of [['idle','idle',0],['walk','idle',0],['jump','happy',0],['cheer','happy',0],['wave','happy',0],['fall','sad',0],['stomp','sad',0],['cheer','happy',3],['wave','happy',8]]) {
+  const r = makeRobot(SKINS[skin]); setRobotFace(r, face); r.rotation.y = -0.4; sc.add(r);
+  const A = r.userData.anim; const dur = A.play(name, { fade: 0, once: true }) / 1000;
+  const frames = [];
+  for (let i = 0; i < 5; i++) { A.mixer.setTime(dur * (i + 0.5) / 5); comp.render(); frames.push(R.domElement.toDataURL('image/png')); }
+  out[name + (skin ? '_' + skin : '')] = frames; sc.remove(r);
+}
+window.OUT = out; window.DONE = 1;
+</script></body></html>

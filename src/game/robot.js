@@ -2,7 +2,7 @@
 // ışıklı kulaklar, parmaklı yumruklar ve geniş çizmeler. Simgedeki karakterle aynı tasarım.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { hasRobotModel, cloneRobotModel, MODEL_HEIGHT } from './robotModel.js';
+import { hasRobotModel, cloneRobotModel, makeAnimator, MODEL_HEIGHT } from './robotModel.js';
 
 export const SKINS = [
   { id: 'klasik', name: 'Klasik Bolt', stars: 0, body: 0xe4e6ee, joint: 0x17181f, eye: 0x2ee8ff, hat: false },
@@ -153,10 +153,19 @@ function makeModelRobot(skin) {
   const { model, mat } = cloneRobotModel(skin);
   wrap.add(model);
   // kafa: modelin üst kısmı; aksesuarlar buraya takılır
-  const head = new THREE.Group(); head.position.set(0, MODEL_HEIGHT - 0.31, 0.0); head.scale.setScalar(0.93); wrap.add(head);
+  // kafa kemiğine bağlı grup: aksesuarlar kafayla birlikte hareket eder
+  const head = new THREE.Group();
+  let headBone = null; model.traverse((o) => { if (o.isBone && /Head$/.test(o.name)) headBone = o; });
+  wrap.add(head); head.position.set(0, MODEL_HEIGHT - 0.26, 0); head.scale.setScalar(0.78);
   addAccessories(skin, head);
   const dummy = () => { const o = new THREE.Group(); o.userData.y0 = 0; o.userData.hand = new THREE.Group(); body.add(o); return o; };
-  root.userData = { body, turn, head: wrap, eyeL: dummy(), eyeR: dummy(), legL: dummy(), legR: dummy(), armL: dummy(), armR: dummy(), eyeMat: mat, eyeColor: skin.eye, glb: true, mat };
+  const anim = makeAnimator(model);
+  root.scale.setScalar(1.2);
+  root.userData = { body, turn, head: wrap, eyeL: dummy(), eyeR: dummy(), legL: dummy(), legR: dummy(), armL: dummy(), armR: dummy(), eyeMat: mat, eyeColor: skin.eye, glb: true, mat, anim, headBone, headGroup: head };
+  if (headBone) { // aksesuarları kafa kemiğine taşı (kemik ölçeğini dengele)
+    model.updateMatrixWorld(true); wrap.updateMatrixWorld(true);
+    headBone.attach(head);
+  }
   return root;
 }
 

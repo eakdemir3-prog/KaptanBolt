@@ -3,9 +3,10 @@
 // beyaz gövde -> kostüm rengi, siyah eklemler -> eklem rengi, turkuaz ışıklar -> göz rengi.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 
-export const MODEL_HEIGHT = 1.32;   // oyundaki boy (kare = 1 birim)
-let template = null;
+export const MODEL_HEIGHT = 1.1;    // robotun kendi boyu; robot kökü 1.2 ölçekli (oyunda ~1.32 birim)
+let template = null, clips = {};
 
 export function loadRobotModel() {
   return new Promise((resolve) => {
@@ -20,6 +21,7 @@ export function loadRobotModel() {
       g.position.set(-c.x * s, -box.min.y * s, -c.z * s);  // ayak tabanı yerde, ortası merkezde
       g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
       template = g;
+      for (const c of gltf.animations) clips[c.name] = c;
       resolve(true);
     }, undefined, (e) => { console.warn('robot.glb yüklenemedi', e); resolve(false); });
   });
@@ -43,13 +45,13 @@ const TINT_GLSL = `
 
 /** Şablonun kostüme göre boyanmış bir kopyası. Dönen nesne: { model, mat } */
 export function cloneRobotModel(skin) {
-  const model = template.clone(true);
+  const model = skeletonClone(template);
   const custom = skin.id !== 'klasik' && skin.id !== 'kaptan';
   let mat = null;
   model.traverse((o) => {
     if (!o.isMesh) return;
     const m = o.material.clone();
-    m.roughness = skin.metal ? 0.35 : 0.55; m.metalness = skin.metal ? 0.45 : 0.0;
+    m.roughness = skin.metal ? 0.35 : 0.55; o.frustumCulled = false; m.metalness = skin.metal ? 0.45 : 0.0;
     m.emissive = new THREE.Color(skin.eye); m.emissiveIntensity = 1.1;
     if (custom) {
       const u = { uBody: { value: new THREE.Color(skin.body) }, uJoint: { value: new THREE.Color(skin.joint) }, uEye: { value: new THREE.Color(skin.eye) }, uTint: { value: 1 } };
@@ -62,4 +64,24 @@ export function cloneRobotModel(skin) {
     o.material = m; mat = m;
   });
   return { model, mat };
+}
+
+/** Robotun animasyon kontrolcüsü: idle, walk, jump, cheer, wave, fall, stomp */
+export function makeAnimator(model) {
+  const mixer = new THREE.AnimationMixer(model);
+  const acts = {};
+  for (const [n, c] of Object.entries(clips)) acts[n] = mixer.clipAction(c);
+  let cur = null;
+  /** Hareketi başlat; once: bir kez oynar ve son karede kalır. Süreyi (ms) döndürür */
+  const play = (name, { once = false, fade = 0.2, speed = 1 } = {}) => {
+    const a = acts[name]; if (!a) return 0;
+    if (cur === a && !once) { a.timeScale = speed; return 0; }
+    a.reset(); a.timeScale = speed; a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity); a.clampWhenFinished = once;
+    a.enabled = true; a.setEffectiveWeight(1);
+    if (cur && cur !== a) a.crossFadeFrom(cur, fade, false); else a.fadeIn(fade);
+    a.play(); cur = a;
+    return (a.getClip().duration / speed) * 1000;
+  };
+  play('idle', { fade: 0 }); mixer.update(0.4);
+  return { mixer, play, has: (n) => !!acts[n], current: () => (cur ? cur.getClip().name : null) };
 }

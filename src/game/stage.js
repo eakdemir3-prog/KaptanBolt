@@ -375,6 +375,7 @@ export class Stage {
     if (this.onSound) this.onSound('caught');
     this.shake(0.15, 300);
     const r = this.robot;
+    if (r.userData.anim) { clearTimeout(this._idleT); r.userData.anim.play('fall', { once: true, fade: 0.1, speed: 1.6 }); await new Promise((ok) => setTimeout(ok, 1300)); return; }
     await tween(450, (t) => { r.scale.set(1.2 * (1 + t * 0.3), 1.2 * (1 - t * 0.7), 1.2 * (1 + t * 0.3)); });
   }
 
@@ -393,15 +394,18 @@ export class Stage {
     const r = this.robot, U = r.userData;
     if (this.onSound) this.onSound(slide ? 'slide' : 'step');
     this.mood = 'move';
+    const A = U.anim;
+    if (A) { clearTimeout(this._idleT); if (jump) A.play('jump', { once: true, fade: 0.08, speed: 4.2 }); else if (!slide) A.play('walk', { fade: 0.12, speed: 2.4 }); }
     await tween(slide ? 110 : jump ? 320 : 170, (t) => {
       r.position.x = a.x + (b.x - a.x) * t; r.position.z = a.z + (b.z - a.z) * t;
-      r.position.y = 0.18 + (slide ? 0 : Math.sin(Math.PI * t) * (jump ? 0.9 : 0.28));
+      r.position.y = 0.18 + (slide ? 0 : Math.sin(Math.PI * t) * (jump ? 0.9 : A ? 0.1 : 0.28));
       const sw = slide ? 0 : Math.sin(t * Math.PI * 2) * 0.6;
       U.legL.rotation.x = sw; U.legR.rotation.x = -sw; U.armL.rotation.x = -sw; U.armR.rotation.x = sw;
       U.body.rotation.x = slide ? -0.18 : 0;
     }, slide ? ease.linear : ease.inOutQuad);
     U.body.rotation.x = 0; U.legL.rotation.x = U.legR.rotation.x = U.armL.rotation.x = U.armR.rotation.x = 0;
     this.mood = 'idle';
+    if (A) this._idleT = setTimeout(() => { if (this.robot === r && this.mood === 'idle') A.play('idle', { fade: 0.25 }); }, 140);
   }
 
   bump(dir) {
@@ -476,6 +480,7 @@ export class Stage {
   async _winAnim() {
     this.mood = 'happy'; setRobotFace(this.robot, 'happy');
     const r = this.robot, d = this.door.position;
+    if (r.userData.anim) { clearTimeout(this._idleT); r.userData.anim.play('cheer', { once: true, fade: 0.15, speed: 1.4 }); await new Promise((ok) => setTimeout(ok, 1100)); }
     await tween(380, (t) => { r.position.y = 0.18 + Math.sin(Math.PI * t) * 0.6; r.userData.turn.rotation.y += 0.25; }, ease.linear);
     this._burst(d.clone().add(new THREE.Vector3(0, 0.6, 0)), 0x7ff6ff);
     await tween(380, (t) => { r.scale.setScalar(1.2 * (1 - t)); r.position.y = 0.18 + t * 0.5; }, ease.inQuad);
@@ -483,6 +488,7 @@ export class Stage {
 
   async _stuckAnim() {
     this.mood = 'sad'; setRobotFace(this.robot, 'sad');
+    if (this.robot.userData.anim) { clearTimeout(this._idleT); const ms = this.robot.userData.anim.play('stomp', { once: true, fade: 0.15, speed: 1.1 }); await new Promise((ok) => setTimeout(ok, Math.min(ms, 1300))); return; }
     const h = this.robot.userData.head;
     await tween(600, (t) => { h.rotation.y = Math.sin(t * Math.PI * 4) * 0.35 * (1 - t); h.rotation.z = -0.15 * t; });
   }
@@ -520,6 +526,13 @@ export class Stage {
   _frame(now) {
     updateTweens(now);
     const t = this.clock.getElapsedTime();
+    const dt = Math.min(0.1, t - (this._lastT ?? t)); this._lastT = t;
+    if (this.robot && this.robot.userData.anim) {
+      const A = this.robot.userData.anim;
+      if (this.menuMode && this.mood === 'idle' && A.current() !== 'wave') A.play('wave', { fade: 0.3 });
+      else if (!this.menuMode && A.current() === 'wave') A.play('idle', { fade: 0.3 });
+      A.mixer.update(dt);
+    }
     if (this.keys) for (const key of this.keys.values()) {
       if (key.userData.taken) continue;
       key.userData.inner.rotation.y = t * 1.6 + key.userData.phase;
@@ -530,7 +543,7 @@ export class Stage {
       U.body.position.y = Math.sin(t * 2.4) * 0.015;
       const blink = (t % 3.4) < 0.12 ? 0.1 : 1;
       if (this.mood === 'idle') { U.eyeL.scale.y = U.eyeR.scale.y = blink; }
-      if (this.menuMode) { U.armR.rotation.z = 0.18 + Math.max(0, Math.sin(t * 3)) * 2.2; U.turn.rotation.y = Math.sin(t * 0.6) * 0.4; }
+      if (this.menuMode) { if (!U.anim) U.armR.rotation.z = 0.18 + Math.max(0, Math.sin(t * 3)) * 2.2; U.turn.rotation.y = Math.sin(t * 0.6) * 0.4; }
     }
     if (this.flames) for (const f of this.flames) { const k = 1 + Math.sin(t * 9 + f.seed) * 0.08 + Math.sin(t * 23 + f.seed) * 0.05; f.f.scale.set(k, 1.6 * k, k); f.tl.intensity = 14 * k; }
     if (this.particles) { this.particles.rotation.y = t * 0.03; this.particles.position.y = this.world === 3 ? -((t * 0.25) % 2) + 1 : Math.sin(t * 0.3) * 0.2; }
