@@ -262,6 +262,41 @@ function buildArea(w, h, o) {
   return { grid: g.map((r) => r.join('')), enemies };
 }
 
+/** Bağlantılı açık alan şekli (yalnızca '.' ve '#'); uçta tek komşulu kare en fazla 2 */
+function areaShape(w, h, holesR, minTiles) {
+  const N = w * h, g = Array(N).fill('.'), nb = nbFor(w, h);
+  const holes = ri(...holesR);
+  for (let k = 0, t = 0; k < holes && t < 200; t++) { const i = ri(0, N - 1); if (g[i] === '.') { g[i] = '#'; k++; } }
+  const tiles = []; for (let i = 0; i < N; i++) if (g[i] === '.') tiles.push(i);
+  if (tiles.length < minTiles) return null;
+  const seen = new Set([tiles[0]]), q = [tiles[0]];
+  while (q.length) { const c = q.pop(); for (const n of nb(c)) if (g[n] !== '#' && !seen.has(n)) { seen.add(n); q.push(n); } }
+  if (seen.size !== tiles.length) return null;
+  if (tiles.filter((i) => nb(i).filter((n) => g[n] !== '#').length === 1).length > 2) return null;
+  return g;
+}
+/** İki katlı bölüm: 1. katta S + anahtar + asansör, 2. katta asansör + anahtar + kapı */
+function buildFloors(w, h1, h2, o) {
+  const A = areaShape(w, h1, o.holes, o.minTiles1), B = areaShape(w, h2, o.holes2 || o.holes, o.minTiles2);
+  if (!A || !B) return null;
+  const tall = (g, i) => i < w || g[i - w] === '#'; // uzun model (asansör/kapı) arkasındaki kareyi örtmesin
+  const free = (g) => g.map((c, i) => (c === '.' ? i : -1)).filter((i) => i >= 0);
+  // 1. kat
+  const sA = free(A).filter((i) => !tall(A, i) || true); const s = pick(sA); A[s] = 'S';
+  const lA = free(A).filter((i) => tall(A, i) && dist(w, i, s) >= 2); if (!lA.length) return null;
+  const la = pick(lA); A[la] = 'L';
+  for (let k = 0; k < o.keys1; k++) { const f = free(A).filter((i) => dist(w, i, la) >= 2 && dist(w, i, s) >= 2); if (!f.length) return null; A[pick(f)] = 'K'; }
+  // 2. kat
+  const lB = free(B).filter((i) => tall(B, i)); if (!lB.length) return null;
+  const lb = pick(lB); B[lb] = 'L';
+  const dB = free(B).filter((i) => tall(B, i) && dist(w, i, lb) >= 2); if (!dB.length) return null;
+  const d = pick(dB); B[d] = 'D';
+  for (let k = 0; k < o.keys2; k++) { const f = free(B).filter((i) => dist(w, i, lb) >= 2 && dist(w, i, d) >= 2); if (!f.length) return null; B[pick(f)] = 'K'; }
+  if (o.ice) { for (const g of [A, B]) for (const i of free(g)) if (rnd() < o.ice) g[i] = 'i'; }
+  const rows = (g, h) => Array.from({ length: h }, (_, y) => g.slice(y * w, y * w + w).join(''));
+  return { grid: [...rows(A, h1), '#'.repeat(w), '#'.repeat(w), ...rows(B, h2)], enemies: [], floors: h1 };
+}
+
 /** Boss bölümü: açık alan, dağınık çukurlar, 2x2 boss */
 function buildBoss(w, h, o) {
   const g = Array.from({ length: h }, () => Array(w).fill('.'));
@@ -300,7 +335,7 @@ function buildBoss(w, h, o) {
 }
 
 function evaluate(id, cand, isBoss) {
-  const lv = { id, grid: cand.grid, enemies: cand.enemies, boss: cand.boss };
+  const lv = { id, grid: cand.grid, enemies: cand.enemies, boss: cand.boss, floors: cand.floors };
   const board = parseLevel(lv);
   const s = newState(board);
   const sh = shortest(s, isBoss ? 600000 : 400000);
@@ -317,7 +352,7 @@ function evaluate(id, cand, isBoss) {
   const extras = (cand.grid.join('').match(/[io1=b<>^v]/g) || []).length;
   const score = board.tileCount * 0.5 + sh.moves.length * 0.8 + fr * 12 + board.keys.length * 2 + extras * 0.5 + board.enemies.length * 2;
   return {
-    lv: { grid: cand.grid, ...(cand.enemies.length ? { enemies: cand.enemies } : {}), ...(cand.boss ? { boss: cand.boss } : {}), ...(stars.mode !== 'cover' ? { stars } : {}) },
+    lv: { ...(cand.floors ? { floors: cand.floors } : {}), grid: cand.grid, ...(cand.enemies.length ? { enemies: cand.enemies } : {}), ...(cand.boss ? { boss: cand.boss } : {}), ...(stars.mode !== 'cover' ? { stars } : {}) },
     min: sh.moves.length, cover, fail: fr, score, tiles: board.tileCount,
   };
 }
@@ -325,20 +360,20 @@ function evaluate(id, cand, isBoss) {
 // [ilk, son, dünya, w, h, seçenekler, etiket]
 const SEG = [
   // Dünya 1: hızlı öğrenme + tadımlıklar (8: iki anahtar, 10: lazer nöbetçi, 12: devriye, 14: kemirici böcek, 16: buz)
-  [2, 4, 1, 4, 4, { area: true, holes: [2, 4], minTiles: 11, keys: [1, 1], fail: 0.4 }, 'easy'],
-  [5, 7, 1, 4, 5, { area: true, holes: [2, 4], minTiles: 15, keys: [1, 1], fail: 0.55 }],
-  [8, 8, 1, 5, 5, { area: true, holes: [4, 7], minTiles: 17, keys: [2, 2], fail: 0.6 }],
-  [9, 9, 1, 5, 5, { area: true, holes: [4, 7], minTiles: 18, keys: [1, 1], fail: 0.7 }],
-  [10, 10, 1, 4, 5, { area: true, holes: [2, 4], minTiles: 14, keys: [1, 1], sentries: 1, fail: 0.5 }, 'easy'],
-  [11, 11, 1, 5, 5, { area: true, holes: [3, 6], minTiles: 19, keys: [1, 2], fail: 0.75 }],
-  [12, 12, 1, 5, 5, { area: true, holes: [4, 7], minTiles: 17, keys: [1, 1], patrols: 1, fail: 0.5 }, 'easy'],
-  [13, 13, 1, 5, 6, { area: true, holes: [5, 8], minTiles: 21, keys: [1, 2], fail: 0.8 }],
-  [14, 14, 1, 5, 5, { area: true, holes: [4, 7], minTiles: 17, keys: [1, 1], gnawers: 1, fail: 0.5 }, 'easy'],
-  [15, 15, 1, 5, 6, { area: true, holes: [4, 7], minTiles: 22, keys: [2, 2], fail: 0.82 }],
-  [16, 16, 1, 5, 5, { area: true, holes: [4, 7], minTiles: 17, keys: [1, 1], ice: 0.2, fail: 0.55 }, 'easy'],
-  [17, 17, 1, 6, 6, { area: true, holes: [8, 12], minTiles: 24, keys: [2, 2], fail: 0.85 }],
-  [18, 18, 1, 5, 6, { area: true, holes: [5, 8], minTiles: 21, keys: [1, 2], sentries: 1, fail: 0.75 }],
-  [19, 19, 1, 5, 6, { area: true, holes: [5, 8], minTiles: 21, keys: [1, 2], gnawers: 1, fail: 0.75 }],
+  [2, 4, 1, 4, 4, { area: true, holes: [1, 3], minTiles: 12, keys: [1, 1], fail: 0.6 }, 'easy'],
+  [5, 7, 1, 4, 5, { area: true, holes: [2, 3], minTiles: 16, keys: [1, 2], fail: 0.75 }],
+  [8, 8, 1, 5, 5, { area: true, holes: [3, 6], minTiles: 19, keys: [2, 2], fail: 0.82 }],
+  [9, 9, 1, 5, 5, { area: true, holes: [3, 5], minTiles: 20, keys: [1, 2], fail: 0.86 }],
+  [10, 10, 1, 4, 5, { area: true, holes: [2, 3], minTiles: 15, keys: [1, 1], sentries: 1, fail: 0.65 }, 'easy'],
+  [11, 11, 1, 5, 5, { area: true, holes: [3, 5], minTiles: 20, keys: [2, 2], fail: 0.88 }],
+  [12, 12, 1, 5, 5, { area: true, holes: [3, 6], minTiles: 19, keys: [1, 1], patrols: 1, fail: 0.65 }, 'easy'],
+  [13, 13, 1, 5, 6, { area: true, holes: [4, 7], minTiles: 23, keys: [1, 2], fail: 0.9 }],
+  [14, 14, 1, 5, 5, { area: true, holes: [3, 6], minTiles: 19, keys: [1, 1], gnawers: 1, fail: 0.65 }, 'easy'],
+  [15, 15, 1, 5, 6, { area: true, holes: [4, 6], minTiles: 24, keys: [2, 2], fail: 0.92 }],
+  [16, 16, 1, 5, 5, { area: true, holes: [3, 6], minTiles: 19, keys: [1, 1], ice: 0.2, fail: 0.7 }, 'easy'],
+  [17, 17, 1, 4, 4, { floors: true, h2: 4, holes: [1, 3], minTiles1: 12, minTiles2: 12, keys1: [1, 1], keys2: [1, 1], fail: 0.8 }, 'easy'],
+  [18, 18, 1, 5, 6, { area: true, holes: [4, 7], minTiles: 22, keys: [1, 2], sentries: 1, fail: 0.88 }],
+  [19, 19, 1, 5, 4, { floors: true, h2: 5, holes: [2, 4], minTiles1: 15, minTiles2: 19, keys1: [1, 2], keys2: [1, 1], fail: 0.9 }],
   [20, 20, 1, 6, 6, { boss: true, keys: 1, every: 2 }],
   [21, 27, 2, 5, 5, { len: [14, 22], keys: [2, 2] }],
   [28, 28, 2, 5, 5, { len: [12, 16], keys: [1, 1], sentries: 1 }, 'easy'],
@@ -390,7 +425,7 @@ const SEG = [
 ];
 const MIX = [{ ice: 0.25 }, { strong: true }, { portal: true }, { bridge: true }, { arrows: 0.2 }, { patrols: 1 }, { chasers: 1 }, { sentries: 1 }, { gnawers: 1 }];
 
-const TUT = { 1: 'swipe', 8: 'keys', 12: 'patrol', 16: 'ice', 20: 'boss', 21: 'keys', 41: 'ice', 61: 'patrol', 81: 'strong', 101: 'portal', 121: 'chaser', 141: 'bridge', 161: 'arrow', 181: 'castle', 10: 'sentry', 14: 'gnawer' };
+const TUT = { 1: 'swipe', 8: 'keys', 12: 'patrol', 16: 'ice', 20: 'boss', 21: 'keys', 41: 'ice', 61: 'patrol', 81: 'strong', 101: 'portal', 121: 'chaser', 141: 'bridge', 161: 'arrow', 181: 'castle', 10: 'sentry', 14: 'gnawer', 17: 'lift' };
 
 const only = process.argv[2] ? +process.argv[2] : 0; // hızlı deneme: belirli bir segment
 const levels = [{ id: 1, world: 1, grid: ['#####', 'S...K', '####.', 'D....', '#####'] }];
@@ -402,20 +437,20 @@ for (const [a, b, world, w, h, o, tag] of SEG) {
   const isBoss = !!o.boss;
   const pool = [], seen = new Set();
   let tries = 0;
-  const target = isBoss ? 40 : need * 25, maxTries = isBoss ? 6000 : need * (o.area ? 60000 : 4000);
+  const target = isBoss ? 40 : need * 25, maxTries = isBoss ? 6000 : need * (o.area || o.floors ? 60000 : 4000);
   while (pool.length < target && tries < maxTries) {
     tries++;
     let oo = o;
     if (o.mix) { const a2 = MIX.slice().sort(() => rnd() - 0.5).slice(0, 2); oo = Object.assign({}, o, ...a2); { const ek = ['patrols', 'chasers', 'sentries', 'gnawers'].filter((k) => oo[k]); for (const k of ek.slice(1)) delete oo[k]; } }
-    const cand = isBoss ? buildBoss(w, h, oo) : oo.area ? buildArea(w, h, { ...oo, keys: ri(...oo.keys) }) : buildPath(w, h, { ...oo, len: ri(...oo.len), keys: ri(...oo.keys) });
+    const cand = isBoss ? buildBoss(w, h, oo) : oo.floors ? buildFloors(w, h, oo.h2, { ...oo, keys1: ri(...oo.keys1), keys2: ri(...oo.keys2) }) : oo.area ? buildArea(w, h, { ...oo, keys: ri(...oo.keys) }) : buildPath(w, h, { ...oo, len: ri(...oo.len), keys: ri(...oo.keys) });
     if (!cand) continue;
-    const k = cand.grid.join('/') + JSON.stringify(cand.enemies) + JSON.stringify(cand.boss || '');
+    const k = (cand.floors || '') + cand.grid.join('/') + JSON.stringify(cand.enemies) + JSON.stringify(cand.boss || '');
     if (seen.has(k)) continue;
     seen.add(k);
     const ev = evaluate(a, cand, isBoss);
     if (!ev || ev.min < (isBoss ? 8 : 4)) continue;
     // kestirme yol olmasın: en kısa çözüm karelerin en az yarısı kadar (öğreticiler hariç)
-    if (o.area) { if (ev.fail < o.fail || (ev.cover == null && !o.patrols && !o.chasers && !o.sentries && !o.gnawers)) continue; if (ev.min < Math.ceil(ev.tiles * 0.3)) continue; }
+    if (o.area || o.floors) { if (ev.fail < o.fail || (ev.cover == null && !o.patrols && !o.chasers && !o.sentries && !o.gnawers)) continue; if (ev.min < Math.ceil(ev.tiles * 0.3)) continue; }
     else if (!isBoss && tag !== 'easy' && ev.min < Math.ceil(ev.tiles * (o.patrols || o.chasers || o.sentries || o.gnawers ? 0.42 : 0.5))) continue;
     pool.push(ev);
   }
@@ -427,6 +462,7 @@ for (const [a, b, world, w, h, o, tag] of SEG) {
     if (isBoss) q = 0.6;
     else if (tag === 'easy') q = 0.12 + (0.83 * k) / Math.max(1, need - 1);
     else if (o.patrols || o.chasers || o.sentries || o.gnawers) q = 0.25 + (0.65 * k) / Math.max(1, need - 1); // düşmanlı bölümler bir kademe kolay
+    else if (o.area || o.floors) q = 0.6 + (0.38 * k) / Math.max(1, need - 1);
     else q = 0.4 + (0.58 * k) / Math.max(1, need - 1);
     const ev = pool[Math.min(pool.length - 1, Math.floor(q * pool.length))];
     pool.splice(pool.indexOf(ev), 1);
@@ -447,7 +483,7 @@ for (const lv of levels) {
   if (upTo && lv.id > upTo) continue;
   let g = lv.grid, ox = 0, oy = 0;
   const rowEmpty = (y) => /^#+$/.test(g[y]);
-  while (g.length > 2 && rowEmpty(0)) { g = g.slice(1); oy++; }
+  while (g.length > 2 && rowEmpty(0)) { g = g.slice(1); oy++; if (lv.floors) lv.floors--; }
   while (g.length > 2 && rowEmpty(g.length - 1)) g = g.slice(0, -1);
   const colEmpty = (c) => g.every((r) => r[c] === '#');
   while (g[0].length > 2 && colEmpty(0)) { g = g.map((r) => r.slice(1)); ox++; }

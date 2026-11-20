@@ -14,6 +14,8 @@ const OPP = { up: 'down', down: 'up', left: 'right', right: 'left' };
  *   sentry: yerinden kıpırdamaz; iki hamlede bir baktığı yöne lazer atar (bir hamle önce uyarır)
  *   gnawer: devriye gibi gidip gelir, terk ettiği kareyi çökertir; yakalamaz, üstüne basınca ezilir
  * boss: { at: [x, y] (2x2 sol üst), every: 1|2 }
+ * floors: N  => iki katlı bölüm: ilk N satır 1. kat, sonra 2 boş ayırıcı satır, kalanlar 2. kat.
+ *   L L: asansör çifti (portal gibi çalışır: binince öbür kata çıkar, bindiği kare çöker)
  */
 export function parseLevel(level) {
   const rows = level.grid;
@@ -37,12 +39,14 @@ export function parseLevel(level) {
         case 'S': cells[i] = TILE; start = i; break;
         case 'K': cells[i] = TILE; keys.push(i); break;
         case 'D': cells[i] = TILE; door = i; break;
+        case 'L': cells[i] = TILE; (pmap.L = pmap.L || []).push(i); break;
         default:
           if (ch >= '1' && ch <= '9') { cells[i] = TILE; (pmap[ch] = pmap[ch] || []).push(i); break; }
           throw new Error(`Bölüm ${level.id}: bilinmeyen karakter '${ch}'`);
       }
     }
   }
+  if (level.floors && (!pmap.L || pmap.L.length !== 2)) throw new Error(`Bölüm ${level.id}: iki katlı bölümde asansör çifti yok`);
   for (const [k, v] of Object.entries(pmap)) {
     if (v.length !== 2) throw new Error(`Bölüm ${level.id}: portal ${k} çift değil`);
     portal[v[0]] = v[1]; portal[v[1]] = v[0];
@@ -53,7 +57,7 @@ export function parseLevel(level) {
   const enemies = (level.enemies || []).map((e) => ({ type: e.type, pos: e.at[1] * w + e.at[0], dir: e.dir || 'right' }));
   tileCount -= enemies.filter((e) => e.type === 'sentry').length; // nöbetçinin karesi hiç çökmez
   const boss = level.boss ? { pos: level.boss.at[1] * w + level.boss.at[0], every: level.boss.every || 2 } : null;
-  return { id: level.id, w, h, cells, portal, keys, start, door, tileCount, strongCount, enemies, boss, stars: level.stars || { mode: 'cover' } };
+  return { id: level.id, w, h, cells, portal, keys, start, door, tileCount, strongCount, enemies, boss, floors: level.floors || 0, lift: pmap.L || null, stars: level.stars || { mode: 'cover' } };
 }
 
 export function newState(board) {
@@ -304,3 +308,6 @@ export function starsFor(s) {
   if (ratio >= 0.7) return 2;
   return 1;
 }
+
+/** İki katlı bölümde karenin katı (0 = 1. kat, 1 = 2. kat) */
+export function floorOf(board, i) { return board.floors && Math.floor(i / board.w) >= board.floors ? 1 : 0; }

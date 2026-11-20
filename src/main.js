@@ -1,7 +1,7 @@
 // Kaptan Bolt — ana uygulama: ekranlar, giriş, oyun akışı ve oyun içi ekonomi
 import LEVELS from './levels/levels.json';
 import { SHIP_PARTS, partsHave, partHas, STORY_HTML } from './story.js';
-import { parseLevel, newState, move, canMove, canJump, starsFor, collapsedCount, coverTarget, cloneState, validMoves, STRONG, TILE, ICE } from './logic/rules.js';
+import { floorOf, parseLevel, newState, move, canMove, canJump, starsFor, collapsedCount, coverTarget, cloneState, validMoves, STRONG, TILE, ICE } from './logic/rules.js';
 import { shortest, canWin } from './logic/solver.js';
 import { dailyLevel, dateKey, yesterdayKey } from './logic/daily.js';
 import { Stage } from './game/stage.js';
@@ -26,6 +26,7 @@ Eco.dailyQuests(data, dateKey());
 const save = () => Save.save(data);
 const stage = new Stage($('c'));
 stage.skin = SKINS.find((k) => k.id === data.skin) || SKINS[0];
+stage.onFloor = () => updateHud();
 stage.onSound = (k) => {
   if (k === 'collapse') { sfx.collapse(); vibrate('light'); }
   else if (k === 'key') { sfx.key(); vibrate('medium'); }
@@ -45,7 +46,7 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 
 // Test ve hata ayıklama için dışarıdan erişim
 window.KB = {
-  get state() { return game.state; }, get screen() { return screen; }, input: (d) => game.input(d), start: (id) => startLevel(id),
+  get state() { return game.state; }, get screen() { return screen; }, input: (d) => game.input(d), start: (id) => startLevel(id), levels: () => LEVELS,
   data: () => data, stage: () => stage, idle: () => !game.busy, solve: () => (shortest(game.state, 800000, 20000) || {}).moves,
   _clone: (s) => cloneState(s), _move: (s, d) => move(s, d), dangerCount: () => stage.dangerMarks.length,
   findCaught: () => { const q = [[cloneState(game.state), []]]; let n = 0; while (q.length && n++ < 20000) { const [s, p] = q.shift(); for (const d of validMoves(s)) { const c = cloneState(s); move(c, d); if (c.status === 'caught') return p.concat(d); if (c.status === 'play') q.push([c, p.concat(d)]); } } return null; },
@@ -335,6 +336,8 @@ function updateHud() {
   $('chipKeys').innerHTML = b.keys.map((_, k) => keyIcon(s.keysTaken[k])).join('') + `<span>${kt}/${b.keys.length}</span>`;
   if (b.stars.mode === 'moves') $('chipCollapse').innerHTML = `<span class="lbl">Hedef</span>≤${b.stars.par[0]}`;
   else $('chipCollapse').innerHTML = `<span class="lbl">Çöken</span>${collapsedCount(s)}/${coverTarget(b)}`;
+  const fc = $('chipFloor');
+  if (b.floors) { fc.classList.remove('hidden'); fc.innerHTML = `🏢<span>${(stage.shownFloor ?? floorOf(b, s.pos)) + 1}/2</span>`; } else fc.classList.add('hidden');
   const bc = $('chipBoss');
   if (s.boss) { bc.classList.remove('hidden'); bc.innerHTML = s.boss.alive ? '👹 <span class="lbl">Boss</span>' : '💥 <span class="lbl">Yenildi</span>'; } else bc.classList.add('hidden');
   $('hintCount').textContent = data.hints;
@@ -629,6 +632,7 @@ const TUTORIALS = {
   portal: T('🌀 <b>Portallar!</b>', 'Aynı renkli portala basınca diğerine ışınlanırsın. Girdiğin portal arkandan çöker.'),
   chaser: T('👁️ <b>Takipçi robot!</b>', 'Her hamlende sana bir adım yaklaşır ama önüne bakmaz: onu çöken karelere ya da boşluklara çekip düşür!'),
   sentry: T('🔴 <b>Lazer Nöbetçi!</b>', 'Yerinden kıpırdamaz. Bir hamlede ışın yolu yanıp söner, sonraki hamlede lazer atar. Işının üstünde durma, zamanlamanı iyi ayarla!'),
+  lift: T('🛗 <b>İki Katlı Bölüm!</b>', 'Asansöre binince öbür kata çıkarsın ama bindiğin asansör çöker, geri dönemezsin. Önce bu katı bitir, sonra yukarı çık!'),
   gnawer: T('🐛 <b>Kemirici Böcek!</b>', 'Seni yakalamaz ama gidip gelirken arkasındaki kareleri yer! Yoluna ihtiyacın varsa yetiş ve üstüne basıp ez.'),
   boss: T('👹 <b>BOSS!</b>', 'Dev robot kapıyı kilitli tutuyor. Onu boşluklara ya da çöken karelere çekip düşür, sonra kapıya koş! Takılırsan Geri Al var.', 'Hazırım!'),
   bridge: T('🌉 <b>Düğme ve köprü!</b>', 'Kırmızı düğmeye basınca soluk görünen köprüler açılır. Açılmadan önce oralar boşluktur.'),

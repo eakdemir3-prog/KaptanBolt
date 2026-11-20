@@ -319,6 +319,19 @@ def s_teleport():
     x = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.sin(np.pi * t / 0.7) * 0.35
     x += bp(noise(n), 2000, 9000) * np.sin(np.pi * t / 0.7) ** 2 * 0.3 * (1 + np.sin(2 * np.pi * 18 * t)) / 2
     add(x, bell(midi(nm('E6')), 0.7, 2.0, 1.5) * 0.25, 0); return x
+def s_lift():
+    # asansör: kapı 'ding', motor uğultusu yükselir, varışta ikinci 'ding'
+    T = 1.7; t = t_(T); n = len(t)
+    x = np.zeros(n)
+    add(x, bell(midi(nm('E6')), 0.6, 2.0, 1.2) * 0.3, 0)
+    m0, m1 = int(0.25 * SR), int(1.45 * SR); tm = t_(1.2)
+    f = 90 + 70 * (tm / 1.2)
+    hum = (np.sin(2 * np.pi * np.cumsum(f) / SR) + 0.4 * np.sin(4 * np.pi * np.cumsum(f) / SR)) * np.sin(np.pi * tm / 1.2) * 0.28
+    hum += bp(noise(len(tm)), 300, 1800) * np.sin(np.pi * tm / 1.2) ** 2 * 0.18
+    add(x, hum, m0)
+    add(x, bell(midi(nm('C6')), 0.6, 2.0, 1.2) * 0.25, int(1.4 * SR))
+    add(x, bell(midi(nm('G6')), 0.6, 2.0, 1.2) * 0.22, int(1.48 * SR))
+    return x
 def s_bridge():
     x = np.zeros(int(1.0 * SR))
     for k in range(5):  # tahta takırtıları
@@ -377,6 +390,7 @@ if __name__ == '__main__':
     sfx_write('bump', s_bump(), room=False)
     sfx_write('teleport', s_teleport())
     sfx_write('bridge', s_bridge())
+    sfx_write('lift', s_lift())
     sfx_write('stomp', s_stomp())
     sfx_write('bossFall', s_bossFall())
     sfx_write('enemyFall', s_enemyFall())

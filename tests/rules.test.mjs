@@ -303,3 +303,11 @@ test('kemirici böcek anahtarlı kareyi çökertmez', () => {
   move(s, 'right'); move(s, 'right');
   assert.equal(s.collapsed[1 * 5 + 2], 0);
 });
+
+test('iki katlı bölüm: asansör öbür kata taşır, bindiği asansör çöker', () => {
+  const b = parseLevel({ id: 1, floors: 2, grid: ['SL', 'K.', '##', '##', 'L.', 'KD'] });
+  const s = newState(b);
+  move(s, 'right');
+  assert.equal(s.pos, b.lift[1]);
+  assert.equal(s.collapsed[b.lift[0]], 1);
+});

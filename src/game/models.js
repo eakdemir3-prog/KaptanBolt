@@ -315,3 +315,36 @@ export function makeDangerMark() {
   g.position.y = 0.2; g.renderOrder = 5; g.userData.mat = mat;
   return g;
 }
+
+// --- Asansör: altın çerçeveli cam kapsül ---
+export function makeLift(dir = 'up') {
+  const g = new THREE.Group();
+  const gold = std(0xffc531, { metalness: 0.85, roughness: 0.25, emissive: 0xff9d00, emissiveIntensity: 0.35 });
+  const dark = std(0x23264e, { metalness: 0.7, roughness: 0.35 });
+  const cyan = 0x5ae6ff;
+  // taban: koyu metal disk + altın halka + parlayan iç zemin
+  const body = mesh(new THREE.CylinderGeometry(0.47, 0.5, 0.2, 40), dark, [0, 0.08, 0]); g.add(body);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.035, 10, 48), gold); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.19; g.add(ring);
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(0.38, 40), new THREE.MeshBasicMaterial({ color: cyan, transparent: true, opacity: 0.55 })); pad.rotation.x = -Math.PI / 2; pad.position.y = 0.191; g.add(pad);
+  // cam silindir duvar
+  const H = 1.25;
+  const glass = new THREE.MeshPhysicalMaterial({ color: 0xbff6ff, transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0, side: THREE.DoubleSide, emissive: 0x1a6a8a, emissiveIntensity: 0.25, depthWrite: false });
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.43, H, 40, 1, true), glass); wall.position.y = 0.2 + H / 2; g.add(wall);
+  // dört ince altın direk
+  for (let k = 0; k < 4; k++) { const a = Math.PI / 4 + (k * Math.PI) / 2; g.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, H, 8), gold, [Math.cos(a) * 0.44, 0.2 + H / 2, Math.sin(a) * 0.44])); }
+  // tavan: kubbe + ışık
+  g.add(mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.1, 40), dark, [0, 0.2 + H + 0.05, 0]));
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.47, 0.03, 10, 48), gold); rim.rotation.x = -Math.PI / 2; rim.position.y = 0.2 + H + 0.1; g.add(rim);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), std(0x2a2f6a, { metalness: 0.6, roughness: 0.3 })); dome.position.y = 0.2 + H + 0.1; g.add(dome);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 10), new THREE.MeshBasicMaterial({ color: cyan })); lamp.position.y = 0.2 + H + 0.42; g.add(lamp);
+  // içeride yüzen hologram ok
+  const arr = new THREE.Group();
+  const am = new THREE.MeshBasicMaterial({ color: dir === 'up' ? 0x5aff8a : 0xffd23a, transparent: true, opacity: 0.9 });
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.2, 24), am); cone.position.y = 0.1; arr.add(cone);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.16, 12), am); stem.position.y = -0.07; arr.add(stem);
+  if (dir !== 'up') arr.rotation.z = Math.PI;
+  arr.position.set(0, 1.25, 0.32); g.add(arr);
+  const l = new THREE.PointLight(cyan, 2.4, 2); l.position.y = 0.9; g.add(l);
+  g.userData = { arrow: arr, pad, lamp, glass: wall, body };
+  return g;
+}
