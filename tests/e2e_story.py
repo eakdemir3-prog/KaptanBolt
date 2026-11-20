@@ -31,7 +31,7 @@ with sync_playwright() as p:
     pg.evaluate("KB.start(4)"); pg.wait_for_timeout(800)
     check("bölüm 4'te bonus yok", pg.evaluate("KB.stage().bonusCell")==-1)
     # boss yenince gemi parçası
-    pg.evaluate("KB.start(20)"); pg.wait_for_timeout(1500)
+    pg.evaluate("KB.start(35)"); pg.wait_for_timeout(1500)
     for d in pg.evaluate("KB.solve()"): pg.keyboard.press(KEY[d]); idle()
     pg.wait_for_timeout(1500)
     check("boss sonrası gemi parçası kartı", pg.locator("#card .part-won").count()==1 and "Pusula" in pg.locator("#card .part-won").inner_text())

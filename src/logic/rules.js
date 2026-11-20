@@ -14,6 +14,9 @@ const OPP = { up: 'down', down: 'up', left: 'right', right: 'left' };
  *   sentry: yerinden kıpırdamaz; iki hamlede bir baktığı yöne lazer atar (bir hamle önce uyarır)
  *   gnawer: devriye gibi gidip gelir, terk ettiği kareyi çökertir; yakalamaz, üstüne basınca ezilir
  * boss: { at: [x, y] (2x2 sol üst), every: 1|2 }
+ * X kutu (itilir; çukura/çökmüş kareye düşerse orayı doldurur, üstünden bir kez geçilir)
+ * r R / g G: renkli anahtar ve bariyer (anahtarı alınca aynı renkteki bariyer açılır, normal kare olur)
+ * timed: [[x, y, n]] zamanlı taş: n. hamleden sonra kendiliğinden çöker (üstündeysen düşersin)
  * floors: N  => iki katlı bölüm: ilk N satır 1. kat, sonra 2 boş ayırıcı satır, kalanlar 2. kat.
  *   L L: asansör çifti (portal gibi çalışır: binince öbür kata çıkar, bindiği kare çöker)
  */
@@ -22,7 +25,8 @@ export function parseLevel(level) {
   const h = rows.length, w = rows[0].length;
   const cells = new Uint8Array(w * h);
   const portal = new Int16Array(w * h).fill(-1);
-  const keys = [], pmap = {};
+  const keys = [], pmap = {}, boxes = [];
+  const ckey = new Uint8Array(w * h), gate = new Uint8Array(w * h);
   let start = -1, door = -1;
   for (let y = 0; y < h; y++) {
     if (rows[y].length !== w) throw new Error(`Bölüm ${level.id}: satır uzunlukları farklı`);
@@ -40,6 +44,12 @@ export function parseLevel(level) {
         case 'K': cells[i] = TILE; keys.push(i); break;
         case 'D': cells[i] = TILE; door = i; break;
         case 'L': cells[i] = TILE; (pmap.L = pmap.L || []).push(i); break;
+        case 'M': cells[i] = TILE; (pmap.M = pmap.M || []).push(i); break;
+        case 'X': cells[i] = TILE; boxes.push(i); break;
+        case 'r': cells[i] = TILE; ckey[i] = 1; break;
+        case 'g': cells[i] = TILE; ckey[i] = 2; break;
+        case 'R': cells[i] = TILE; gate[i] = 1; break;
+        case 'G': cells[i] = TILE; gate[i] = 2; break;
         default:
           if (ch >= '1' && ch <= '9') { cells[i] = TILE; (pmap[ch] = pmap[ch] || []).push(i); break; }
           throw new Error(`Bölüm ${level.id}: bilinmeyen karakter '${ch}'`);
@@ -47,6 +57,7 @@ export function parseLevel(level) {
     }
   }
   if (level.floors && (!pmap.L || pmap.L.length !== 2)) throw new Error(`Bölüm ${level.id}: iki katlı bölümde asansör çifti yok`);
+  if (level.floors2 && (!pmap.M || pmap.M.length !== 2)) throw new Error(`Bölüm ${level.id}: üç katlı bölümde ikinci asansör yok`);
   for (const [k, v] of Object.entries(pmap)) {
     if (v.length !== 2) throw new Error(`Bölüm ${level.id}: portal ${k} çift değil`);
     portal[v[0]] = v[1]; portal[v[1]] = v[0];
@@ -57,7 +68,7 @@ export function parseLevel(level) {
   const enemies = (level.enemies || []).map((e) => ({ type: e.type, pos: e.at[1] * w + e.at[0], dir: e.dir || 'right' }));
   tileCount -= enemies.filter((e) => e.type === 'sentry').length; // nöbetçinin karesi hiç çökmez
   const boss = level.boss ? { pos: level.boss.at[1] * w + level.boss.at[0], every: level.boss.every || 2 } : null;
-  return { id: level.id, w, h, cells, portal, keys, start, door, tileCount, strongCount, enemies, boss, floors: level.floors || 0, lift: pmap.L || null, stars: level.stars || { mode: 'cover' } };
+  return { id: level.id, w, h, cells, portal, keys, start, door, tileCount, strongCount, enemies, boss, lock: level.lock || 0, floors: level.floors || 0, floors2: level.floors2 || 0, lift: pmap.L || null, lift2: pmap.M || null, boxes, ckey, gate, hasGate: gate.some((x) => x), timed: (level.timed || []).map(([x, y, n]) => [y * w + x, n]), dark: !!level.dark, challenge: !!level.challenge, gear: level.gear ? level.gear[1] * w + level.gear[0] : -1, stars: level.stars || { mode: 'cover' } };
 }
 
 export function newState(board) {
@@ -70,6 +81,7 @@ export function newState(board) {
     enemies: board.enemies.map((e) => ({ ...e, alive: true, tick: 0 })),
     boss: board.boss ? { pos: board.boss.pos, every: board.boss.every, alive: true, tick: 0 } : null,
     pressed: false,
+    box: Int16Array.from(board.boxes), fill: new Uint8Array(board.w * board.h), cks: 0, gear: false,
     frozen: 0,
     moves: 0,
     status: 'play', // play | win | stuck | caught
@@ -80,13 +92,14 @@ export function cloneState(s) {
   return {
     board: s.board, pos: s.pos, collapsed: s.collapsed.slice(), hits: s.hits.slice(),
     keysTaken: s.keysTaken.slice(), enemies: s.enemies.map((e) => ({ ...e })),
-    boss: s.boss ? { ...s.boss } : null, pressed: s.pressed, frozen: s.frozen || 0, moves: s.moves, status: s.status,
+    boss: s.boss ? { ...s.boss } : null, pressed: s.pressed, box: s.box.slice(), fill: s.fill.slice(), cks: s.cks, gear: s.gear, frozen: s.frozen || 0, moves: s.moves, status: s.status,
   };
 }
 
 export const allKeys = (s) => s.keysTaken.every(Boolean);
-export const doorOpen = (s) => allKeys(s) && (!s.boss || !s.boss.alive);
 export const collapsedCount = (s) => { let n = 0; for (const c of s.collapsed) n += c; return n; };
+/** Kapı: tüm anahtarlar + boss yenik + (kilitli kapıda) yeterli taş çökmüş */
+export const doorOpen = (s) => allKeys(s) && (!s.boss || !s.boss.alive) && (!s.board.lock || collapsedCount(s) >= s.board.lock);
 
 export function step(board, i, dir) {
   const [dx, dy] = DIRS[dir];
@@ -102,11 +115,16 @@ export function bossCells(board, pos) {
 /** Bu kare boşluk mu (çukur, çökmüş kare veya kapalı köprü) */
 export function isGap(s, i) {
   const c = s.board.cells[i];
+  if (s.fill[i]) return false; // kutuyla doldurulmuş çukur
   return c === HOLE || s.collapsed[i] === 1 || (c === BRIDGE && !s.pressed);
 }
 
 /** Bu karede düşman veya boss var mı (forPlayer: kemirici böcek robotun önünü kesmez, ezilir) */
+export const gateClosed = (s, i) => s.board.gate[i] && !(s.cks & s.board.gate[i]);
+export const boxAt = (s, i) => s.box.indexOf(i);
 export function occupied(s, i, skip, forPlayer = false) {
+  if (gateClosed(s, i)) return true;
+  if (!forPlayer && s.box.includes(i)) return true;
   for (const e of s.enemies) if (e !== skip && e.alive && e.pos === i && !(forPlayer && e.type === 'gnawer')) return true;
   if (s.boss && s.boss.alive && s.boss !== skip && bossCells(s.board, s.boss.pos).includes(i)) return true;
   return false;
@@ -119,10 +137,27 @@ export function enterable(s, i) {
   if (isGap(s, i)) return false;
   if (i === b.door && !doorOpen(s)) return false; // kilitli kapı duvardır
   if (occupied(s, i, null, true)) return false;     // düşmanın üstüne yürünmez (böcek hariç)
+  if (s.box.includes(i)) return false;              // kutu: ancak itilerek (canMove)
   return true;
 }
 
-export function canMove(s, dir) { return s.status === 'play' && enterable(s, step(s.board, s.pos, dir)); }
+/** Kutu i karesinden dir yönüne itilebilir mi: hedef boş kare ya da çukur (çukura düşer) */
+export function pushTarget(s, i, dir) {
+  const b = s.board, p = step(b, i, dir);
+  if (p < 0 || p === b.door || p === s.pos) return -1;
+  if (s.box.includes(p) || occupied(s, p, null, false) || b.portal[p] >= 0 || b.keys.includes(p) || b.ckey[p]) return -1;
+  if (b.cells[p] === BUTTON) return -1;
+  return p;
+}
+export function canMove(s, dir) {
+  if (s.status !== 'play') return false;
+  const n = step(s.board, s.pos, dir);
+  if (n >= 0 && s.box.includes(n)) {
+    if (isGap(s, n) || occupied(s, n, null, true)) return false;
+    return pushTarget(s, n, dir) >= 0;
+  }
+  return enterable(s, n);
+}
 /** Zıpla gücü: bir karenin (boşluk/çöken/düşman) üstünden atlayıp ikinci kareye iner */
 export function jumpTarget(s, dir) {
   const mid = step(s.board, s.pos, dir);
@@ -134,8 +169,11 @@ export const canJump = (s, dir) => s.status === 'play' && jumpTarget(s, dir) >= 
 export function validMoves(s) { return DIR_LIST.filter((d) => canMove(s, d)); }
 
 function leave(s, i, events) {
+  if (s.fill[i]) { s.fill[i] = 0; events.push({ t: 'unfill', cell: i }); return; } // kutu da düşer
   if (s.board.cells[i] === STRONG && s.hits[i] === 0) { s.hits[i] = 1; events.push({ t: 'crack', cell: i }); return; }
+  const was = s.board.lock ? doorOpen(s) : true;
   s.collapsed[i] = 1; events.push({ t: 'collapse', cell: i });
+  if (!was) checkDoor(s, was, events);
 }
 
 function checkDoor(s, wasOpen, events) {
@@ -146,6 +184,8 @@ function checkDoor(s, wasOpen, events) {
 function arrive(s, i, events) {
   const b = s.board;
   for (const e of s.enemies) if (e.alive && e.type === 'gnawer' && e.pos === i) { e.alive = false; events.push({ t: 'squash', id: s.enemies.indexOf(e), cell: i }); }
+  if (b.ckey[i] && !(s.cks & b.ckey[i])) { s.cks |= b.ckey[i]; events.push({ t: 'ckey', cell: i, color: b.ckey[i] }); }
+  if (i === b.gear && !s.gear) { s.gear = true; events.push({ t: 'gear', cell: i }); }
   const k = b.keys.indexOf(i);
   if (k >= 0 && !s.keysTaken[k]) {
     const was = doorOpen(s);
@@ -271,6 +311,14 @@ export function move(s, dir, opt = {}) {
   const events = [];
   const next = opt.jump ? jumpTarget(s, dir) : step(b, s.pos, dir);
   s.moves++;
+  if (!opt.jump) {
+    const bi = s.box.indexOf(next);
+    if (bi >= 0) {
+      const p = pushTarget(s, next, dir);
+      if (isGap(s, p)) { s.box[bi] = -1; s.fill[p] = 1; events.push({ t: 'push', box: bi, from: next, to: p, sink: true }); }
+      else { s.box[bi] = p; events.push({ t: 'push', box: bi, from: next, to: p, sink: false }); }
+    }
+  }
   leave(s, s.pos, events);
   events.push({ t: 'step', from: s.pos, to: next, slide: false, jump: !!opt.jump });
   s.pos = next;
@@ -292,12 +340,23 @@ export function move(s, dir, opt = {}) {
   if (s.status === 'play' && s.frozen > 0 && (s.enemies.length || s.boss)) { s.frozen--; events.push({ t: 'frozen', left: s.frozen }); }
   else if (s.status === 'play' && s.moves > 1) moveEnemies(s, events);
   else if (s.status === 'play' && s.moves === 1 && (s.enemies.length || s.boss)) events.push({ t: 'wake' });
+  // zamanlı taşlar: süresi dolan kendiliğinden çöker
+  if (s.status === 'play' && b.timed.length) {
+    const was = doorOpen(s);
+    for (const [c, n] of b.timed) {
+      if (s.moves < n || s.collapsed[c]) continue;
+      if (s.fill[c]) continue;
+      s.collapsed[c] = 1; events.push({ t: 'collapse', cell: c, timed: true });
+      if (s.pos === c) { s.status = 'caught'; events.push({ t: 'caught', by: 'fall' }); break; }
+    }
+    checkDoor(s, was, events);
+  }
   if (s.status === 'play' && validMoves(s).length === 0) { s.status = 'stuck'; events.push({ t: 'stuck' }); }
   return events;
 }
 
 /** 3 yıldız için çökmesi gereken kare sayısı (kapı hariç tüm kareler) */
-export function coverTarget(board) { return board.tileCount - 1; }
+export function coverTarget(board) { return board.stars && board.stars.target ? board.stars.target : board.tileCount - 1; }
 
 export function starsFor(s) {
   if (s.status !== 'win') return 0;
@@ -305,9 +364,19 @@ export function starsFor(s) {
   if (st.mode === 'moves') return s.moves <= st.par[0] ? 3 : s.moves <= st.par[1] ? 2 : 1;
   const ratio = collapsedCount(s) / coverTarget(s.board);
   if (ratio >= 1) return 3;
-  if (ratio >= 0.7) return 2;
+  if (ratio >= 0.75) return 2;
   return 1;
 }
 
 /** İki katlı bölümde karenin katı (0 = 1. kat, 1 = 2. kat) */
-export function floorOf(board, i) { return board.floors && Math.floor(i / board.w) >= board.floors ? 1 : 0; }
+export function floorOf(board, i) {
+  if (!board.floors) return 0;
+  const y = Math.floor(i / board.w);
+  if (y < board.floors) return 0;
+  if (!board.floors2 || y < board.floors + 2 + board.floors2) return 1;
+  return 2;
+}
+/** Kat sayısı */
+export const floorCount = (b) => (!b.floors ? 1 : b.floors2 ? 3 : 2);
+/** Asansör karesi mi (L veya M çifti) */
+export const isLift = (b, i) => !!((b.lift && b.lift.includes(i)) || (b.lift2 && b.lift2.includes(i)));

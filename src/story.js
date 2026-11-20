@@ -12,8 +12,8 @@ export const SHIP_PARTS = [
   { ic: '🚀', name: 'Ana Motor' },
 ];
 /** Toplanan parça sayısı: yenilen boss sayısı */
-export const partsHave = (d) => SHIP_PARTS.filter((_, i) => (d.stars[(i + 1) * 20] || 0) > 0).length;
-export const partHas = (d, i) => (d.stars[(i + 1) * 20] || 0) > 0;
+export const partsHave = (d) => SHIP_PARTS.filter((_, i) => (d.stars[(i + 1) * 35] || 0) > 0).length;
+export const partHas = (d, i) => (d.stars[(i + 1) * 35] || 0) > 0;
 
 export const STORY_HTML = `
   <div class="emoji">🚀</div>

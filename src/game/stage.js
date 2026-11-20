@@ -6,9 +6,9 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { makeDecor } from './decor.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { THEMES, PORTAL_COLORS, makeMaterials, makeTile, makeStrongTile, makePortalTile, makePit, makeKey, makeDoor, makeRobot, setRobotFace, makeEnemy, makeBoss, makeBridgeTile, makeBridgeGhost, makeButtonTile, makeArrowTile, makeLift, makeShip, makeZzz, makeDangerMark, SKINS } from './models.js';
+import { THEMES, PORTAL_COLORS, makeMaterials, makeTile, makeStrongTile, makePortalTile, makePit, makeKey, makeDoor, makeRobot, setRobotFace, makeEnemy, makeBoss, makeBridgeTile, makeBridgeGhost, makeButtonTile, makeArrowTile, makeLift, makeShip, makeCrate, makeColorKey, makeGate, makeGear, makeLabel, drawTimer, makeZzz, makeDangerMark, SKINS } from './models.js';
 import { tween, ease, updateTweens, clearTweens, wait } from './tween.js';
-import { HOLE, ICE, STRONG, BRIDGE, BUTTON, ARROW_DIR, doorOpen, gnawerNext, laserCells, floorOf } from '../logic/rules.js';
+import { HOLE, ICE, STRONG, BRIDGE, BUTTON, ARROW_DIR, doorOpen, gnawerNext, laserCells, floorOf, floorCount, isLift } from '../logic/rules.js';
 
 const DIR_ANGLE = { down: 0, up: Math.PI, right: Math.PI / 2, left: -Math.PI / 2 };
 const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
@@ -133,16 +133,22 @@ export class Stage {
     // iki katlı bölüm: her kat kendi grubunda; 2. kat FLOOR_Y yukarıda, asansörler tam üst üste
     this.floorG = [new THREE.Group()]; this.base.add(this.floorG[0]);
     if (board.floors) {
-      const g1 = new THREE.Group(); this.floorG.push(g1); this.base.add(g1);
-      const [la, lb] = board.lift[0] < board.lift[1] ? board.lift : [board.lift[1], board.lift[0]];
-      const pa = this.cellPos(la), pb = this.cellPos(lb);
-      g1.position.set(pa.x - pb.x, FLOOR_Y, pa.z - pb.z);
+      // her kat bir öncekinin FLOOR_Y üstünde; asansör çiftleri tam üst üste gelecek şekilde kaydırılır
+      const pairs = [board.lift, board.lift2];
+      for (let f = 1; f < floorCount(board); f++) {
+        const g = new THREE.Group(); this.floorG.push(g); this.base.add(g);
+        const pr = pairs[f - 1];
+        const lo = pr.find((i) => floorOf(board, i) === f - 1), hi = pr.find((i) => floorOf(board, i) === f);
+        const pa = this.cellPos(lo).add(this.floorG[f - 1].position), pb = this.cellPos(hi);
+        g.position.set(pa.x - pb.x, FLOOR_Y * f, pa.z - pb.z);
+      }
     }
     // 2. kat taşları biraz farklı renkte: yeni kata çıkıldığı belli olsun
-    const M1 = this.M, M2 = board.floors ? { ...M1, tile: M1.tile.clone(), side: M1.side.clone() } : M1;
-    if (M2 !== M1) { M2.tile.color.offsetHSL(0.09, 0.05, 0.02); M2.side.color.offsetHSL(0.09, 0, 0); }
-    const onFloor = (i) => { const f = floorOf(board, i); this.root = this.floorG[f]; this.M = f ? M2 : M1; };
-    for (let f = 0; f < this.floorG.length; f++) { this.root = this.floorG[f]; this.M = f ? M2 : M1; this.root.add(this._buildBackdrop(w, this.floorH(f))); }
+    const M1 = this.M;
+    const MF = [M1];
+    for (let f = 1; f < this.floorG.length; f++) { const m = { ...M1, tile: M1.tile.clone(), side: M1.side.clone() }; m.tile.color.offsetHSL(0.06 * f, 0.05, 0.09); m.side.color.offsetHSL(0.06 * f, 0, 0.06); MF.push(m); }
+    const onFloor = (i) => { const f = floorOf(board, i); this.root = this.floorG[f]; this.M = MF[f]; };
+    for (let f = 0; f < this.floorG.length; f++) { this.root = this.floorG[f]; this.M = MF[f]; this.root.add(this._buildBackdrop(w, this.floorH(f))); }
     this.tiles = new Map(); this.keys = new Map(); this.portals = []; this.bridges = []; this.button = null; this.arrowTiles = []; this.zzz = []; this.dangerMarks = [];
     const pairId = new Map(); let pc = 0;
     for (let i = 0; i < board.cells.length; i++) if (board.portal[i] > i) pairId.set(i, pc++);
@@ -160,7 +166,7 @@ export class Stage {
       } else if (board.cells[i] === BUTTON) { t = makeButtonTile(this.M); this.button = t; if (state.pressed) this._pressButton(false); }
       else if (ARROW_DIR[board.cells[i]]) { t = makeArrowTile(this.M, ARROW_DIR[board.cells[i]]); this.arrowTiles.push(t); }
       else if (board.cells[i] === STRONG) { t = makeStrongTile(this.M); t.userData.cracks.visible = !!state.hits[i]; }
-      else if (board.floors && board.lift.includes(i)) { t = makeLift(floorOf(board, i) === floorOf(board, board.start) ? 'up' : 'down'); }
+      else if (board.floors && isLift(board, i)) { t = makeLift(floorOf(board, i) < floorOf(board, board.portal[i]) ? 'up' : 'down'); }
       else if (board.portal[i] >= 0) { t = makePortalTile(this.M, PORTAL_COLORS[pairId.get(Math.min(i, board.portal[i])) % 4]); this.portals.push(t); }
       else t = makeTile(this.M, board.cells[i] === ICE, i * 7 + 3);
       t.position.copy(p); this.root.add(t); this.tiles.set(i, t);
@@ -189,6 +195,21 @@ export class Stage {
       const key = makeKey(); key.position.copy(this.cellPos(ci)).add(new THREE.Vector3(0, 0.8, 0));
       key.userData.phase = k * 1.3; this.root.add(key); this.keys.set(k, key);
     });
+    // kutular, doldurulmuş çukurlar, renkli anahtar/bariyer, zamanlı taşlar, gizli dişli
+    this.boxMeshes = []; this.fillMeshes = new Map(); this.ckeys = new Map(); this.gates = new Map(); this.timers = new Map(); this.gearMesh = null;
+    (state.box || []).forEach((p, bi) => { if (p < 0) return; onFloor(p); const c = makeCrate(); c.position.copy(this.cellPos(p)).setY(0.18); this.root.add(c); this.boxMeshes[bi] = c; });
+    if (state.fill) state.fill.forEach((f, i) => { if (!f) return; onFloor(i); const c = makeCrate(); c.position.copy(this.cellPos(i)).setY(0.18 - 0.62); this.root.add(c); this.fillMeshes.set(i, c); });
+    for (let i = 0; i < board.cells.length; i++) {
+      const ck = board.ckey[i], gt = board.gate[i];
+      if (ck && !(state.cks & ck)) { onFloor(i); const k = makeColorKey(ck); k.position.copy(this.cellPos(i)).add(new THREE.Vector3(0, 0.8, 0)); k.userData.phase = i; this.root.add(k); this.ckeys.set(i, k); }
+      if (gt && !(state.cks & gt) && !state.collapsed[i]) { onFloor(i); const g = makeGate(gt); g.position.copy(this.cellPos(i)); this.root.add(g); this.gates.set(i, g); }
+    }
+    for (const [c, n] of board.timed || []) {
+      if (state.collapsed[c] || !this.tiles.has(c)) continue;
+      const lb = makeLabel(); lb.position.set(0, 0.2, 0); this.tiles.get(c).add(lb);
+      this.timers.set(c, { lb, n }); drawTimer(lb, n - state.moves);
+    }
+    if (board.gear >= 0 && !state.gear && this.tiles.has(board.gear)) { onFloor(board.gear); const g = makeGear(); g.position.copy(this.cellPos(board.gear)).add(new THREE.Vector3(0, 0.7, 0)); this.root.add(g); this.gearMesh = g; }
     // bonus altın
     this.bonusMesh = null;
     if (this.bonusCell >= 0 && this.tiles.has(this.bonusCell)) {
@@ -214,12 +235,22 @@ export class Stage {
   cellPos(i) {
     const b = this.board, x = i % b.w, y = Math.floor(i / b.w);
     if (!b.floors) return new THREE.Vector3(x - (b.w - 1) / 2, 0, y - (b.h - 1) / 2);
-    const f = floorOf(b, i), hf = this.floorH(f), ly = f ? y - b.floors - 2 : y;
+    const f = floorOf(b, i), hf = this.floorH(f), ly = y - this.floorStart(f);
     return new THREE.Vector3(x - (b.w - 1) / 2, 0, ly - (hf - 1) / 2); // katın kendi grubuna göre
   }
-  floorH(f) { const b = this.board; return !b.floors ? b.h : f ? b.h - b.floors - 2 : b.floors; }
+  floorStart(f) { const b = this.board; return f === 0 ? 0 : f === 1 ? b.floors + 2 : b.floors + 2 + b.floors2 + 2; }
+  floorH(f) {
+    const b = this.board; if (!b.floors) return b.h;
+    if (f === 0) return b.floors;
+    if (f === 1) return b.floors2 || b.h - b.floors - 2;
+    return b.h - (b.floors + 2 + b.floors2 + 2);
+  }
   /** -1: ayırıcı satır */
-  floorRow(i) { const b = this.board, y = Math.floor(i / b.w); return y < b.floors ? y : y >= b.floors + 2 ? y - b.floors - 2 : -1; }
+  floorRow(i) {
+    const b = this.board, y = Math.floor(i / b.w);
+    for (let f = 0; f < floorCount(b); f++) { const st = this.floorStart(f), hf = this.floorH(f); if (y >= st && y < st + hf) return y - st; }
+    return -1;
+  }
   /** Robotun bulunduğu kat görünür, öbürü gizli; ışıklar o kata kayar */
   _syncFloor() {
     this.floorG.forEach((g, f) => (g.visible = f === this.floor));
@@ -280,6 +311,10 @@ export class Stage {
       else if (e.t === 'win') await this._winAnim();
       else if (e.t === 'stuck') await this._stuckAnim();
       else if (e.t === 'squash') await this._squash(e);
+      else if (e.t === 'push') this._push(e);
+      else if (e.t === 'unfill') this._unfill(e.cell);
+      else if (e.t === 'ckey') this._takeColorKey(e);
+      else if (e.t === 'gear') this._takeGear();
     }
     await flush();
     if (state) this.enemyMeshes.forEach((m, k) => { if (m && m.userData.arrow) this._placeArrow(m, state.enemies[k]); });
@@ -350,8 +385,13 @@ export class Stage {
   _laserCharge(e) {
     this._clearLaser(e.id);
     const m = this.enemyMeshes[e.id]; if (!m || !e.cells.length) return wait(80);
-    const g = this._beam(m, e.cells, 0.035, 0xff3ad8, 0.55); g.userData.blink = true;
-    this.lasers.push({ id: e.id, g });
+    const g = this._beam(m, e.cells, 0.05, 0xff3ad8, 0.7); g.userData.blink = true;
+    // yerde kırmızı uyarı şeritleri: bir sonraki hamlede ışın buradan geçecek
+    const warn = new THREE.Group();
+    const wm = new THREE.MeshBasicMaterial({ color: 0xff2a4a, transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false });
+    for (const c of e.cells) { const q = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.86), wm); q.rotation.x = -Math.PI / 2; q.position.copy(this.cellPos(c)).setY(0.215); warn.add(q); }
+    warn.userData.blink = true; this.root.add(warn);
+    this.lasers.push({ id: e.id, g }, { id: e.id, g: warn });
     if (this.onSound) this.onSound('wake');
     return tween(200, (t) => { m.userData.body.scale.setScalar(1 + Math.sin(Math.PI * t) * 0.08); });
   }
@@ -360,7 +400,7 @@ export class Stage {
     this._clearLaser(e.id);
     const m = this.enemyMeshes[e.id]; if (!m || !e.cells.length) return;
     if (this.onSound) this.onSound('crack');
-    const g = this._beam(m, e.cells, 0.12, 0xff6ae8, 1);
+    const g = this._beam(m, e.cells, 0.17, 0xff6ae8, 1);
     const glowL = new THREE.PointLight(0xff3ad8, 6, 3); glowL.position.copy(this.cellPos(e.cells[Math.floor(e.cells.length / 2)])).setY(0.6); this.root.add(glowL);
     this.shake(0.04, 160);
     await tween(380, (t) => { g.children[0].scale.x = g.children[0].scale.z = 1 + Math.sin(Math.PI * t) * 0.6; g.children[0].material.opacity = 1 - t * t; glowL.intensity = 6 * (1 - t); });
@@ -464,7 +504,7 @@ export class Stage {
   }
 
   async _teleport({ from, to }) {
-    if (this.board.floors && this.board.lift.includes(from)) return this._liftRide(from, to);
+    if (this.board.floors && isLift(this.board, from)) return this._liftRide(from, to);
     const r = this.robot, U = r.userData;
     if (this.onSound) this.onSound('teleport');
     this._burst(this.cellPos(from).setY(0.6), 0xff6ae8);
@@ -584,7 +624,7 @@ export class Stage {
 
   _collapse(cell) {
     const t = this.tiles.get(cell); if (!t) return;
-    if (this.board.floors && this.board.lift.includes(cell) && this.state && this.board.lift.includes(this.state.pos) && this.state.pos !== cell) { this.tiles.delete(cell); this._liftCap = t; return; } // asansör kabini robotla birlikte kalkar
+    if (this.board.floors && isLift(this.board, cell) && this.state && this.board.portal[cell] === this.state.pos) { this.tiles.delete(cell); this._liftCap = t; return; } // asansör kabini robotla birlikte kalkar
     this.tiles.delete(cell);
     if (this.onSound) this.onSound('collapse');
     const body = t.userData.body;
@@ -615,6 +655,74 @@ export class Stage {
     }).then(() => { shards.forEach((s) => s?.removeFromParent()); t?.removeFromParent(); });
   }
 
+  /** Kutu itildi: kayar; çukura giderse düşer ve çukuru doldurur */
+  async _push(e) {
+    const c = this.boxMeshes[e.box]; if (!c) return;
+    const a = c.position.clone(), b = this.cellPos(e.to).setY(0.18);
+    if (this.onSound) this.onSound('slide');
+    await tween(170, (t) => c.position.lerpVectors(a, b, t), ease.outQuad);
+    if (!e.sink) return;
+    this.boxMeshes[e.box] = null; this.fillMeshes.set(e.to, c);
+    if (this.onSound) this.onSound('stomp');
+    await tween(260, (t) => { c.position.y = 0.18 - 0.62 * t * t; c.rotation.z = Math.sin(t * Math.PI) * 0.08; }, ease.linear);
+    c.rotation.z = 0;
+    this._dust(c.position.clone().setY(0.2), 0xc89a60);
+  }
+  /** Doldurulmuş çukurdan geçildi: kutu aşağı düşüp kaybolur */
+  _unfill(cell) {
+    const c = this.fillMeshes.get(cell); if (!c) return;
+    this.fillMeshes.delete(cell);
+    if (this.onSound) this.onSound('collapse');
+    tween(600, (t) => { c.position.y = 0.18 - 0.62 - t * t * 4; c.rotation.x = t * 0.8; }, ease.linear).then(() => c.removeFromParent());
+  }
+  _takeColorKey(e) {
+    const k = this.ckeys.get(e.cell);
+    if (k) {
+      this.ckeys.delete(e.cell);
+      if (this.onSound) this.onSound('key');
+      const y0 = k.position.y;
+      tween(450, (t) => { k.position.y = y0 + t * 1.2; k.userData.inner.rotation.y = t * 12; k.scale.setScalar(1 + Math.sin(Math.PI * t) * 0.5 - t * 0.9); }, ease.outQuad).then(() => k.removeFromParent());
+      this._ring(k.position.clone().setY(0.25), k.userData.glow.color.getHex());
+    }
+    // aynı renkteki bariyerler kapanır (perde söner, direkler yere iner)
+    for (const [i, g] of [...this.gates]) {
+      if (this.board.gate[i] !== e.color) continue;
+      this.gates.delete(i);
+      tween(500, (t) => { g.userData.fm.opacity = 0.4 * (1 - t); g.userData.light.intensity = 1.6 * (1 - t); g.position.y = -t * 1.1; }, ease.inQuad).then(() => g.removeFromParent());
+    }
+    if (this.onSound) this.onSound('bridge');
+  }
+  _takeGear() {
+    const g = this.gearMesh; if (!g) return;
+    this.gearMesh = null;
+    if (this.onSound) this.onSound('coin');
+    const y0 = g.position.y;
+    tween(700, (t) => { g.position.y = y0 + t * 1.6; g.userData.inner.rotation.z = t * 14; g.scale.setScalar(1 + Math.sin(Math.PI * t) * 0.6 - t * 0.9); }, ease.outQuad).then(() => g.removeFromParent());
+    this._burst(g.position.clone(), 0x7ad8ff, 40);
+    if (this.onGear) this.onGear();
+  }
+  /** Karanlık bölüm: ms sonra sadece robotun çevresi (2 kare) görünür */
+  startDark(ms) { this._darkT = performance.now() + ms; }
+  _fog(dt) {
+    const b = this.board; if (!b || !b.dark || !this.state || performance.now() < (this._darkT || 0)) return;
+    const st = this.state, w = b.w, px = st.pos % w, py = Math.floor(st.pos / w);
+    const vis = (i) => Math.abs(i % w - px) + Math.abs(Math.floor(i / w) - py) <= 2;
+    const k = Math.min(1, dt * 8);
+    const fade = (o, on) => { if (!o) return; const tgt = on ? 1 : 0.001; const sc = o.userData._fs ?? 1; const nv = sc + (tgt - sc) * k; o.userData._fs = nv; o.scale.setScalar(nv); o.visible = nv > 0.02; };
+    for (const [i, t] of this.tiles) fade(t, vis(i));
+    if (this.keys) b.keys.forEach((c, kk) => fade(this.keys.get(kk), vis(c)));
+    for (const [i, o] of this.ckeys || []) fade(o, vis(i));
+    for (const [i, o] of this.gates || []) fade(o, vis(i));
+    (st.box || []).forEach((p, bi) => { if (p >= 0) fade(this.boxMeshes[bi], vis(p)); });
+    if (this.gearMesh) fade(this.gearMesh, vis(b.gear));
+    if (this.bonusMesh) fade(this.bonusMesh, vis(this.bonusCell));
+  }
+  /** Zamanlı taş sayaçları */
+  updateTimers(moves) {
+    if (!this.timers) return;
+    for (const [c, t] of this.timers) { if (!this.tiles.has(c)) { this.timers.delete(c); continue; } drawTimer(t.lb, t.n - moves); }
+  }
+
   _takeKey(k) {
     const key = this.keys.get(k); if (!key) return;
     this.keys.delete(k);
@@ -637,6 +745,34 @@ export class Stage {
     const y0 = c.position.y;
     this._burst(c.position.clone(), 0xffd54a, 30);
     tween(500, (t) => { c.position.y = y0 + t * 1.4; c.rotation.y += 0.5; c.scale.setScalar(1 - t * 0.8); }, ease.outQuad).then(() => c?.removeFromParent());
+  }
+
+  /** Kilitli kapı sayacı: kapının üstünde "12/24" (yeterince taş çökünce kaybolur) */
+  updateLock(n, lock) {
+    if (!this.door) return;
+    let sp = this.door.userData.lockSprite;
+    if (!lock || n >= lock) { if (sp && sp.visible) { sp.visible = false; this._ring(this.door.position.clone().setY(0.3), 0x5ae6ff); } else if (sp) sp.visible = false; return; }
+    if (!sp) {
+      const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96;
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+      sp.scale.set(0.95, 0.36, 1); sp.position.set(0, 1.62, 0); sp.renderOrder = 10;
+      sp.userData = { cv, tex, last: '' };
+      this.door.add(sp); this.door.userData.lockSprite = sp;
+    }
+    sp.visible = true;
+    const txt = `${n}/${lock}`;
+    if (sp.userData.last === txt) return;
+    sp.userData.last = txt;
+    const { cv, tex } = sp.userData, g = cv.getContext('2d');
+    g.clearRect(0, 0, cv.width, cv.height);
+    g.fillStyle = 'rgba(14,10,40,.85)'; g.strokeStyle = '#b35cff'; g.lineWidth = 6;
+    g.beginPath(); g.roundRect(6, 6, cv.width - 12, cv.height - 12, 40); g.fill(); g.stroke();
+    // ilerleme çubuğu
+    g.fillStyle = 'rgba(90,230,255,.25)'; g.beginPath(); g.roundRect(14, 14, (cv.width - 28) * Math.min(1, n / lock), cv.height - 28, 32); g.fill();
+    g.fillStyle = '#ffffff'; g.font = 'bold 50px Poppins, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('🔒 ' + txt, cv.width / 2, cv.height / 2 + 3);
+    tex.needsUpdate = true;
   }
 
   _setDoorOpen(open, animate) {
@@ -832,6 +968,7 @@ export class Stage {
     updateTweens(now);
     const t = this.clock.getElapsedTime();
     const dt = Math.min(0.1, t - (this._lastT ?? t)); this._lastT = t;
+    this._fog(dt);
     if (this.robot && this.robot.userData.anim) {
       const A = this.robot.userData.anim;
       // menüde: bekleme duruşu, birkaç saniyede bir el sallar
@@ -865,6 +1002,9 @@ export class Stage {
       if (this.menuMode) { if (!U.anim) U.armR.rotation.z = 0.18 + Math.max(0, Math.sin(t * 3)) * 2.2; U.turn.rotation.y = Math.sin(t * 0.5) * 0.1; /* hafif salınım: fazla dönünce bacaklar üst üste biniyor */ }
     }
     if (this.decorAnim) for (const f of this.decorAnim) f(t);
+    if (this.ckeys) for (const k of this.ckeys.values()) { k.userData.inner.rotation.y = t * 1.6 + k.userData.phase; k.position.y = 0.8 + Math.sin(t * 2.2 + k.userData.phase) * 0.06; }
+    if (this.gates) for (const g of this.gates.values()) g.userData.fm.opacity = 0.32 + Math.sin(t * 5) * 0.1;
+    if (this.gearMesh) { this.gearMesh.userData.inner.rotation.z = t * 1.8; this.gearMesh.position.y = 0.7 + Math.sin(t * 2.4) * 0.06; }
     if (this.bonusMesh) { this.bonusMesh.rotation.y = t * 2.4; this.bonusMesh.position.y = 0.62 + Math.sin(t * 2.6) * 0.05; }
     if (this.flames) for (const f of this.flames) { const k = 1 + Math.sin(t * 9 + f.seed) * 0.08 + Math.sin(t * 23 + f.seed) * 0.05; f.f.scale.set(k, 1.6 * k, k); f.tl.intensity = 14 * k; }
     if (this.particles) { this.particles.rotation.y = t * 0.03; this.particles.position.y = this.world === 3 ? -((t * 0.25) % 2) + 1 : Math.sin(t * 0.3) * 0.2; }

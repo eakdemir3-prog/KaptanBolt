@@ -15,12 +15,12 @@ with sync_playwright() as p:
     idle=lambda: pg.wait_for_function("KB.idle()",timeout=15000)
     st=lambda k: pg.evaluate(f"KB.state.{k}")
     # 1) ilk hamle güvenli: tüm düşmanlı bölümlerde her ilk hamle güvenli mi (kurallarla)
-    unsafe=pg.evaluate("""(()=>{let bad=0;for(let id=61;id<=200;id++){KB.start(id);const s=KB.state;if(!s.enemies.length&&!s.boss)continue;
+    unsafe=pg.evaluate("""(()=>{let bad=0;for(let id=2;id<=350;id++){KB.start(id);const s=KB.state;if(!s.enemies.length&&!s.boss)continue;
       for(const d of ['up','down','left','right']){const c=KB._clone(s);if(KB._move(c,d)&&c.status==='caught')bad++;}}return bad})()""")
     check("hiçbir bölümde ilk hamlede yakalanılmıyor", unsafe==0)
     # 2) tehlike işareti + yakalanma + geri al
     found=None
-    for lv in [66,70,126,153,181,190]:
+    for lv in [106,107,108,211,212,213]:
         pg.evaluate(f"KB.start({lv})"); pg.wait_for_timeout(500)
         seq=pg.evaluate("KB.findCaught()")
         if seq: found=(lv,seq); break
@@ -44,7 +44,7 @@ with sync_playwright() as p:
         pg.wait_for_timeout(1300); return st("status")
     check("bölüm 141 (köprü) bitti", play(141,"s3_141.png")=="win")
     check("bölüm 161 (ok) bitti", play(161,"s3_161.png")=="win")
-    check("bölüm 200 (son boss) bitti", play(200,"s3_200.png")=="win")
+    check("bölüm 350 (son boss) bitti", play(350,"s3_350.png")=="win")
     pg.screenshot(path=OUT+"s3_finish.png")
     # 4) günlük bulmaca
     pg.click("#card [data-act=menu]"); pg.wait_for_timeout(1000)

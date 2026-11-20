@@ -14,6 +14,17 @@ export const SKINS = [
   { id: 'lav', name: 'Lav Robotu', stars: 220, body: 0x4a3030, joint: 0x1a0a08, eye: 0xffa01a, cap: 0xff5a1a, band: 0xffcf3a },
   { id: 'neon', name: 'Neon', stars: 300, body: 0x2a1a50, joint: 0x0a0618, eye: 0x3affe0, cap: 0xff3ae0, band: 0x3affe0 },
   { id: 'kral', name: 'Kral Bolt', stars: 400, body: 0xffffff, joint: 0x5a1aa0, eye: 0x7affb0, cap: 0x6a1ab0, band: 0xffd54a, metal: true, crown: true },
+  // dişli kostümleri: o dünyanın 3 gizli dişlisini toplayan kazanır
+  { id: 'disli1', name: 'Zindan Bekçisi', gear: 1, body: 0x8a7ad8, joint: 0x231a4a, eye: 0xb0ffea, cap: 0x4a3a9a, band: 0xd8c8ff },
+  { id: 'disli2', name: 'Orman Gezgini', gear: 2, body: 0x7ad88a, joint: 0x1a3a20, eye: 0xffef5a, cap: 0x2a7a3a, band: 0xffe07a },
+  { id: 'disli3', name: 'Kutup Kâşifi', gear: 3, body: 0xe8f6ff, joint: 0x2a5a8a, eye: 0x5affff, cap: 0xd03a3a, band: 0xffffff },
+  { id: 'disli4', name: 'Volkan Ustası', gear: 4, body: 0x5a3a3a, joint: 0x1a0a0a, eye: 0xff7a1a, cap: 0x2a1a1a, band: 0xff5a1a, metal: true },
+  { id: 'disli5', name: 'Bahçe Bekçisi', gear: 5, body: 0xd8f0b0, joint: 0x3a5a1a, eye: 0xff5ab0, cap: 0x5aa03a, band: 0xffa0d0 },
+  { id: 'disli6', name: 'Kristal Şövalye', gear: 6, body: 0xf0c8ff, joint: 0x5a1a7a, eye: 0x7affff, cap: 0xb03ae0, band: 0xffffff, metal: true },
+  { id: 'disli7', name: 'Fabrika Şefi', gear: 7, body: 0x9aa4b8, joint: 0x2a2f3a, eye: 0xffc531, cap: 0xffc531, band: 0x1a1a1a, metal: true },
+  { id: 'disli8', name: 'Çöl Kaşifi', gear: 8, body: 0xe8d0a0, joint: 0x5a3a1a, eye: 0x3affd0, cap: 0xc08a3a, band: 0x8a1a1a },
+  { id: 'disli9', name: 'Derin Deniz', gear: 9, body: 0x3a8ab0, joint: 0x0a2a3a, eye: 0x7affea, cap: 0x1a5a7a, band: 0xffd23a, metal: true },
+  { id: 'disli10', name: 'Gölge Kaptan', gear: 10, body: 0x2a2a3a, joint: 0x0a0a10, eye: 0xff3a5a, cap: 0x10101a, band: 0xff3a5a, metal: true },
   { id: 'pro', name: 'Pro Kaptan', stars: 0, pro: true, body: 0x23232c, joint: 0xffcf3a, eye: 0xffe14a, cap: 0xffcf3a, band: 0x1c1c24, metal: true },
 ];
 

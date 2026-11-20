@@ -23,7 +23,7 @@ with sync_playwright() as p:
     for m in pg.evaluate("KB.solve()"): pg.keyboard.press(KEY[m]); idle()
     pg.wait_for_timeout(1200)
     check("aynı yıldızla tekrar oynamak altın vermiyor", pg.evaluate("KB.data().coins")==c1)
-    pg.evaluate("KB.start(20)"); pg.wait_for_timeout(1200)
+    pg.evaluate("KB.start(35)"); pg.wait_for_timeout(1200)
     for m in pg.evaluate("KB.solve()"): pg.keyboard.press(KEY[m]); idle()
     pg.wait_for_timeout(1500)
     c2=pg.evaluate("KB.data().coins")
@@ -49,7 +49,7 @@ with sync_playwright() as p:
     pg.screenshot(path=OUT+"s5_shop_powers.png")
     # güçleri kullan
     pg.keyboard.press("Escape"); pg.wait_for_timeout(500)
-    pg.evaluate("KB.start(66)"); pg.wait_for_timeout(1300)
+    pg.evaluate("KB.start(106)"); pg.wait_for_timeout(1300)
     # ilk hamle (uyanma)
     mv=pg.evaluate("KB.solve()"); pg.keyboard.press(KEY[mv[0]]); idle()
     pg.click("[data-power=freeze]"); pg.wait_for_timeout(400)
@@ -67,15 +67,18 @@ with sync_playwright() as p:
     pg.click("[data-power=undo3]"); pg.wait_for_timeout(500)
     check("Geri Al gücü son hamleyi geri aldı", st("moves")==m0-1)
     # zıpla: boşluk üstünden atlama olan bir bölüm
-    pg.evaluate("KB.start(9)"); pg.wait_for_timeout(1000)
-    d=pg.evaluate("['up','down','left','right'].find(d=>{const s=KB._clone(KB.state); return KB._move(s,d,{jump:true})})")
+    d=None
+    for jl in [9,11,12,13,16,17,18,22,24]:
+        pg.evaluate(f"KB.start({jl})"); pg.wait_for_timeout(800)
+        d=pg.evaluate("['up','down','left','right'].find(d=>{const s=KB._clone(KB.state); return KB._move(s,d,{jump:true})})")
+        if d: break
     pg.click("[data-power=jump]"); pg.wait_for_timeout(300)
     pos0=st("pos")
     if d: pg.keyboard.press(KEY[d]); idle()
     check(f"Zıpla: iki kare öteye atladı ({d})", d and st("pos")!=pos0 and pg.evaluate("KB.data().powers.jump")==0)
     # kalkan
     seq=None
-    for lv in [66,70,73,126,153,181]:
+    for lv in [106,107,108,211,212,213]:
         pg.evaluate(f"KB.start({lv})"); pg.wait_for_timeout(600)
         seq=pg.evaluate("KB.findCaught()")
         if seq: break

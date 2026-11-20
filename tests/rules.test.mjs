@@ -222,12 +222,12 @@ test('başarım: hedefe ulaşınca bir kez ödül', () => {
 });
 test('dünya kilidi: önceki boss veya yıldız eşiği açar', () => {
   const d = Save.load(); d.settings.unlockAll = false; d.stars = {};
-  assert.equal(Save.isUnlocked(d, 21), false);
-  d.stars[20] = 1;
-  assert.equal(Save.isUnlocked(d, 21), true);
-  assert.equal(Save.isUnlocked(d, 22), false);
-  const e = Save.load(); e.settings.unlockAll = false; e.stars = {}; for (let i = 1; i <= 9; i++) e.stars[i] = 3; // 27 yıldız
-  assert.equal(Save.isUnlocked(e, 21), true);
+  assert.equal(Save.isUnlocked(d, 36), false);
+  d.stars[35] = 1;
+  assert.equal(Save.isUnlocked(d, 36), true);
+  assert.equal(Save.isUnlocked(d, 37), false);
+  const e = Save.load(); e.settings.unlockAll = false; e.stars = {}; for (let i = 1; i <= 15; i++) e.stars[i] = 3; // 45 yıldız
+  assert.equal(Save.isUnlocked(e, 36), true);
 });
 
 test('enerji asla 5i geçmez, taşan ödül altına dönüşür', () => {
@@ -310,4 +310,25 @@ test('iki katlı bölüm: asansör öbür kata taşır, bindiği asansör çöke
   move(s, 'right');
   assert.equal(s.pos, b.lift[1]);
   assert.equal(s.collapsed[b.lift[0]], 1);
+});
+
+// ---- Yeni mekanikler ----
+test('kutu itilir', () => { const s = newState(parseLevel({ id: 1, grid: ['SX..', '...D'] })); move(s, 'right'); assert.equal(s.pos, 1); assert.equal(s.box[0], 2); });
+test('kutu çukura düşer, üstünden bir kez geçilir', () => {
+  const s = newState(parseLevel({ id: 1, grid: ['SX#.D'] }));
+  move(s, 'right'); assert.equal(s.box[0], -1); assert.equal(s.fill[2], 1);
+  move(s, 'right'); assert.equal(s.pos, 2); move(s, 'right'); assert.equal(s.fill[2], 0); move(s, 'right'); assert.equal(s.status, 'win');
+});
+test('kutu duvara itilemez', () => { const s = newState(parseLevel({ id: 1, grid: ['S.XD'] })); move(s, 'right'); assert.equal(move(s, 'right'), null); });
+test('renkli bariyer anahtarla açılır', () => {
+  const s = newState(parseLevel({ id: 1, grid: ['SR.D', 'r...'] }));
+  assert.equal(move(s, 'right'), null); move(s, 'down'); assert.equal(s.cks, 1); move(s, 'right'); move(s, 'up'); assert.equal(s.pos, 1);
+});
+test('zamanlı taş süresi dolunca çöker, üstündeysen düşersin', () => {
+  const a = newState(parseLevel({ id: 1, grid: ['S...D'], timed: [[3, 0, 2]] })); move(a, 'right'); move(a, 'right'); assert.equal(a.collapsed[3], 1);
+  const b = newState(parseLevel({ id: 1, grid: ['S..D'], timed: [[1, 0, 1]] })); move(b, 'right'); assert.equal(b.status, 'caught');
+});
+test('kilitli kapı yeterli taş çökünce açılır', () => {
+  const s = newState(parseLevel({ id: 1, lock: 3, grid: ['S..', '...', '..D'] }));
+  assert.equal(canMove(s, 'down'), true); move(s, 'right'); move(s, 'right'); assert.equal(doorOpen(s), false); move(s, 'down'); assert.equal(doorOpen(s), true);
 });

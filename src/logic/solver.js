@@ -5,7 +5,9 @@ const now = () => (typeof performance !== 'undefined' ? performance.now() : Date
 const keyOf = (s) => s.pos + ':' + s.collapsed.join('') + (s.board.strongCount ? ':' + s.hits.join('') : '')
   + (s.enemies.length ? ':' + s.enemies.map((e) => (e.alive ? e.pos + e.dir[0] + (e.type === 'sentry' ? e.tick % 2 : '') : 'x')).join(',') : '')
   + (s.boss ? ':' + (s.boss.alive ? s.boss.pos + '/' + (s.boss.tick % s.boss.every) : 'x') : '')
-  + (s.pressed ? 'P' : '') + (s.moves === 0 ? 'Z' : '') + (s.frozen ? 'F' + s.frozen : '');
+  + (s.pressed ? 'P' : '') + (s.moves === 0 ? 'Z' : '') + (s.frozen ? 'F' + s.frozen : '')
+  + (s.box.length ? ':B' + s.box.join(',') + ':' + s.fill.join('') : '') + (s.cks ? 'C' + s.cks : '')
+  + (s.board.timed.length ? 'T' + Math.min(s.moves, s.board.tmax || (s.board.tmax = Math.max(...s.board.timed.map((t) => t[1])))) : '');
 
 function neighbors(b, i) {
   const x = i % b.w, y = (i / b.w) | 0, out = [];
@@ -144,4 +146,35 @@ export function replay(board, moves) {
   const s = newState(board);
   for (const d of moves) if (!move(s, d)) return { ok: false, state: s };
   return { ok: true, state: s };
+}
+
+/** Kazanırken çökertilebilecek en fazla kare (dal-sınır DFS). { count, moves } ; budget aşılırsa o ana kadarki en iyisi.
+ *  need verilirse o sayıya ulaşınca hemen döner (ipucu için). */
+export function bestCover(state, limit = 600000, ms = 0, need = 0) {
+  const b = state.board, t0 = now();
+  let nodes = 0, best = -1, bestMoves = null, done = false;
+  const seenAt = new Map();
+  const path = [];
+  const upper = (s) => {
+    // şu ana kadar çöken + robotun ulaşabileceği sağlam kareler (kapı hariç)
+    const seen = new Uint8Array(b.w * b.h); const st = [s.pos]; seen[s.pos] = 1; let n = 0;
+    while (st.length) { const c = st.pop(); for (const q of neighbors(b, c)) { if (seen[q] || b.cells[q] === HOLE || s.collapsed[q]) continue; seen[q] = 1; if (q === b.door) continue; n++; st.push(q); } }
+    return collapsedCount(s) + n + 1;
+  };
+  function dfs(s) {
+    if (done) return;
+    if (s.status === 'win') { const c = collapsedCount(s); if (c > best) { best = c; bestMoves = path.slice(); if (need && c >= need) done = true; } return; }
+    if (s.status !== 'play') return;
+    if (++nodes > limit || (ms && (nodes & 255) === 0 && now() - t0 > ms)) { done = true; return; }
+    if (upper(s) <= best) return;
+    const k = keyOf(s); if (seenAt.has(k)) return; seenAt.set(k, 1);
+    if (!reachableOk(s)) return;
+    for (const d of validMoves(s)) {
+      const n = cloneState(s); move(n, d);
+      path.push(d); dfs(n); path.pop();
+      if (done) return;
+    }
+  }
+  dfs(cloneState(state));
+  return best < 0 ? null : { count: best, moves: bestMoves, complete: !done || (need && best >= need) };
 }

@@ -68,7 +68,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 .game-bottom { position: absolute; left: 0; right: 0; bottom: calc(var(--sb) + 26px); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .moves { font-size: 13px; opacity: .65; }
 .banner { position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--st) + 178px); padding: 9px 16px; border-radius: 18px; background: rgba(40, 10, 40, .9); border: 1.5px solid #ff6b9a; font-size: 14px; font-weight: 700; white-space: nowrap; box-shadow: 0 0 16px rgba(255, 90, 150, .4); animation: pop .25s ease-out; }
-.tutorial { position: absolute; left: 20px; right: 20px; bottom: calc(var(--sb) + 196px); z-index: 3; padding: 14px 16px; border-radius: 18px; background: rgba(10, 8, 35, .92); border: 1.5px solid #ffcf3a; text-align: center; font-size: 15px; font-weight: 700; box-shadow: 0 0 16px rgba(255, 200, 60, .35); animation: pop .3s ease-out; pointer-events: auto; }
+.tutorial { position: absolute; left: 14px; right: 14px; bottom: calc(var(--sb) + 190px); z-index: 3; padding: 10px 14px; border-radius: 18px; background: rgba(10, 8, 35, .92); border: 1.5px solid #ffcf3a; text-align: center; font-size: 15px; font-weight: 700; box-shadow: 0 0 16px rgba(255, 200, 60, .35); animation: pop .3s ease-out; pointer-events: auto; }
 .tutorial small { display: block; font-weight: 500; font-size: 13px; opacity: .8; margin-top: 4px; }
 .tutorial .hand { font-size: 38px; display: inline-block; animation: swipe 1.4s ease-in-out infinite; }
 .tutorial .btn { margin: 10px auto 0; }

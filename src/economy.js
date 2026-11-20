@@ -17,7 +17,7 @@ export const POWERS = [
   { id: 'shield', ic: '🛡', name: 'Kalkan', desc: 'Bir kez yakalanmaktan korur', price: 350 },
   { id: 'undo3', ic: '↶', name: 'Geri Al', desc: 'Son hamleni geri alır', price: 100 },
 ];
-export const WORLD_STARS = (w) => (w - 1) * 25;   // dünya w'nin yıldız eşiği
+export const WORLD_STARS = (w) => (w - 1) * 45;   // dünya w'nin yıldız eşiği
 
 export function ensure(d) {
   d.coins ??= 0;
@@ -140,7 +140,7 @@ export function giveReward(d, r) {
 export const rewardText = (r) => [r.coins && `🪙 ${r.coins}`, r.hints && `💡 +${r.hints}`, r.energy && `⚡ +${r.energy}`].filter(Boolean).join(' ');
 
 // ---------------- Başarımlar ----------------
-const bossesDone = (d) => Object.keys(d.stars || {}).filter((id) => +id % 20 === 0).length;
+const bossesDone = (d) => Object.keys(d.stars || {}).filter((id) => +id % 35 === 0).length;
 export const ACHIEVEMENTS = [
   { id: 'ilk', ic: '🚀', name: 'İlk Adım', desc: 'İlk bölümü bitir', goal: 1, val: (d) => d.stats.wins || 0, coins: 50 },
   { id: 'boss1', ic: '👹', name: 'Boss Avcısı', desc: 'İlk boss\'u yen', goal: 1, val: (d) => bossesDone(d), coins: 150 },
@@ -153,7 +153,7 @@ export const ACHIEVEMENTS = [
   { id: 'cokert', ic: '🧱', name: 'Yıkım Ekibi', desc: '1000 kare çökert', goal: 1000, val: (d) => d.stats.collapsed || 0, coins: 400 },
   { id: 'seri7', ic: '🔥', name: 'Sadık Kaptan', desc: '7 gün üst üste günlük bulmaca', goal: 7, val: (d) => (d.daily && d.daily.best) || 0, coins: 500 },
   { id: 'kostum4', ic: '🎩', name: 'Koleksiyoncu', desc: '4 kostüme sahip ol', goal: 4, val: (d) => (d.owned || []).length, coins: 400 },
-  { id: 'hepsi', ic: '🏆', name: 'Efsane Kaptan', desc: '200 bölümün hepsini bitir', goal: 200, val: (d) => Object.keys(d.stars || {}).length, coins: 1000 },
+  { id: 'hepsi', ic: '🏆', name: 'Efsane Kaptan', desc: '350 bölümün hepsini bitir', goal: 350, val: (d) => Object.keys(d.stars || {}).length, coins: 1000 },
 ];
 export function achState(d) {
   ensure(d);

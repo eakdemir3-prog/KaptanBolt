@@ -25,7 +25,7 @@ with sync_playwright() as p:
     pg.click("[data-act=worlds]"); pg.wait_for_timeout(1500); pg.screenshot(path=OUT+"s4_worlds.png")
     check("dünya 2 kilitli (yıldız yok, boss yenilmedi)", "lock" in pg.get_attribute("[data-world='2']","class"))
     pg.click("[data-world='1']"); pg.wait_for_timeout(1000); pg.screenshot(path=OUT+"s4_map.png")
-    check("yol haritasında 20 düğüm ve boss var", pg.locator("#mapInner .node").count()==20 and pg.locator("#mapInner .node.boss").count()==1)
+    check("yol haritasında 35 düğüm ve boss var", pg.locator("#mapInner .node").count()==35 and pg.locator("#mapInner .node.boss").count()==1)
     # altın: bölüm 1'i çöz
     c0=pg.evaluate("KB.data().coins")
     pg.click("[data-lv='1']"); pg.wait_for_timeout(1000)
@@ -38,7 +38,7 @@ with sync_playwright() as p:
     pg.evaluate("Object.assign(KB.data().settings,{unlockAll:true})")
     e0=pg.evaluate("KB.data().energy")
     seq=None
-    for lv in [66,70,73,126,153,181]:
+    for lv in [106,107,108,211,212,213]:
         pg.evaluate(f"KB.start({lv})"); pg.wait_for_timeout(600)
         seq=pg.evaluate("KB.findCaught()")
         if seq: break
@@ -47,7 +47,9 @@ with sync_playwright() as p:
     pg.screenshot(path=OUT+"s4_lose.png")
     pg.click("#card [data-act=adContinue]"); pg.wait_for_timeout(2800)
     check("reklam izleyip devam: oyun sürüyor, Geri Al hakkı azalmadı, enerji gitmedi", st("status")=="play" and pg.evaluate("KB.data().energy")==e0)
-    pg.keyboard.press(KEY[seq[-1]]); idle(); pg.wait_for_timeout(900)
+    # reklamla devam artık kazanılabilir ana sarar: yeniden yakalanacak yolu bul
+    for m in (pg.evaluate("KB.findCaught()") or []): pg.keyboard.press(KEY[m]); idle()
+    pg.wait_for_timeout(900)
     pg.click("#card [data-act=restart]"); pg.wait_for_timeout(800)
     check("kaybedip yeniden başlayınca 1 enerji gitti", pg.evaluate("KB.data().energy")==e0-1)
     # enerji 0 iken bölüm başlatılamaz, altınla doldurulur

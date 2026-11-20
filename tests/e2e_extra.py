@@ -32,7 +32,7 @@ with sync_playwright() as p:
     pg.screenshot(path=OUT+"15_deadend.png")
     check("çıkmaz rota uyarısı göründü", seen)
     # buz öğreticisi + kayma
-    pg.evaluate("KB.start(41)"); pg.wait_for_timeout(1000); pg.screenshot(path=OUT+"16_ice_tutorial.png")
+    pg.evaluate("KB.start(71)"); pg.wait_for_timeout(1000); pg.screenshot(path=OUT+"16_ice_tutorial.png")
     check("buz öğreticisi", pg.is_visible("#tutorial"))
     pg.click("[data-act=tutok]")
     lv=json.load(open("src/levels/levels.json"))[40]

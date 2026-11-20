@@ -27,12 +27,12 @@ export function reset() { const d = DEFAULT(); save(d); return d; }
 
 export const isDone = (d, id) => (d.stars[id] || 0) > 0;
 // unlockAll / infiniteEnergy yalnızca otomatik testlerde kullanılır; uygulamada her zaman kapalıdır
-export const WORLD_SIZE = 20;
+export const WORLD_SIZE = 35;
 export const worldOf = (id) => Math.ceil(id / WORLD_SIZE);
 /** Dünya açık mı: önceki dünyanın boss'u yenildiyse veya yeterli yıldız varsa */
 export function worldUnlocked(d, w) {
   if (w === 1 || d.settings.unlockAll) return true;
-  return isDone(d, (w - 1) * WORLD_SIZE) || totalStars(d) >= (w - 1) * 25;
+  return isDone(d, (w - 1) * WORLD_SIZE) || totalStars(d) >= (w - 1) * 45;
 }
 export const isUnlocked = (d, id) => {
   if (id === 1 || d.settings.unlockAll) return true;

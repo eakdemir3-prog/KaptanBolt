@@ -378,3 +378,76 @@ export function makeShip() {
   g.userData = { flame: fl };
   return g;
 }
+
+// --- Kutu: itilebilir metal sandık ---
+export function makeCrate() {
+  const g = new THREE.Group();
+  const wood = std(0xb07a3e, { roughness: 0.75 }), band = std(0x5a6180, { metalness: 0.7, roughness: 0.35 });
+  const body = new THREE.Mesh(new RoundedBoxGeometry(0.7, 0.62, 0.7, 3, 0.06), wood); body.position.y = 0.31; body.castShadow = true; g.add(body);
+  for (const y of [0.08, 0.54]) g.add(mesh(new THREE.BoxGeometry(0.74, 0.07, 0.74), band, [0, y, 0]));
+  for (const [x, z] of [[-0.33, -0.33], [0.33, -0.33], [-0.33, 0.33], [0.33, 0.33]]) g.add(mesh(new THREE.BoxGeometry(0.07, 0.62, 0.07), band, [x, 0.31, z]));
+  // ön yüzde çapraz takviye
+  const x1 = mesh(new THREE.BoxGeometry(0.08, 0.7, 0.02), band, [0, 0.31, 0.355]); x1.rotation.z = 0.72; g.add(x1);
+  const x2 = mesh(new THREE.BoxGeometry(0.08, 0.7, 0.02), band, [0, 0.31, 0.355]); x2.rotation.z = -0.72; g.add(x2);
+  g.userData = { body };
+  return g;
+}
+export const CKEY_COLORS = { 1: 0xff3a4a, 2: 0x3aff7a };
+/** Renkli anahtar (kırmızı/yeşil) */
+export function makeColorKey(c) {
+  const k = makeKey();
+  const col = CKEY_COLORS[c] || 0xff3a4a;
+  const m = std(col, { metalness: 0.6, roughness: 0.3, emissive: col, emissiveIntensity: 0.45 });
+  k.userData.inner.traverse((o) => { if (o.isMesh) o.material = m; });
+  k.userData.glow.color.set(col);
+  return k;
+}
+/** Renkli bariyer: iki direk arasında enerji perdesi */
+export function makeGate(c) {
+  const g = new THREE.Group();
+  const col = CKEY_COLORS[c] || 0xff3a4a;
+  const post = std(0x2a2f5a, { metalness: 0.7, roughness: 0.3 });
+  for (const x of [-0.42, 0.42]) {
+    g.add(mesh(new THREE.BoxGeometry(0.1, 0.9, 0.1), post, [x, 0.6, 0]));
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8), new THREE.MeshBasicMaterial({ color: col })); cap.position.set(x, 1.08, 0); g.add(cap);
+  }
+  const fm = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+  const field = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.8), fm); field.position.y = 0.6; g.add(field);
+  for (let k = 0; k < 4; k++) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.02, 0.02), new THREE.MeshBasicMaterial({ color: col, toneMapped: false })); l.position.y = 0.3 + k * 0.2; g.add(l); }
+  const light = new THREE.PointLight(col, 1.6, 1.4); light.position.y = 0.6; g.add(light);
+  g.userData = { field, fm, light };
+  return g;
+}
+/** Gizli dişli (toplanabilir) */
+export function makeGear() {
+  const g = new THREE.Group();
+  const m = std(0xd8dce8, { metalness: 0.9, roughness: 0.2, emissive: 0x7ad8ff, emissiveIntensity: 0.25 });
+  const inner = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.06, 10, 28), m); inner.add(ring);
+  for (let k = 0; k < 8; k++) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.1), m); const a = (k / 8) * Math.PI * 2; t.position.set(Math.cos(a) * 0.24, Math.sin(a) * 0.24, 0); t.rotation.z = a; inner.add(t); }
+  inner.add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.1, 12).rotateX(Math.PI / 2), m));
+  g.add(inner);
+  const l = new THREE.PointLight(0x7ad8ff, 1.8, 1.4); g.add(l);
+  g.userData = { inner, glow: l };
+  return g;
+}
+/** Kare üstünde yazı (zamanlı taş sayacı vb.) */
+export function makeLabel(w = 128, h = 128) {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.62 * h / w), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false }));
+  m.rotation.x = -Math.PI / 2; m.renderOrder = 4;
+  m.userData = { cv, tex, last: null };
+  return m;
+}
+export function drawTimer(label, n) {
+  if (label.userData.last === n) return; label.userData.last = n;
+  const { cv, tex } = label.userData, g = cv.getContext('2d');
+  g.clearRect(0, 0, cv.width, cv.height);
+  const col = n <= 1 ? '#ff3a4a' : n <= 2 ? '#ffa020' : '#ffd23a';
+  g.strokeStyle = col; g.lineWidth = 10; g.beginPath(); g.arc(64, 64, 52, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = 'rgba(20,12,40,.75)'; g.beginPath(); g.arc(64, 64, 47, 0, Math.PI * 2); g.fill();
+  g.fillStyle = col; g.font = 'bold 66px Poppins, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(String(Math.max(0, n)), 64, 68);
+  tex.needsUpdate = true;
+}

@@ -1,8 +1,8 @@
 // Kaptan Bolt — ana uygulama: ekranlar, giriş, oyun akışı ve oyun içi ekonomi
 import LEVELS from './levels/levels.json';
 import { SHIP_PARTS, partsHave, partHas, STORY_HTML } from './story.js';
-import { floorOf, parseLevel, newState, move, canMove, canJump, starsFor, collapsedCount, coverTarget, cloneState, validMoves, STRONG, TILE, ICE } from './logic/rules.js';
-import { shortest, canWin } from './logic/solver.js';
+import { floorOf, floorCount, parseLevel, newState, move, canMove, canJump, starsFor, collapsedCount, coverTarget, cloneState, validMoves, STRONG, TILE, ICE } from './logic/rules.js';
+import { bestCover, shortest, canWin } from './logic/solver.js';
 import { dailyLevel, dateKey, yesterdayKey } from './logic/daily.js';
 import { Stage } from './game/stage.js';
 import { THEMES, SKINS } from './game/models.js';
@@ -27,6 +27,7 @@ const save = () => Save.save(data);
 const stage = new Stage($('c'));
 stage.skin = SKINS.find((k) => k.id === data.skin) || SKINS[0];
 stage.onFloor = () => updateHud();
+stage.onGear = () => collectGear();
 stage.onSound = (k) => {
   if (k === 'collapse') { sfx.collapse(); vibrate('light'); }
   else if (k === 'key') { sfx.key(); vibrate('medium'); }
@@ -48,7 +49,7 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 window.KB = {
   get state() { return game.state; }, get screen() { return screen; }, input: (d) => game.input(d), start: (id) => startLevel(id), levels: () => LEVELS, canWin: () => canWin(game.state, 200000),
   data: () => data, stage: () => stage, idle: () => !game.busy, solve: () => (shortest(game.state, 800000, 20000) || {}).moves,
-  _clone: (s) => cloneState(s), _move: (s, d) => move(s, d), dangerCount: () => stage.dangerMarks.length,
+  _clone: (s) => cloneState(s), _move: (s, d, o) => move(s, d, o), dangerCount: () => stage.dangerMarks.length,
   findCaught: () => { const q = [[cloneState(game.state), []]]; let n = 0; while (q.length && n++ < 20000) { const [s, p] = q.shift(); for (const d of validMoves(s)) { const c = cloneState(s); move(c, d); if (c.status === 'caught') return p.concat(d); if (c.status === 'play') q.push([c, p.concat(d)]); } } return null; },
 };
 
@@ -175,10 +176,24 @@ function renderGarage() {
     const own = data.owned.includes(k.id) || data.settings.unlockAll || (k.pro && Eco.isPro(data));
     const price = Eco.SKIN_PRICES[k.id];
     if (k.pro && !own) return `<button class="skin locked" data-shoptab="pro"><img src="${skinImg(k)}" alt=""><b>${k.name}</b><small><span class="pro-badge">PRO</span></small></button>`;
+    if (k.gear && !own) return `<button class="skin locked" data-gearskin="${k.gear}"><img src="${skinImg(k)}" alt=""><b>${k.name}</b><small>⚙️ ${gearsOf(k.gear)}/3 • Dünya ${k.gear}</small></button>`;
     return `<button class="skin ${k.id === cur ? 'on' : ''} ${own ? '' : 'locked'}" data-skin="${k.id}">
       <img src="${skinImg(k)}" alt=""><b>${k.name}</b><small>${k.id === cur ? 'Seçili' : own ? 'Seç' : `<span class="price">${COIN} ${fmtNum(price)}</span>`}</small></button>`;
   }).join('');
 }
+/** Dünyada toplanan gizli dişli sayısı */
+function gearsOf(w) { return LEVELS.filter((l) => l.world === w && l.gear && data.gears && data.gears[l.id]).length; }
+function collectGear() {
+  const lv = game.level; if (!lv || lv.daily) return;
+  data.gears = data.gears || {};
+  if (data.gears[lv.id]) return toast('⚙️ Bu dişli zaten sende.');
+  data.gears[lv.id] = 1;
+  const n = gearsOf(lv.world);
+  const sk = SKINS.find((k) => k.gear === lv.world);
+  if (n >= 3 && sk && !data.owned.includes(sk.id)) { data.owned.push(sk.id); save(); setTimeout(() => toast(`🎉 Yeni kostüm: ${sk.name}! Garajda seni bekliyor.`), 600); }
+  else { save(); toast(`⚙️ Gizli dişli bulundu! Dünya ${lv.world}: ${n}/3`); }
+}
+
 function pickSkin(id) {
   const k = SKINS.find((x) => x.id === id); if (!k) return;
   const own = data.owned.includes(id) || data.settings.unlockAll || (k.pro && Eco.isPro(data));
@@ -319,8 +334,11 @@ function enterLevel(lv) {
   stage.build(board, game.state);
   show('game');
   layoutGame();
-  $('lvName').innerHTML = lv.daily ? `🧩 Günlük Bulmaca<small>${lv.dailyName.toLocaleUpperCase('tr')}</small>` : `${lv.final ? '👑 ' : ''}Bölüm ${lv.id}<small>${THEMES[lv.world].name.toLocaleUpperCase('tr')}</small>`;
+  const tag = lv.challenge ? '⚡ ' : lv.dark ? '🌑 ' : lv.final ? '👑 ' : '';
+  const sub = lv.challenge ? 'MEYDAN OKUMA • 2× ALTIN' : lv.dark ? 'KARANLIK BÖLÜM' : THEMES[lv.world].name.toLocaleUpperCase('tr');
+  $('lvName').innerHTML = lv.daily ? `🧩 Günlük Bulmaca<small>${lv.dailyName.toLocaleUpperCase('tr')}</small>` : `${tag}Bölüm ${lv.id}<small>${sub}</small>`;
   $('banner').classList.add('hidden');
+  if (board.dark) { const bn = $('banner'); bn.innerHTML = '👁️ Ezberle! Birazdan karanlık çökecek'; bn.classList.remove('hidden'); setTimeout(() => { if (game.level === lv) bn.classList.add('hidden'); }, 2800); stage.startDark(2800); }
   updateHud();
   updateDanger();
   showTutorial(lv);
@@ -359,8 +377,10 @@ function updateHud() {
   $('chipKeys').innerHTML = keyIcon(kt > 0 && kt === b.keys.length) + `<span>${kt}/${b.keys.length}</span>`;
   if (b.stars.mode === 'moves') $('chipCollapse').innerHTML = `<span class="lbl">Hedef</span>≤${b.stars.par[0]}`;
   else $('chipCollapse').innerHTML = `<span class="lbl">Çöken</span>${collapsedCount(s)}/${coverTarget(b)}`;
+  stage.updateLock(collapsedCount(s), b.lock);
+  stage.updateTimers(s.moves);
   const fc = $('chipFloor');
-  if (b.floors) { fc.classList.remove('hidden'); fc.innerHTML = `🏢<span>${(stage.shownFloor ?? floorOf(b, s.pos)) + 1}/2</span>`; } else fc.classList.add('hidden');
+  if (b.floors) { fc.classList.remove('hidden'); fc.innerHTML = `🏢<span>${(stage.shownFloor ?? floorOf(b, s.pos)) + 1}/${floorCount(b)}</span>`; } else fc.classList.add('hidden');
   const bc = $('chipBoss');
   if (s.boss) { bc.classList.remove('hidden'); bc.innerHTML = s.boss.alive ? '👹 <span class="lbl">Boss</span>' : '💥 <span class="lbl">Yenildi</span>'; } else bc.classList.add('hidden');
   $('hintCount').textContent = data.hints;
@@ -463,7 +483,7 @@ function onWin() {
   const id = lv.id;
   const prev = data.stars[id] || 0;
   Save.recordWin(data, id, stars, s.moves, MAX, game.powerUsed);
-  const coins = Eco.winCoins({ stars, prevStars: prev, boss: lv.final, pro: Eco.isPro(data) });
+  const coins = Eco.winCoins({ stars, prevStars: prev, boss: lv.final, pro: Eco.isPro(data) }) * (lv.challenge ? 2 : 1); // meydan okuma: 2 kat altın
   data.coins += coins;
   Eco.stat(data, 'wins');
   if (stars === 3) Eco.stat(data, 'stars3');
@@ -550,7 +570,11 @@ function useHint() {
       <button class="btn primary" data-act="adHint">📺 Reklam izle: 💡 +1</button>
       <button class="btn gold" data-act="buyhint">${COIN} ${Eco.HINT_COST} ile 1 ipucu al</button><button class="btn" data-act="close">Vazgeç</button>`);
   }
-  const r = shortest(game.state, 400000, 2500);
+  // önce 3 yıldızlı yolu ara (bütün hedef taşlar çöksün), bulunamazsa en kısa çıkış
+  let r = null;
+  const tgt = coverTarget(game.state.board);
+  if (game.state.board.stars.mode !== 'moves') { const bc = bestCover(game.state, 250000, 1800, tgt); if (bc && bc.count >= tgt && bc.moves.length) r = { moves: bc.moves }; }
+  if (!r) r = shortest(game.state, 400000, 2500);
   if (!r) { const bn = $('banner'); bn.innerHTML = '⚠️ Bu rota çıkmaza girdi'; bn.classList.remove('hidden'); return toast('Buradan çıkış yok. Geri al ya da yeniden başla!'); }
   if (r.unknown || !r.moves.length) return toast('İpucu hesaplanamadı, biraz ilerleyip tekrar dene.');
   data.hints--; save(); updateHud();
@@ -616,6 +640,7 @@ function renderShop() {
     h = SKINS.map((k) => {
       const own = data.owned.includes(k.id) || data.settings.unlockAll || (k.pro && Eco.isPro(data));
       const sel = (data.skin || 'klasik') === k.id;
+      if (k.gear && !own) return `<div class="item"><div class="ii"><img src="${skinImg(k)}" alt=""></div><div class="it">${k.name}<small>Dünya ${k.gear}'in 3 gizli dişlisini topla • ⚙️ ${gearsOf(k.gear)}/3</small></div><span class="buy dis">⚙️</span></div>`;
       const btn = sel ? '<span class="buy dis">Seçili</span>' : own ? `<button class="buy ad" data-skin="${k.id}">Seç</button>` : k.pro ? '<button class="buy" data-shoptab="pro">👑 Pro</button>' : cbuy(Eco.SKIN_PRICES[k.id], 'buyskin', `data-id="${k.id}"`);
       return `<div class="item"><div class="ii"><img src="${skinImg(k)}" alt=""></div><div class="it">${k.name}${k.pro ? ' <span class="pro-badge">PRO</span>' : ''}<small>${own ? 'Sende var' : k.pro ? 'Sadece Pro üyelere özel' : 'Kostüm'}</small></div>${btn}</div>`;
     }).join('');
@@ -668,6 +693,14 @@ const TUTORIALS = {
   portal: T('🌀 <b>Portallar!</b>', 'Aynı renkli portala basınca diğerine ışınlanırsın. Girdiğin portal arkandan çöker.'),
   chaser: T('👁️ <b>Takipçi robot!</b>', 'Her hamlende sana bir adım yaklaşır ama önüne bakmaz: onu çöken karelere ya da boşluklara çekip düşür!'),
   sentry: T('🔴 <b>Lazer Nöbetçi!</b>', 'Yerinden kıpırdamaz. Bir hamlede ışın yolu yanıp söner, sonraki hamlede lazer atar. Işının üstünde durma, zamanlamanı iyi ayarla!'),
+  box: T('📦 <b>Kutu!</b>', 'Kutuya doğru yürüyünce onu itersin. Çukura iterek doldurursan üstünden bir kez geçebilirsin.'),
+  timed: T('⏳ <b>Zamanlı Taş!</b>', 'Üstündeki sayı her hamlende azalır, sıfır olunca taş kendiliğinden çöker. Üstündeysen düşersin!'),
+  gate: T('🟥 <b>Renkli Bariyer!</b>', 'Aynı renkteki anahtarı alınca bariyer kalkar ve normal taşa döner.'),
+  dark: T('🌑 <b>Karanlık Bölüm!</b>', 'Başta tahtayı iyi ezberle. Sonra sadece robotunun çevresi görünür.'),
+  challenge: T('⚡ <b>Meydan Okuma!</b>', 'Kapı ancak bütün taşlar çökünce açılır. Başarırsan 2 kat altın!'),
+  gear: T('⚙️ <b>Gizli Dişli!</b>', 'Bazı bölümlerde yoldan biraz sapınca dişli bulursun. Bir dünyanın 3 dişlisi = yeni kostüm!'),
+  floors3: T('🏢 <b>Üç Katlı Bölüm!</b>', 'İki asansör var: önce 1. katı, sonra 2. katı bitir, en sonda en üst kata çık.'),
+  lock: T('🔒 <b>Kilitli Kapı!</b>', 'Kapının üstündeki sayaç dolana kadar taş çökert, sonra kapı açılır. Bütün taşları çökertirsen ⭐⭐⭐!'),
   lift: T('🛗 <b>İki Katlı Bölüm!</b>', 'Asansöre binince öbür kata çıkarsın ama bindiğin asansör çöker, geri dönemezsin. Önce bu katı bitir, sonra yukarı çık!'),
   gnawer: T('🐛 <b>Kemirici Böcek!</b>', 'Seni yakalamaz ama gidip gelirken arkasındaki kareleri yer! Yoluna ihtiyacın varsa yetiş ve üstüne basıp ez.'),
   boss: T('👹 <b>BOSS!</b>', 'Dev robot kapıyı kilitli tutuyor. Onu boşluklara ya da çöken karelere çekip düşür, sonra kapıya koş! Takılırsan Geri Al var.', 'Hazırım!'),
@@ -796,6 +829,7 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('button'); if (!el) return;
   audioUnlock();
   sfx.click();
+  if (el.dataset.gearskin) { vibrate('light'); return toast(`⚙️ Dünya ${el.dataset.gearskin}'in bölümlerinde 3 gizli dişli var. Yoldan sapıp hepsini topla!`); }
   if (el.dataset.skin) { if (screen === 'shop') { pickSkin(el.dataset.skin); return renderShop(); } return pickSkin(el.dataset.skin); }
   if (el.dataset.power) return usePower(el.dataset.power);
   if (el.dataset.shoptab) { shopTab = el.dataset.shoptab; if (screen !== 'shop') return show('shop'); return renderShop(); }
