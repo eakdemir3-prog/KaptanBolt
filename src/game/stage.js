@@ -473,44 +473,57 @@ export class Stage {
     await tween(220, (t) => { r.scale.setScalar(1.2 * t); }, ease.outBack);
   }
 
-  /** Asansör: alt kat aşağı kayıp kaybolur (kabin yükseliyor hissi), kısa kararma, yeni kat aşağıdan gelip kabine oturur */
+  /** Asansör: kabin yerinde durur; eski kat aşağı kayıp kaybolur, yeni kat yukarıdan inip kabinin hizasına oturur.
+   *  Asansör üst katta da aynı karede olduğundan kabin ekranda hiç yer değiştirmez. */
   async _liftRide(from, to) {
     const b = this.board, r = this.robot, A = floorOf(b, from), B = floorOf(b, to);
     const cap = this._liftCap || null; this._liftCap = null;
     const arrive = this.tiles.get(to);
     const gA = this.floorG[A], gB = this.floorG[B];
-    const up = B > A ? 1 : -1, D = 7;
+    const up = B > A ? 1 : -1, D = 8, D2 = 2.4;
     if (this.onSound) this.onSound('lift');
-    // kabin kapanıyor: lamba parlar, cam koyulaşır
     const lamp = cap && cap.userData.lamp, glass = cap && cap.userData.glass;
-    await tween(280, (t) => { if (lamp) lamp.scale.setScalar(1 + Math.sin(t * Math.PI) * 1.4); if (glass) glass.material.opacity = 0.16 + t * 0.22; });
+    await tween(260, (t) => { if (lamp) lamp.scale.setScalar(1 + Math.sin(t * Math.PI) * 1.4); if (glass) glass.material.opacity = 0.16 + t * 0.22; });
+    // kabin ve robot dünyada sabit kalır (yeni katın asansör karesiyle aynı yerde)
     this.base.attach(r); if (cap) this.base.attach(cap);
-    const yA = gA.position.y, rY = r.position.y, cY = cap ? cap.position.y : 0;
-    const cv = this.renderer.domElement;
-    // 1) eski kat aşağı kayar, kabin hafif yükselir, ekran kararır
-    await tween(600, (t) => {
+    const yA = gA.position.y, yB = gB.position.y;
+    const rel = (o) => o.position.y - yA;
+    const rR = rel(r), rC = cap ? rel(cap) : 0;
+    // hız çizgileri: kabinin çevresinde aşağı akan ince ışıklar (yükseliş hissi)
+    const streaks = new THREE.Group(), cpos = (cap || r).position;
+    const sm = new THREE.MeshBasicMaterial({ color: 0x9ef3ff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false });
+    for (let k = 0; k < 14; k++) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.5 + Math.random() * 0.6, 0.025), sm);
+      const a = Math.random() * Math.PI * 2, rr = 0.55 + Math.random() * 0.35;
+      m.position.set(cpos.x + Math.cos(a) * rr, Math.random() * 3 - 0.5, cpos.z + Math.sin(a) * rr);
+      m.userData.v = 4 + Math.random() * 3; streaks.add(m);
+    }
+    this.base.add(streaks); streaks.position.y = yA;
+    let last = 0;
+    const flow = (t, k) => { const dt = (t - last) * 1.6; last = t; for (const m of streaks.children) { m.position.y -= up * m.userData.v * dt; if (m.position.y < -0.8) m.position.y += 3.4; if (m.position.y > 2.6) m.position.y -= 3.4; } sm.opacity = 0.7 * k; };
+    // 1) eski kat aşağı kayar (yukarı çıkıyorsak), hafif kararır
+    gB.visible = false; if (arrive) arrive.visible = false;
+    await tween(620, (t) => {
       gA.position.y = yA - up * D * t * t;
-      r.position.y = rY + up * 0.5 * t; if (cap) cap.position.y = cY + up * 0.5 * t;
-      cv.style.filter = `brightness(${1 - Math.max(0, t - 0.55) * 2})`;
+      flow(t, Math.min(1, t * 3));
+      this.renderer.domElement.style.filter = `brightness(${1 - t * 0.35})`;
     }, ease.linear);
-    // 2) kat değişir: kamera yeni kata, kabin yeni asansörün yerine
-    gA.position.y = yA; gA.visible = false;
-    this.floor = B; this.fitCamera();
-    const yB = gB.position.y;
-    gB.visible = true; gB.position.y = yB - up * D;
-    if (arrive) arrive.visible = false;
-    const target = arrive ? arrive.getWorldPosition(new THREE.Vector3()).setY(yB) : r.position.clone();
-    if (cap) cap.position.set(target.x, yB + (cY - yA) + up * 0.5, target.z);
-    r.position.set(target.x, yB + (rY - yA) + up * 0.5, target.z);
-    const r0 = r.position.y, c0 = cap ? cap.position.y : 0;
-    // 3) yeni kat aşağıdan gelip yerine oturur, kabin yavaşlayarak durur
-    await tween(650, (t) => {
-      gB.position.y = yB - up * D * (1 - t) * (1 - t) * (1 - t);
-      r.position.y = r0 - up * 0.5 * t; if (cap) cap.position.y = c0 - up * 0.5 * t;
-      cv.style.filter = `brightness(${Math.min(1, 0.1 + t * 2.2)})`;
+    gA.visible = false; gA.position.y = yA;
+    // kabin ve robot yeni katın koordinatına geçer (ekranda aynı yer: kamera da aynı oranda kayar)
+    const cam = this.camera, dY = yB - yA;
+    cam.position.y += dY; streaks.position.y += dY;
+    r.position.y = yB + rR; if (cap) cap.position.y = yB + rC;
+    this.floor = B;
+    last = 0; gB.visible = true; gB.position.y = yB + up * D2;
+    // 2) yeni kat yukarıdan iner ve kabinin hizasında yumuşakça durur
+    await tween(680, (t) => {
+      const e = 1 - Math.pow(1 - t, 3);
+      gB.position.y = yB + up * D2 * (1 - e);
+      flow(t, 1 - t);
+      this.renderer.domElement.style.filter = `brightness(${0.65 + 0.35 * t})`;
     }, ease.linear);
-    cv.style.filter = '';
-    gB.position.y = yB;
+    this.renderer.domElement.style.filter = '';
+    gB.position.y = yB; streaks.removeFromParent(); sm.dispose();
     if (cap) cap.removeFromParent();
     if (arrive) arrive.visible = true;
     this._syncFloor();
@@ -518,7 +531,7 @@ export class Stage {
     this.fitCamera();
     this._ring(this.cellPos(to).setY(0.22), 0x5ae6ff);
     this.shownFloor = B; if (this.onFloor) this.onFloor(B);
-    await tween(260, (t) => { r.position.y = 0.18 + Math.sin(t * Math.PI) * 0.25; });
+    if (lamp) await tween(220, (t) => { const al = arrive && arrive.userData.lamp; if (al) al.scale.setScalar(1 + Math.sin(t * Math.PI) * 1.2); });
   }
 
   async _caughtAnim() {

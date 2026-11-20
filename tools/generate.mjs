@@ -287,8 +287,9 @@ function buildFloors(w, h1, h2, o) {
   const la = pick(lA); A[la] = 'L';
   for (let k = 0; k < o.keys1; k++) { const f = free(A).filter((i) => dist(w, i, la) >= 2 && dist(w, i, s) >= 2); if (!f.length) return null; A[pick(f)] = 'K'; }
   // 2. kat
-  const lB = free(B).filter((i) => tall(B, i)); if (!lB.length) return null;
-  const lb = pick(lB); B[lb] = 'L';
+  // asansör üst katta da aynı karede çıkar (katlar aynı boyda olmalı)
+  if (h1 !== h2 || B[la] !== '.' || !tall(B, la)) return null;
+  const lb = la; B[lb] = 'L';
   const dB = free(B).filter((i) => tall(B, i) && dist(w, i, lb) >= 2); if (!dB.length) return null;
   const d = pick(dB); B[d] = 'D';
   for (let k = 0; k < o.keys2; k++) { const f = free(B).filter((i) => dist(w, i, lb) >= 2 && dist(w, i, d) >= 2); if (!f.length) return null; B[pick(f)] = 'K'; }
@@ -373,7 +374,7 @@ const SEG = [
   [16, 16, 1, 5, 5, { area: true, holes: [3, 6], minTiles: 19, keys: [1, 1], ice: 0.2, fail: 0.7 }, 'easy'],
   [17, 17, 1, 4, 4, { floors: true, h2: 4, holes: [1, 3], minTiles1: 12, minTiles2: 12, keys1: [1, 1], keys2: [1, 1], fail: 0.8 }, 'easy'],
   [18, 18, 1, 5, 6, { area: true, holes: [4, 7], minTiles: 22, keys: [1, 2], sentries: 1, fail: 0.88 }],
-  [19, 19, 1, 5, 4, { floors: true, h2: 5, holes: [2, 4], minTiles1: 15, minTiles2: 19, keys1: [1, 2], keys2: [1, 1], fail: 0.9 }],
+  [19, 19, 1, 5, 5, { floors: true, h2: 5, holes: [2, 4], minTiles1: 19, minTiles2: 19, keys1: [1, 2], keys2: [1, 1], fail: 0.9 }],
   [20, 20, 1, 6, 6, { boss: true, keys: 1, every: 2 }],
   [21, 27, 2, 5, 5, { len: [14, 22], keys: [2, 2] }],
   [28, 28, 2, 5, 5, { len: [12, 16], keys: [1, 1], sentries: 1 }, 'easy'],
@@ -481,6 +482,7 @@ levels.sort((x, y) => x.id - y.id);
 // Tamamen boş satır/sütunları kırp (boss ve düşman koordinatlarını da kaydır)
 for (const lv of levels) {
   if (upTo && lv.id > upTo) continue;
+  if (lv.floors) continue; // iki katlı: katlar hizalı kalsın, kırpma yok
   let g = lv.grid, ox = 0, oy = 0;
   const rowEmpty = (y) => /^#+$/.test(g[y]);
   while (g.length > 2 && rowEmpty(0)) { g = g.slice(1); oy++; if (lv.floors) lv.floors--; }
