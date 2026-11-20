@@ -15,18 +15,18 @@ with sync_playwright() as p:
     pg.click("#card [data-act=storyGo]"); pg.wait_for_timeout(1200)
     check("hikâyeden sonra bölüm 1 başladı", pg.evaluate("KB.screen")=="game" and pg.evaluate("KB.state.board.id")==1)
     pg.evaluate("(()=>{const d=KB.data();Object.assign(d.seenTutorial,{swipe:1,keys:1,patrol:1,ice:1,boss:1});d.settings.unlockAll=true;d.settings.infiniteEnergy=true})()")
-    # bonus altın: bölüm 3
-    pg.evaluate("KB.start(3)"); pg.wait_for_timeout(1200)
+    # bonus altın: bölüm 5
+    pg.evaluate("KB.start(5)"); pg.wait_for_timeout(1200)
     bc=pg.evaluate("KB.stage().bonusCell")
-    check("bölüm 3'te bonus altın var", bc>=0 and pg.evaluate("!!KB.stage().bonusMesh"))
+    check("bölüm 5'te bonus altın var", bc>=0 and pg.evaluate("!!KB.stage().bonusMesh"))
     path=pg.evaluate(f"""(()=>{{const s0=KB._clone(KB.state);const q=[[s0,[]]];const seen=new Set();
       while(q.length){{const [s,p]=q.shift(); if(p.length>14) continue; for(const d of ['up','down','left','right']){{const c=KB._clone(s); const ev=KB._move(c,d); if(!ev||!ev.length||c.status==='caught'||c.status==='stuck') continue;
         if(ev.some(e=>e.t==='step'&&e.to==={bc})) return [...p,d]; const k=c.pos+':'+c.collapsed.join(''); if(seen.has(k)) continue; seen.add(k); q.push([c,[...p,d]]);}}}} return null;}})()""")
     c0=pg.evaluate("KB.data().coins")
     for d in path or []: pg.keyboard.press(KEY[d]); idle()
     pg.wait_for_timeout(500)
-    check("bonus alındı: +15 altın", path and pg.evaluate("KB.data().coins")==c0+15 and pg.evaluate("KB.data().bonusTaken[3]")==1)
-    pg.evaluate("KB.start(3)"); pg.wait_for_timeout(1000)
+    check("bonus alındı: +15 altın", path and pg.evaluate("KB.data().coins")==c0+15 and pg.evaluate("KB.data().bonusTaken[5]")==1)
+    pg.evaluate("KB.start(5)"); pg.wait_for_timeout(1000)
     check("alınan bonus tekrar çıkmıyor", pg.evaluate("KB.stage().bonusCell")==-1)
     pg.evaluate("KB.start(4)"); pg.wait_for_timeout(800)
     check("bölüm 4'te bonus yok", pg.evaluate("KB.stage().bonusCell")==-1)

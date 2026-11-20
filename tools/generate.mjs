@@ -176,6 +176,92 @@ function buildPath(w, h, o) {
   return { grid: g.map((r) => r.join('')), enemies };
 }
 
+/** Açık alan bölümü: dolu tahta + birkaç çukur. Her adımda 2-3 seçenek; yanlış sıra = çıkmaz */
+function buildArea(w, h, o) {
+  const N = w * h;
+  const g = Array.from({ length: h }, () => Array(w).fill('.'));
+  const put = (i, ch) => { g[(i / w) | 0][i % w] = ch; };
+  const get = (i) => g[(i / w) | 0][i % w];
+  const nb = nbFor(w, h);
+  const holes = ri(...o.holes);
+  for (let k = 0, t = 0; k < holes && t < 200; t++) { const i = ri(0, N - 1); if (get(i) === '.') { put(i, '#'); k++; } }
+  const tiles = []; for (let i = 0; i < N; i++) if (get(i) === '.') tiles.push(i);
+  if (tiles.length < o.minTiles) return null;
+  // bağlantılı olsun, uçta tek komşulu kare en fazla 2 (yoksa çözüm zorunlu tek yola iner)
+  const seen = new Set([tiles[0]]), q = [tiles[0]];
+  while (q.length) { const c = q.pop(); for (const n of nb(c)) if (get(n) !== '#' && !seen.has(n)) { seen.add(n); q.push(n); } }
+  if (seen.size !== tiles.length) return null;
+  const deg = (i) => nb(i).filter((n) => get(n) !== '#').length;
+  const leaves = tiles.filter((i) => deg(i) === 1);
+  if (leaves.length > 2) return null;
+  const free = () => tiles.filter((i) => get(i) === '.');
+  // başlangıç: kenar/köşe tercih
+  const sC = free().filter((i) => deg(i) <= 3);
+  if (!sC.length) return null;
+  const s = pick(sC); put(s, 'S');
+  // kapı: başlangıçtan uzak değil ama bitişik de değil — kısa yoldan kaçmak zor olsun diye anahtarlar uzağa
+  // kapı uzun bir model: arkasında kare kalmasın ki hiçbir şeyi örtmesin (arka sıra ya da arkası çukur)
+  const dC = free().filter((i) => dist(w, i, s) >= 2 && (i < w || get(i - w) === '#'));
+  if (!dC.length) return null;
+  const d = pick(dC); put(d, 'D');
+  for (let k = 0; k < o.keys; k++) {
+    const f = free().filter((i) => dist(w, i, d) >= 2);
+    if (!f.length) return null;
+    f.sort((a, b) => dist(w, b, s) + dist(w, b, d) - dist(w, a, s) - dist(w, a, d));
+    put(f[Math.floor(Math.pow(rnd(), 1.6) * Math.min(f.length, 6))], 'K');
+  }
+  if (o.ice) for (const i of free()) if (rnd() < o.ice) put(i, 'i');
+  if (o.strong) { let n = 0; for (const i of free()) if (deg(i) >= 3 && rnd() < o.strong) { put(i, 'o'); n++; } if (!n) return null; }
+  if (o.arrows) for (const i of free()) if (rnd() < o.arrows) put(i, pick(['<', '>', '^', 'v']));
+  if (o.bridge) {
+    const hl = []; for (let i = 0; i < N; i++) if (get(i) === '#') hl.push(i);
+    if (!hl.length) return null;
+    let nb2 = 0; for (const i of hl) if (rnd() < 0.6) { put(i, '='); nb2++; }
+    const f = free().filter((i) => dist(w, i, s) >= 2); if (!nb2 || !f.length) return null; put(pick(f), 'b');
+  }
+  if (o.portal) {
+    const f = free().filter((i) => i !== s); if (f.length < 2) return null;
+    const a = pick(f); put(a, '1');
+    const f2 = free().filter((i) => dist(w, i, a) >= 3); if (!f2.length) return null; put(pick(f2), '1');
+  }
+  const flat = g.map((r) => r.join('')).join('');
+  if (o.ice && !flat.includes('i')) return null;
+  if (o.arrows && !/[<>^v]/.test(flat)) return null;
+  const enemies = [], occ = new Set();
+  const at = (c) => [c % w, (c / w) | 0];
+  for (let n = 0; n < (o.patrols || 0); n++) {
+    const f = free().filter((i) => !occ.has(i) && dist(w, i, s) >= 3);
+    if (!f.length) return null; const c = pick(f); occ.add(c);
+    enemies.push({ type: 'patrol', at: at(c), dir: pick(['left', 'right', 'up', 'down']) });
+  }
+  for (let n = 0; n < (o.chasers || 0); n++) {
+    const f = free().filter((i) => !occ.has(i) && dist(w, i, s) >= 4);
+    if (!f.length) return null; const c = pick(f); occ.add(c);
+    enemies.push({ type: 'chaser', at: at(c) });
+  }
+  for (let n = 0; n < (o.sentries || 0); n++) {
+    // nöbetçi bir karede durur (üzerine basılamaz), ışını en az 2 kareyi keser, başlangıca değmez
+    const cand = [];
+    for (const c of free()) {
+      if (occ.has(c) || dist(w, c, s) < 2) continue;
+      for (const [dir, dx, dy] of [['right', 1, 0], ['left', -1, 0], ['down', 0, 1], ['up', 0, -1]]) {
+        let x = c % w + dx, y = ((c / w) | 0) + dy, hit = 0, bad = false;
+        while (x >= 0 && y >= 0 && x < w && y < h) { const i = y * w + x; if (get(i) !== '#') hit++; if (i === s || nb(s).includes(i)) bad = true; x += dx; y += dy; }
+        if (hit >= 2 && !bad) cand.push({ c, dir });
+      }
+    }
+    if (!cand.length) return null;
+    const p = pick(cand); occ.add(p.c);
+    enemies.push({ type: 'sentry', at: at(p.c), dir: p.dir });
+  }
+  for (let n = 0; n < (o.gnawers || 0); n++) {
+    const f = free().filter((i) => !occ.has(i) && dist(w, i, s) >= 3);
+    if (!f.length) return null; const c = pick(f); occ.add(c);
+    enemies.push({ type: 'gnawer', at: at(c), dir: pick(['left', 'right', 'up', 'down']) });
+  }
+  return { grid: g.map((r) => r.join('')), enemies };
+}
+
 /** Boss bölümü: açık alan, dağınık çukurlar, 2x2 boss */
 function buildBoss(w, h, o) {
   const g = Array.from({ length: h }, () => Array(w).fill('.'));
@@ -239,20 +325,20 @@ function evaluate(id, cand, isBoss) {
 // [ilk, son, dünya, w, h, seçenekler, etiket]
 const SEG = [
   // Dünya 1: hızlı öğrenme + tadımlıklar (8: iki anahtar, 10: lazer nöbetçi, 12: devriye, 14: kemirici böcek, 16: buz)
-  [2, 4, 1, 5, 5, { len: [6, 9], keys: [1, 1] }, 'easy'],
-  [5, 7, 1, 5, 5, { len: [11, 15], keys: [1, 1] }],
-  [8, 8, 1, 5, 5, { len: [12, 16], keys: [2, 2] }],
-  [9, 9, 1, 5, 5, { len: [14, 19], keys: [1, 1] }],
-  [10, 10, 1, 5, 5, { len: [11, 15], keys: [1, 1], sentries: 1 }, 'easy'],
-  [11, 11, 1, 5, 5, { len: [14, 19], keys: [1, 1] }],
-  [12, 12, 1, 5, 5, { len: [12, 16], keys: [1, 1], patrols: 1 }, 'easy'],
-  [13, 13, 1, 6, 6, { len: [16, 22], keys: [1, 2] }],
-  [14, 14, 1, 5, 5, { len: [12, 16], keys: [1, 1], gnawers: 1 }, 'easy'],
-  [15, 15, 1, 6, 6, { len: [16, 22], keys: [1, 2] }],
-  [16, 16, 1, 5, 5, { len: [12, 16], keys: [1, 1], ice: 0.45 }, 'easy'],
-  [17, 17, 1, 6, 6, { len: [18, 26], keys: [1, 2] }],
-  [18, 18, 1, 6, 6, { len: [16, 22], keys: [1, 2], sentries: 1 }],
-  [19, 19, 1, 6, 6, { len: [16, 22], keys: [1, 2], gnawers: 1 }],
+  [2, 4, 1, 4, 4, { area: true, holes: [2, 4], minTiles: 11, keys: [1, 1], fail: 0.4 }, 'easy'],
+  [5, 7, 1, 4, 5, { area: true, holes: [2, 4], minTiles: 15, keys: [1, 1], fail: 0.55 }],
+  [8, 8, 1, 5, 5, { area: true, holes: [4, 7], minTiles: 17, keys: [2, 2], fail: 0.6 }],
+  [9, 9, 1, 5, 5, { area: true, holes: [4, 7], minTiles: 18, keys: [1, 1], fail: 0.7 }],
+  [10, 10, 1, 4, 5, { area: true, holes: [2, 4], minTiles: 14, keys: [1, 1], sentries: 1, fail: 0.5 }, 'easy'],
+  [11, 11, 1, 5, 5, { area: true, holes: [3, 6], minTiles: 19, keys: [1, 2], fail: 0.75 }],
+  [12, 12, 1, 5, 5, { area: true, holes: [4, 7], minTiles: 17, keys: [1, 1], patrols: 1, fail: 0.5 }, 'easy'],
+  [13, 13, 1, 5, 6, { area: true, holes: [5, 8], minTiles: 21, keys: [1, 2], fail: 0.8 }],
+  [14, 14, 1, 5, 5, { area: true, holes: [4, 7], minTiles: 17, keys: [1, 1], gnawers: 1, fail: 0.5 }, 'easy'],
+  [15, 15, 1, 5, 6, { area: true, holes: [4, 7], minTiles: 22, keys: [2, 2], fail: 0.82 }],
+  [16, 16, 1, 5, 5, { area: true, holes: [4, 7], minTiles: 17, keys: [1, 1], ice: 0.2, fail: 0.55 }, 'easy'],
+  [17, 17, 1, 6, 6, { area: true, holes: [8, 12], minTiles: 24, keys: [2, 2], fail: 0.85 }],
+  [18, 18, 1, 5, 6, { area: true, holes: [5, 8], minTiles: 21, keys: [1, 2], sentries: 1, fail: 0.75 }],
+  [19, 19, 1, 5, 6, { area: true, holes: [5, 8], minTiles: 21, keys: [1, 2], gnawers: 1, fail: 0.75 }],
   [20, 20, 1, 6, 6, { boss: true, keys: 1, every: 2 }],
   [21, 27, 2, 5, 5, { len: [14, 22], keys: [2, 2] }],
   [28, 28, 2, 5, 5, { len: [12, 16], keys: [1, 1], sentries: 1 }, 'easy'],
@@ -311,16 +397,17 @@ const levels = [{ id: 1, world: 1, grid: ['#####', 'S...K', '####.', 'D....', '#
 const t0 = Date.now();
 for (const [a, b, world, w, h, o, tag] of SEG) {
   if (only && only !== a) continue;
+  if (process.env.UPTO && a > +process.env.UPTO) continue;
   const need = b - a + 1;
   const isBoss = !!o.boss;
   const pool = [], seen = new Set();
   let tries = 0;
-  const target = isBoss ? 40 : need * 25, maxTries = isBoss ? 6000 : need * 4000;
+  const target = isBoss ? 40 : need * 25, maxTries = isBoss ? 6000 : need * (o.area ? 60000 : 4000);
   while (pool.length < target && tries < maxTries) {
     tries++;
     let oo = o;
     if (o.mix) { const a2 = MIX.slice().sort(() => rnd() - 0.5).slice(0, 2); oo = Object.assign({}, o, ...a2); { const ek = ['patrols', 'chasers', 'sentries', 'gnawers'].filter((k) => oo[k]); for (const k of ek.slice(1)) delete oo[k]; } }
-    const cand = isBoss ? buildBoss(w, h, oo) : buildPath(w, h, { ...oo, len: ri(...oo.len), keys: ri(...oo.keys) });
+    const cand = isBoss ? buildBoss(w, h, oo) : oo.area ? buildArea(w, h, { ...oo, keys: ri(...oo.keys) }) : buildPath(w, h, { ...oo, len: ri(...oo.len), keys: ri(...oo.keys) });
     if (!cand) continue;
     const k = cand.grid.join('/') + JSON.stringify(cand.enemies) + JSON.stringify(cand.boss || '');
     if (seen.has(k)) continue;
@@ -328,7 +415,8 @@ for (const [a, b, world, w, h, o, tag] of SEG) {
     const ev = evaluate(a, cand, isBoss);
     if (!ev || ev.min < (isBoss ? 8 : 4)) continue;
     // kestirme yol olmasın: en kısa çözüm karelerin en az yarısı kadar (öğreticiler hariç)
-    if (!isBoss && tag !== 'easy' && ev.min < Math.ceil(ev.tiles * (o.patrols || o.chasers || o.sentries || o.gnawers ? 0.42 : 0.5))) continue;
+    if (o.area) { if (ev.fail < o.fail || (ev.cover == null && !o.patrols && !o.chasers && !o.sentries && !o.gnawers)) continue; if (ev.min < Math.ceil(ev.tiles * 0.3)) continue; }
+    else if (!isBoss && tag !== 'easy' && ev.min < Math.ceil(ev.tiles * (o.patrols || o.chasers || o.sentries || o.gnawers ? 0.42 : 0.5))) continue;
     pool.push(ev);
   }
   pool.sort((x, y) => x.score - y.score);
@@ -350,10 +438,13 @@ for (const [a, b, world, w, h, o, tag] of SEG) {
   }
 }
 if (only) process.exit(0);
+const upTo = +(process.env.UPTO || 0);
+if (upTo) { const old = JSON.parse(fs.readFileSync(new URL('../src/levels/levels.json', import.meta.url), 'utf8')); for (let i = levels.length - 1; i >= 0; i--) if (levels[i].id > upTo) levels.splice(i, 1); for (const l of old) if (l.id > upTo) levels.push(l); }
 levels.find((l) => l.id === 1).tutorial = 'swipe';
 levels.sort((x, y) => x.id - y.id);
 // Tamamen boş satır/sütunları kırp (boss ve düşman koordinatlarını da kaydır)
 for (const lv of levels) {
+  if (upTo && lv.id > upTo) continue;
   let g = lv.grid, ox = 0, oy = 0;
   const rowEmpty = (y) => /^#+$/.test(g[y]);
   while (g.length > 2 && rowEmpty(0)) { g = g.slice(1); oy++; }

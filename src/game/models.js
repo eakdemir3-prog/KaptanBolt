@@ -37,7 +37,7 @@ export function makeMaterials(th) {
     ice: std(0xeefcff, { emissive: 0x7fd6ff, emissiveIntensity: 0.14, roughness: 0.1, metalness: 0.15 }),
     rock: std(th.rock, { roughness: 0.9 }), rock2: std(th.rock2, { roughness: 0.85 }),
     wall: std(th.wall, { roughness: 1 }),
-    pit: std(0x04020c, { roughness: 1 }),
+    pit: std(0x0b0a24, { roughness: 1 }),
     crystal: std(th.crystal, { emissive: th.crystalEm, emissiveIntensity: 1.1, roughness: 0.2 }),
     flame: new THREE.MeshBasicMaterial({ color: th.flame }),
     crack: new THREE.MeshBasicMaterial({ color: new THREE.Color(th.side).multiplyScalar(0.55).getHex(), transparent: true, opacity: 0.7 }),
@@ -191,7 +191,7 @@ export function makeEnemy(type) {
   if (hasEnemyModel(ENEMY_FILE[type])) {
     const root = new THREE.Group(), turn = new THREE.Group(), body = new THREE.Group();
     root.add(turn); turn.add(body); body.add(cloneEnemyModel(ENEMY_FILE[type]));
-    const l = new THREE.PointLight(ENEMY_LIGHT[type], 1.6, 1.3); l.position.set(0, 0.6, 0.45); root.add(l);
+    const l = new THREE.PointLight(ENEMY_LIGHT[type], type === 'gnawer' ? 2.6 : 1.6, 1.3); l.position.set(0, 0.6, 0.45); root.add(l);
     root.userData = { body, turn, glb: true };
     return root;
   }

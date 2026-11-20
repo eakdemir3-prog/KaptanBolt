@@ -243,9 +243,10 @@ function renderEnergyModal(first) {
 let introDone = null;
 function playIntro(first = false) {
   const box = $('intro'), v = $('introVid');
-  if (!v.src) v.src = new URL('intro.mp4', document.baseURI).href;
+  if (!v.src) { v.src = new URL('intro.mp4', document.baseURI).href; box.style.backgroundImage = `url(${new URL('intro-poster.jpg', document.baseURI).href})`; }
   box.classList.remove('hidden'); $('introSound').classList.add('hidden');
   stage.paused = true; setMusic(false);
+  v.classList.remove('on'); v.onplaying = () => v.classList.add('on');
   v.currentTime = 0; v.muted = false;
   const p = v.play();
   if (p && p.catch) p.catch(() => { v.muted = true; $('introSound').classList.remove('hidden'); v.play().catch(() => endIntro(true)); });
@@ -262,10 +263,10 @@ function endIntro(failed = false) {
   if (introDone) { const f = introDone; introDone = null; f(); }
 }
 
-/** Bonus altın: her 3 bölümden birinde, alınmamışsa, sıradan bir karede durur (bölüm başına bir kez) */
+/** Bonus altın: her 5 bölümden birinde, alınmamışsa, sıradan bir karede durur (bölüm başına bir kez) */
 const BONUS_COINS = 15;
 function bonusCellFor(lv, board) {
-  if (lv.daily || lv.final || lv.id % 3 !== 0 || (data.bonusTaken || {})[lv.id]) return -1;
+  if (lv.daily || lv.final || lv.id % 5 !== 0 || (data.bonusTaken || {})[lv.id]) return -1;
   const bad = new Set([board.start, board.door, ...board.keys, ...board.enemies.map((e) => e.pos)]);
   const cand = [];
   board.cells.forEach((c, i) => { if ((c === TILE || c === ICE) && !bad.has(i) && board.portal[i] < 0) cand.push(i); });
@@ -320,7 +321,7 @@ function settleLoss() {
 }
 
 function layoutGame() {
-  const top = $('lvName').getBoundingClientRect().bottom + 10;
+  const top = $('lvName').getBoundingClientRect().bottom + 2;
   const tut = $('tutorial');
   const ref = tut.classList.contains('hidden') ? $('powerBar') : tut;
   const bottom = innerHeight - ref.getBoundingClientRect().top + 14;

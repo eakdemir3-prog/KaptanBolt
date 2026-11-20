@@ -35,7 +35,7 @@ const ENEMY_SPEC = {
   devriye: { fit: 'width', size: 0.88, yaw: Math.PI / 2 },
   takipci: { fit: 'height', size: 0.8, lift: 0.12 },
   nobetci: { fit: 'height', size: 1.08 },
-  bocek: { fit: 'width', size: 0.86 },
+  bocek: { fit: 'width', size: 1.0 },
   boss: { fit: 'width', size: 1.75 },
 };
 const enemyTpl = {};
