@@ -359,6 +359,8 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* ---------- Açılış ekranı ---------- */
 #splash { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: radial-gradient(ellipse 70% 45% at 50% 45%, #241a66, #07051a 70%); transition: opacity .55s ease, transform .55s ease; }
+#splash .sp-bolt { width: 54px; height: 80px; fill: #ffd23a; filter: drop-shadow(0 0 14px rgba(255, 200, 60, .8)); animation: spPulse 1s ease-in-out infinite alternate; }
+@keyframes spPulse { from { transform: scale(.92); opacity: .75; } to { transform: scale(1.06); opacity: 1; } }
 #splash .sp-logo { font-weight: 800; letter-spacing: 6px; font-size: 17px; color: #cfe9ff; opacity: 0; animation: spIn 1s .15s ease forwards; text-shadow: 0 0 18px rgba(90, 230, 255, .6); }
 #splash .sp-ea { color: #5ae6ff; }
 #splash .sp-bar { width: 120px; height: 3px; border-radius: 3px; background: rgba(90, 230, 255, .18); overflow: hidden; }
@@ -408,3 +410,8 @@ body.opening #menu .menu-bottom > *:nth-child(4) { animation-delay: 1.3s; }
 #toast:not(.hidden) { animation: fadeUp .25s ease both; }
 #banner:not(.hidden) { animation: fadeDown .3s ease both; }
 @media (prefers-reduced-motion: reduce) { .screen.on, .screen.leaving, body.opening * { animation: none !important; } }
+
+/* uzun açılış sahnesi sürerken menü arayüzü gizli */
+body.intro-hold #menu .logo, body.intro-hold #menu .menu-bottom, body.intro-hold #menu .topbar { opacity: 0; pointer-events: none; }
+#fader.flash { background: #fff6dc; opacity: .6; transition: none; }
+body.opening.ui-only #c { animation: none; }

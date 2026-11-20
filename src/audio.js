@@ -6,7 +6,7 @@ const loading = new Map();
 let wantTrack = 'music_menu', curTrack = null, curSrc = null, curGain = null;
 
 const SFX = ['step', 'slide', 'collapse', 'crack', 'key', 'door', 'win', 'lose', 'click', 'star0', 'star1', 'star2', 'bump', 'teleport',
-  'bridge', 'lift', 'stomp', 'bossFall', 'enemyFall', 'caught', 'undo', 'hint', 'wake', 'coin'];
+  'bridge', 'lift', 'ship', 'stomp', 'bossFall', 'enemyFall', 'caught', 'undo', 'hint', 'wake', 'coin'];
 const VOL = { step: 0.55, slide: 0.6, collapse: 0.55, click: 0.4, bump: 0.5, crack: 0.8, door: 0.8, key: 0.9, win: 0.85, star0: 0.7, star1: 0.7, star2: 0.7 };
 
 function ensure() {
@@ -87,6 +87,7 @@ export const sfx = {
   hint() { play('hint'); },
   teleport() { play('teleport'); },
   lift() { play('lift'); },
+  ship() { play('ship'); },
   stomp() { play('stomp'); },
   enemyFall() { play('enemyFall'); },
   bossFall() { play('bossFall'); },

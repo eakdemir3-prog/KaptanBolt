@@ -319,6 +319,19 @@ def s_teleport():
     x = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.sin(np.pi * t / 0.7) * 0.35
     x += bp(noise(n), 2000, 9000) * np.sin(np.pi * t / 0.7) ** 2 * 0.3 * (1 + np.sin(2 * np.pi * 18 * t)) / 2
     add(x, bell(midi(nm('E6')), 0.7, 2.0, 1.5) * 0.25, 0); return x
+def s_ship():
+    # gemi düşüşü: yükselen uğultulu ıslık + çarpma gümbürtüsü
+    T = 2.0; n = int(T * SR); x = np.zeros(n)
+    tw = t_(1.35)
+    f = 900 - 650 * (tw / 1.35) ** 1.5
+    wh = bp(noise(len(tw)), 400, 3000) * (tw / 1.35) ** 1.6 * 0.35
+    wh += np.sin(2 * np.pi * np.cumsum(f) / SR) * (tw / 1.35) ** 2 * 0.12
+    add(x, wh, 0)
+    tb = t_(0.65)
+    boom = np.sin(2 * np.pi * np.cumsum(70 - 35 * tb / 0.65) / SR) * np.exp(-tb * 6) * 0.8
+    boom += bp(noise(len(tb)), 60, 900) * np.exp(-tb * 9) * 0.6
+    add(x, boom, int(1.35 * SR))
+    return x
 def s_lift():
     # asansör: kapı 'ding', motor uğultusu yükselir, varışta ikinci 'ding'
     T = 1.7; t = t_(T); n = len(t)
@@ -391,6 +404,7 @@ if __name__ == '__main__':
     sfx_write('teleport', s_teleport())
     sfx_write('bridge', s_bridge())
     sfx_write('lift', s_lift())
+    sfx_write('ship', s_ship())
     sfx_write('stomp', s_stomp())
     sfx_write('bossFall', s_bossFall())
     sfx_write('enemyFall', s_enemyFall())

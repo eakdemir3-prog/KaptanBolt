@@ -6,7 +6,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { makeDecor } from './decor.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { THEMES, PORTAL_COLORS, makeMaterials, makeTile, makeStrongTile, makePortalTile, makePit, makeKey, makeDoor, makeRobot, setRobotFace, makeEnemy, makeBoss, makeBridgeTile, makeBridgeGhost, makeButtonTile, makeArrowTile, makeLift, makeZzz, makeDangerMark, SKINS } from './models.js';
+import { THEMES, PORTAL_COLORS, makeMaterials, makeTile, makeStrongTile, makePortalTile, makePit, makeKey, makeDoor, makeRobot, setRobotFace, makeEnemy, makeBoss, makeBridgeTile, makeBridgeGhost, makeButtonTile, makeArrowTile, makeLift, makeShip, makeZzz, makeDangerMark, SKINS } from './models.js';
 import { tween, ease, updateTweens, clearTweens, wait } from './tween.js';
 import { HOLE, ICE, STRONG, BRIDGE, BUTTON, ARROW_DIR, doorOpen, gnawerNext, laserCells, floorOf } from '../logic/rules.js';
 
@@ -739,6 +739,79 @@ export class Stage {
     this.root.add(g); this.hintMesh = g;
     this.face(dir);
   }
+  /** Uygulama açılışı: Şimşek gemisi düşer, parlama, taşlar yukarıdan yerine oturur, kapı/anahtar belirir, Bolt atlar.
+   *  skipIntro() ile her an sona atlanır. */
+  async playIntro({ onImpact, onBoard } = {}) {
+    if (!this.board || !this.robot) return;
+    this.introRunning = true; this._skip = false;
+    const tiles = [...this.tiles.entries()], keys = this.keys ? [...this.keys.values()] : [], door = this.door, r = this.robot;
+    const hidden = [...tiles.map(([, t]) => t), ...keys, door, r].filter(Boolean);
+    const base = new Map(hidden.map((o) => [o, { p: o.position.clone(), s: o.scale.clone() }]));
+    hidden.forEach((o) => (o.visible = false));
+    const ship = makeShip(); this.base.add(ship);
+    const trail = new THREE.Group(); this.base.add(trail);
+    const tm = new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false });
+    const tg = new THREE.SphereGeometry(0.09, 8, 6);
+    const puffs = Array.from({ length: 26 }, () => { const m = new THREE.Mesh(tg, tm.clone()); m.visible = false; trail.add(m); return m; });
+    let pi = 0;
+    const finish = () => {
+      ship.removeFromParent(); trail.removeFromParent();
+      for (const o of hidden) { const b = base.get(o); o.position.copy(b.p); o.scale.copy(b.s); o.visible = true; o.rotation.z = 0; }
+      this.introRunning = false;
+    };
+    this._introFinish = finish;
+    const T = (ms, fn, e) => (this._skip ? (fn(1, 1), Promise.resolve()) : tween(ms, fn, e));
+    // 1) gemi yıldızların arasından alevli bir izle düşer
+    const from = new THREE.Vector3(-6.5, 7.5, -8), to = new THREE.Vector3(0.3, 0.35, -0.2);
+    const dir = to.clone().sub(from).normalize();
+    ship.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    await wait(250);
+    let last = 0;
+    await T(1150, (t) => {
+      const e = t * t * (1.4 - 0.4 * t);
+      ship.position.lerpVectors(from, to, e);
+      ship.rotation.y += 0.0; ship.userData.flame.scale.set(1 + Math.random() * 0.25, 1 + Math.random() * 0.5 + t, 1 + Math.random() * 0.25);
+      if (t - last > 0.035) { last = t; const m = puffs[pi++ % puffs.length]; m.visible = true; m.position.copy(ship.position).addScaledVector(dir, -0.75); m.scale.setScalar(1); m.material.opacity = 0.8; }
+      for (const m of puffs) if (m.visible) { m.scale.multiplyScalar(1.045); m.material.opacity *= 0.93; }
+    }, ease.linear);
+    // 2) çarpma: parlama, halka, toz, sarsıntı
+    ship.removeFromParent();
+    if (onImpact) onImpact();
+    if (!this._skip) { this._ring(to.clone().setY(0.25), 0xffb040); this._ring(to.clone().setY(0.3), 0x5ae6ff); this._dust(to.clone().setY(0.2), 0xffb040); this.shake(0.16, 380); }
+    await T(250, (t) => { for (const m of puffs) m.material.opacity *= 0.85; });
+    trail.removeFromParent();
+    // 3) taşlar merkezden dışa doğru sırayla yukarıdan düşüp yerine oturur
+    const c = new THREE.Vector3();
+    const order = tiles.map(([i, t]) => ({ t, d: base.get(t).p.distanceTo(c) })).sort((a, b) => a.d - b.d);
+    const maxD = Math.max(...order.map((o) => o.d), 1);
+    order.forEach(({ t }) => { t.visible = true; t.position.y = base.get(t).p.y + 4; });
+    const landed = new Set();
+    await T(1050, (tt) => {
+      for (const { t, d } of order) {
+        const st = (d / maxD) * 0.55, k = Math.min(1, Math.max(0, (tt - st) / 0.45));
+        const b = base.get(t).p;
+        t.position.y = b.y + 4 * (1 - ease.outBack(k));
+        if (k >= 1 && !landed.has(t)) { landed.add(t); t.position.y = b.y; }
+      }
+    }, ease.linear);
+    for (const { t } of order) t.position.y = base.get(t).p.y;
+    if (onBoard) onBoard();
+    // 4) kapı ve anahtar parlayarak belirir
+    const pops = [door, ...keys].filter(Boolean);
+    pops.forEach((o) => { o.visible = true; o.scale.setScalar(0.001); });
+    if (!this._skip) for (const o of pops) this._ring(o.position.clone().setY(0.25), 0xffd23a);
+    await T(380, (t) => { for (const o of pops) { const b = base.get(o).s; o.scale.copy(b).multiplyScalar(Math.max(0.001, ease.outBack(t))); } });
+    // 5) Bolt yukarıdan atlar; indiği taş hafifçe sallanır ama çökmez
+    r.visible = true;
+    if (!this._skip) {
+      await this.greet();
+      const under = this.tiles.get(this.state && this.state.pos);
+      if (under) { const y0 = base.get(under) ? base.get(under).p.y : under.position.y; await tween(300, (t) => { under.position.y = y0 - Math.sin(t * Math.PI) * 0.08; under.rotation.z = Math.sin(t * Math.PI * 4) * 0.03 * (1 - t); }); }
+    }
+    finish();
+  }
+  skipIntro() { if (!this.introRunning) return; this._skip = true; clearTweens(); }
+
   /** Açılışta robot yukarıdan zıplayıp tahtaya iner */
   async greet() {
     const r = this.robot; if (!r) return;
@@ -761,8 +834,13 @@ export class Stage {
     const dt = Math.min(0.1, t - (this._lastT ?? t)); this._lastT = t;
     if (this.robot && this.robot.userData.anim) {
       const A = this.robot.userData.anim;
-      if (this.menuMode && this.mood === 'idle' && A.current() !== 'wave') A.play('wave', { fade: 0.3 });
-      else if (!this.menuMode && A.current() === 'wave') A.play('idle', { fade: 0.3 });
+      // menüde: bekleme duruşu, birkaç saniyede bir el sallar
+      if (this.menuMode && this.mood === 'idle' && !this.introRunning) {
+        this._waveT = (this._waveT ?? 2.5) - dt;
+        if (this._waveT <= 0 && A.current() !== 'wave') { const ms = A.play('wave', { once: true, fade: 0.3 }); this._waveT = 6 + ms / 1000; this._waveEnd = t + ms / 1000 - 0.3; }
+        else if (A.current() === 'wave' && t > (this._waveEnd || 0)) A.play('idle', { fade: 0.4 });
+        else if (!A.current() || (A.current() !== 'wave' && A.current() !== 'idle')) A.play('idle', { fade: 0.3 });
+      } else if (!this.menuMode && A.current() === 'wave') A.play('idle', { fade: 0.3 });
       A.update(dt);
     }
     if (this.keys) for (const key of this.keys.values()) {
@@ -784,7 +862,7 @@ export class Stage {
       U.body.position.y = Math.sin(t * 2.4) * 0.015;
       const blink = (t % 3.4) < 0.12 ? 0.1 : 1;
       if (this.mood === 'idle') { U.eyeL.scale.y = U.eyeR.scale.y = blink; }
-      if (this.menuMode) { if (!U.anim) U.armR.rotation.z = 0.18 + Math.max(0, Math.sin(t * 3)) * 2.2; U.turn.rotation.y = Math.sin(t * 0.6) * 0.4; }
+      if (this.menuMode) { if (!U.anim) U.armR.rotation.z = 0.18 + Math.max(0, Math.sin(t * 3)) * 2.2; U.turn.rotation.y = Math.sin(t * 0.5) * 0.1; /* hafif salınım: fazla dönünce bacaklar üst üste biniyor */ }
     }
     if (this.decorAnim) for (const f of this.decorAnim) f(t);
     if (this.bonusMesh) { this.bonusMesh.rotation.y = t * 2.4; this.bonusMesh.position.y = 0.62 + Math.sin(t * 2.6) * 0.05; }

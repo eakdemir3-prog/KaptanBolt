@@ -727,15 +727,31 @@ function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.rem
 /** Açılış: stüdyo ekranı solar, logo düşerek gelir, robot el sallar, düğmeler sırayla yükselir */
 function openingAnim() {
   const sp = $('splash');
-  if (navigator.webdriver && !location.hash.includes('opening')) { if (sp) sp.remove(); return; }
-  if (stage.robot) stage.robot.visible = false;
-  // stüdyo ekranı en az ~1.3 sn görünsün
-  const wait = Math.max(0, 1300 - performance.now());
+  const forced = location.hash.includes('opening');
+  if (navigator.webdriver && !forced) { if (sp) sp.remove(); return; }
+  // günün ilk açılışında uzun sahne (gemi düşer, taşlar dizilir, Bolt atlar); sonra sadece kısa giriş
+  const full = forced || data.introDay !== dateKey();
+  data.introDay = dateKey(); save();
+  const wait = Math.max(0, 900 - performance.now());
   setTimeout(() => {
-    document.body.classList.add('opening');
     if (sp) { sp.classList.add('out'); setTimeout(() => sp.remove(), 700); }
-    setTimeout(() => { if (stage.robot) { stage.robot.visible = true; stage.greet(); } }, 750);
-    setTimeout(() => document.body.classList.remove('opening'), 2300);
+    if (!full) {
+      if (stage.robot) stage.robot.visible = false;
+      document.body.classList.add('opening');
+      setTimeout(() => { if (stage.robot) { stage.robot.visible = true; stage.greet(); } }, 750);
+      setTimeout(() => document.body.classList.remove('opening'), 2300);
+      return;
+    }
+    document.body.classList.add('intro-hold');
+    const skip = () => stage.skipIntro();
+    window.addEventListener('pointerdown', skip, { once: true });
+    let shown = false;
+    const showUi = () => { if (shown) return; shown = true; document.body.classList.remove('intro-hold'); document.body.classList.add('opening', 'ui-only'); setTimeout(() => document.body.classList.remove('opening', 'ui-only'), 2300); };
+    sfx.ship();
+    stage.playIntro({
+      onImpact: () => { const f = $('fader'); f.classList.add('flash'); setTimeout(() => f.classList.remove('flash'), 140); vibrate('heavy'); },
+      onBoard: () => setTimeout(showUi, 500),
+    }).then(() => { window.removeEventListener('pointerdown', skip); showUi(); });
   }, wait);
 }
 

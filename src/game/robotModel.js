@@ -137,27 +137,29 @@ export function makeAnimator(model) {
   const bone = (n) => { let b = null; model.traverse((o) => { if (o.isBone && o.name.endsWith(n)) b = o; }); return b; };
   const legs = [[bone('LeftUpLeg'), bone('LeftFoot'), 1], [bone('RightUpLeg'), bone('RightFoot'), -1]].filter((l) => l[0] && l[1]);
   const qz = new THREE.Quaternion(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), Z = new THREE.Vector3(0, 0, 1), ax = new THREE.Vector3();
+  // el sallama hareketinde ayaklar orijinalde bitişik: o sırada kalçalar daha çok açılır (yumuşak geçişle)
+  const st = { headUp: 0, stance: STANCE };
+  const WIDE = { wave: 0.24, cheer: 0.1 };
   const spread = () => {
     for (const [up, foot, sx] of legs) {
       foot.updateWorldMatrix(true, false); foot.getWorldQuaternion(qa);
       // ileri ekseni (modelin +Z'si) kalçanın üst kemiğinin ebeveyn uzayına çevir, o eksende dışa aç
       model.getWorldQuaternion(qb); ax.copy(Z).applyQuaternion(qb);
       up.parent.getWorldQuaternion(qb); ax.applyQuaternion(qb.invert()).normalize();
-      qz.setFromAxisAngle(ax, sx * STANCE); up.quaternion.premultiply(qz);
+      qz.setFromAxisAngle(ax, sx * st.stance); up.quaternion.premultiply(qz);
       up.updateMatrixWorld(true);
       foot.parent.getWorldQuaternion(qb); foot.quaternion.copy(qb.invert().multiply(qa));
     }
   };
   // Kafa eğimi: üstten bakan oyun kamerasında yüz görünsün diye kafa hafifçe yukarı bakar
   const head = bone('Head'), X = new THREE.Vector3(1, 0, 0);
-  const st = { headUp: 0 };
   const tilt = () => {
     if (!head || !st.headUp) return;
     model.getWorldQuaternion(qb); ax.copy(X).applyQuaternion(qb);
     head.parent.getWorldQuaternion(qb); ax.applyQuaternion(qb.invert()).normalize();
     qz.setFromAxisAngle(ax, -st.headUp); head.quaternion.premultiply(qz);
   };
-  const update = (dt) => { mixer.update(dt); spread(); tilt(); };
+  const update = (dt) => { mixer.update(dt); const tgt = STANCE + (WIDE[cur && cur.getClip().name] || 0); st.stance += (tgt - st.stance) * Math.min(1, dt * 6); spread(); tilt(); };
   play('idle', { fade: 0 }); update(0.4);
   return { mixer, update, play, st, has: (n) => !!acts[n], current: () => (cur ? cur.getClip().name : null) };
 }

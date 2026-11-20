@@ -348,3 +348,33 @@ export function makeLift(dir = 'up') {
   g.userData = { arrow: arr, pad, lamp, glass: wall, body };
   return g;
 }
+
+// --- Açılış: Bolt'un gemisi "Şimşek" (uzunlamasına +Y yönünde) ---
+export function makeShip() {
+  const g = new THREE.Group();
+  const hull = std(0xe8ecff, { metalness: 0.55, roughness: 0.3 });
+  const trim = std(0xffc531, { metalness: 0.8, roughness: 0.25, emissive: 0xff9d00, emissiveIntensity: 0.3 });
+  const red = std(0xff5a3a, { metalness: 0.4, roughness: 0.4 });
+  g.add(mesh(new THREE.CylinderGeometry(0.26, 0.32, 1.0, 24), hull, [0, 0, 0]));
+  g.add(mesh(new THREE.ConeGeometry(0.26, 0.5, 24), red, [0, 0.75, 0]));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.04, 8, 32), trim); ring.rotation.x = Math.PI / 2; ring.position.y = 0.42; g.add(ring);
+  const win = new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 14), new THREE.MeshBasicMaterial({ color: 0x5ae6ff })); win.position.set(0, 0.2, 0.25); win.scale.z = 0.5; g.add(win);
+  // şimşek amblemi
+  const bolt = new THREE.Shape(); bolt.moveTo(0.02, 0.14); bolt.lineTo(-0.07, -0.01); bolt.lineTo(0.0, -0.01); bolt.lineTo(-0.03, -0.14); bolt.lineTo(0.08, 0.03); bolt.lineTo(0.01, 0.03); bolt.closePath();
+  const bm = new THREE.Mesh(new THREE.ShapeGeometry(bolt), new THREE.MeshBasicMaterial({ color: 0xffd23a, side: THREE.DoubleSide })); bm.position.set(0, -0.18, 0.325); g.add(bm);
+  for (let k = 0; k < 3; k++) {
+    const f = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.42, 0.3), red); const a = (k * Math.PI * 2) / 3;
+    f.position.set(Math.sin(a) * 0.33, -0.38, Math.cos(a) * 0.33); f.rotation.y = a; g.add(f);
+  }
+  g.add(mesh(new THREE.CylinderGeometry(0.2, 0.26, 0.16, 20), std(0x30345a, { metalness: 0.7 }), [0, -0.56, 0]));
+  // alev: iki katmanlı, toplamsal
+  const fl = new THREE.Group(); fl.position.y = -0.64;
+  const f1 = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.9, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+  f1.rotation.x = Math.PI; f1.position.y = -0.45; fl.add(f1);
+  const f2 = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.55, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff2a0, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
+  f2.rotation.x = Math.PI; f2.position.y = -0.28; fl.add(f2);
+  g.add(fl);
+  const l = new THREE.PointLight(0xff9a3a, 4, 5); l.position.y = -0.9; g.add(l);
+  g.userData = { flame: fl };
+  return g;
+}
