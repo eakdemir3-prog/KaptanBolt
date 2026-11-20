@@ -14,7 +14,7 @@ with sync_playwright() as p:
     st=lambda k: pg.evaluate(f"KB.state.{k}")
     idle=lambda: pg.wait_for_function("KB.idle()",timeout=15000)
     # altın ekonomisi
-    pg.evaluate("KB.start(5)"); pg.wait_for_timeout(900)
+    pg.evaluate("KB.start(6)"); pg.wait_for_timeout(900)
     for m in pg.evaluate("KB.solve()"): pg.keyboard.press(KEY[m]); idle()
     pg.wait_for_timeout(1200)
     c1=pg.evaluate("KB.data().coins")

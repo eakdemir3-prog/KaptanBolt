@@ -57,7 +57,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 
 /* topbar & chips */
 .topbar { position: absolute; top: calc(var(--st) + 14px); left: 14px; right: 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 130px); }
+.chips { display: flex; gap: 6px; flex-wrap: nowrap; justify-content: center; max-width: calc(100vw - 130px); }
 .chips .chip { height: 36px; padding: 0 10px; font-size: 14px; }
 .chip { height: 40px; min-width: 40px; padding: 0 12px; border-radius: 20px; background: rgba(15, 12, 45, .78); border: 1.5px solid rgba(70, 220, 255, .5); display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; font-size: 15px; white-space: nowrap; }
 .chip .k { width: 14px; height: 18px; display: inline-block; }
@@ -352,3 +352,59 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 /* oyun ekranı: logo gizli, tahtaya daha çok yer */
 #game .logo.small .l1, #game .logo.small .l2 { display: none; }
 #game .logo.small { top: calc(var(--st) + 60px); }
+
+.chips.tight { gap: 4px; }
+.chips.tight .chip { padding: 0 7px; font-size: 13px; gap: 4px; }
+.chips.tight .chip .lbl { display: none; }
+
+/* ---------- Açılış ekranı ---------- */
+#splash { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: radial-gradient(ellipse 70% 45% at 50% 45%, #241a66, #07051a 70%); transition: opacity .55s ease, transform .55s ease; }
+#splash .sp-logo { font-weight: 800; letter-spacing: 6px; font-size: 17px; color: #cfe9ff; opacity: 0; animation: spIn 1s .15s ease forwards; text-shadow: 0 0 18px rgba(90, 230, 255, .6); }
+#splash .sp-ea { color: #5ae6ff; }
+#splash .sp-bar { width: 120px; height: 3px; border-radius: 3px; background: rgba(90, 230, 255, .18); overflow: hidden; }
+#splash .sp-bar i { display: block; width: 40%; height: 100%; background: #5ae6ff; border-radius: 3px; animation: spBar 1.1s ease-in-out infinite; }
+#splash.out { opacity: 0; transform: scale(1.06); pointer-events: none; }
+@keyframes spIn { from { opacity: 0; letter-spacing: 14px; } to { opacity: 1; letter-spacing: 6px; } }
+@keyframes spBar { 0% { transform: translateX(-110%); } 100% { transform: translateX(260%); } }
+
+/* Menü açılış animasyonu */
+body.opening #c { animation: fadeIn 1.1s ease both; }
+body.opening #menu .logo .l1 { animation: dropIn .75s .25s cubic-bezier(.2, 1.5, .4, 1) both; }
+body.opening #menu .logo .l2 { animation: dropIn .8s .42s cubic-bezier(.2, 1.6, .4, 1) both; }
+body.opening #menu .logo .tag, body.opening #menu .logo .swoosh { animation: fadeUp .5s .85s ease both; }
+body.opening #menu .topbar { animation: fadeDown .5s 1s ease both; }
+body.opening #menu .menu-bottom > * { animation: riseIn .55s ease both; }
+body.opening #menu .menu-bottom > *:nth-child(1) { animation-delay: 1.05s; }
+body.opening #menu .menu-bottom > *:nth-child(2) { animation-delay: 1.15s; }
+body.opening #menu .menu-bottom > *:nth-child(3) { animation-delay: 1.22s; }
+body.opening #menu .menu-bottom > *:nth-child(4) { animation-delay: 1.3s; }
+@keyframes dropIn { 0% { opacity: 0; transform: translateY(-70px) scale(.6); filter: blur(6px); } 60% { opacity: 1; filter: blur(0); } 100% { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes fadeDown { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+@keyframes riseIn { from { opacity: 0; transform: translateY(34px) scale(.96); } to { opacity: 1; transform: none; } }
+
+/* ---------- Yumuşak ekran geçişleri ---------- */
+.screen.on { animation: scrIn .34s cubic-bezier(.2, .8, .3, 1) both; }
+.screen.leaving { display: block; animation: scrOut .22s ease both; pointer-events: none; z-index: 5; }
+@keyframes scrIn { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes scrOut { from { opacity: 1; } to { opacity: 0; transform: scale(1.01); } }
+/* listelerde öğeler sırayla gelir */
+.screen.on .world-card, .screen.on .shop-item, .screen.on .ach-item, .screen.on .skin-cell { animation: riseIn .4s cubic-bezier(.2, .8, .3, 1) both; }
+.screen.on :is(.world-card, .shop-item, .ach-item, .skin-cell):nth-child(2) { animation-delay: .04s; }
+.screen.on :is(.world-card, .shop-item, .ach-item, .skin-cell):nth-child(3) { animation-delay: .08s; }
+.screen.on :is(.world-card, .shop-item, .ach-item, .skin-cell):nth-child(4) { animation-delay: .12s; }
+.screen.on :is(.world-card, .shop-item, .ach-item, .skin-cell):nth-child(5) { animation-delay: .16s; }
+.screen.on :is(.world-card, .shop-item, .ach-item, .skin-cell):nth-child(n+6) { animation-delay: .2s; }
+/* menü <-> oyun: 3B sahne kararıp açılır */
+#fader { position: fixed; inset: 0; z-index: 900; background: #07051a; opacity: 0; pointer-events: none; transition: opacity .22s ease; }
+#fader.on { opacity: 1; }
+/* pencereler: arka plan yumuşak kararır, kapanırken küçülerek kaybolur */
+#modal:not(.hidden) { animation: fadeIn .25s ease both; }
+#modal.closing { animation: fadeOutM .2s ease both; pointer-events: none; }
+#modal.closing .card { animation: cardOut .2s ease both; }
+@keyframes fadeOutM { to { opacity: 0; } }
+@keyframes cardOut { to { opacity: 0; transform: scale(.92) translateY(8px); } }
+#toast:not(.hidden) { animation: fadeUp .25s ease both; }
+#banner:not(.hidden) { animation: fadeDown .3s ease both; }
+@media (prefers-reduced-motion: reduce) { .screen.on, .screen.leaving, body.opening * { animation: none !important; } }

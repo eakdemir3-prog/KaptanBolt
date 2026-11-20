@@ -46,7 +46,7 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 
 // Test ve hata ayıklama için dışarıdan erişim
 window.KB = {
-  get state() { return game.state; }, get screen() { return screen; }, input: (d) => game.input(d), start: (id) => startLevel(id), levels: () => LEVELS,
+  get state() { return game.state; }, get screen() { return screen; }, input: (d) => game.input(d), start: (id) => startLevel(id), levels: () => LEVELS, canWin: () => canWin(game.state, 200000),
   data: () => data, stage: () => stage, idle: () => !game.busy, solve: () => (shortest(game.state, 800000, 20000) || {}).moves,
   _clone: (s) => cloneState(s), _move: (s, d) => move(s, d), dangerCount: () => stage.dangerMarks.length,
   findCaught: () => { const q = [[cloneState(game.state), []]]; let n = 0; while (q.length && n++ < 20000) { const [s, p] = q.shift(); for (const d of validMoves(s)) { const c = cloneState(s); move(c, d); if (c.status === 'caught') return p.concat(d); if (c.status === 'play') q.push([c, p.concat(d)]); } } return null; },
@@ -54,8 +54,15 @@ window.KB = {
 
 // ---------------- Ekranlar ----------------
 function show(name) {
+  const prev = screen;
   screen = name;
-  for (const s of $$('.screen')) s.classList.toggle('on', s.id === name);
+  // eski ekran kısa bir süre görünür kalıp solar, yenisi kayarak gelir
+  for (const s of $$('.screen')) {
+    const was = s.classList.contains('on');
+    s.classList.toggle('on', s.id === name);
+    if (was && s.id !== name && prev !== name) { s.classList.add('leaving'); clearTimeout(s._lt); s._lt = setTimeout(() => s.classList.remove('leaving'), 230); }
+    else if (s.id === name) s.classList.remove('leaving');
+  }
   closeModal();
   stage.paused = !(name === 'menu' || name === 'game');
   if (name !== 'game') setTrack('menu');
@@ -232,7 +239,7 @@ function renderEnergyModal(first) {
     ${data.energy < Eco.ENERGY_MAX ? `<button class="btn gold" data-act="refill">${COIN} ${Eco.REFILL_COST} ile doldur</button>` : ''}
     
     <button class="linkbtn" data-act="closeEnergy">Kapat</button>`;
-  if (first || lastEnergyShown !== data.energy) { lastEnergyShown = data.energy; if (first) openModal(html, 'fail'); else if (!$('modal').classList.contains('hidden')) $('card').innerHTML = html; return; }
+  if (first || lastEnergyShown !== data.energy) { lastEnergyShown = data.energy; if (first) openModal(html, 'fail'); else if (modalOpen()) $('card').innerHTML = html; return; }
   // Her saniye sadece sayaçları güncelle (düğmeler yerinde kalsın, dokunuşlar kaybolmasın)
   const n = $('enNext'), f = $('enFull');
   if (n) n.textContent = next ? Eco.fmtTime(next) : '—';
@@ -294,6 +301,11 @@ function startLevel(id) {
     data.storySeen = true; save(); openModal(STORY_HTML + '<button class="btn primary" data-act="storyGo">Maceraya başla →</button>', 'story'); return;
   }
   if (!lv.daily && !Eco.hasEnergy(data)) return energyModal(() => startLevel(id));
+  closeModal();
+  fadeSwap(() => enterLevel(lv));
+}
+
+function enterLevel(lv) {
   game.level = lv;
   game.history = []; game.undos = UNDOS; game.lossPending = false; game.adContinueUsed = false;
   game.powerUsed = false; game.jumpArmed = false; game.shield = false; game.collapseOrder = [];
@@ -322,6 +334,7 @@ function settleLoss() {
 }
 
 function layoutGame() {
+  fitChips();
   const top = $('lvName').getBoundingClientRect().bottom + 2;
   const tut = $('tutorial');
   const ref = tut.classList.contains('hidden') ? $('powerBar') : tut;
@@ -329,11 +342,21 @@ function layoutGame() {
   stage.setSafe(top, bottom);
 }
 
+/** Üst kutular sığmazsa sıkılaştır; başlığı her zaman kutuların altına koy (üst üste binmesin) */
+function fitChips() {
+  const row = document.querySelector('#game .chips'); if (!row) return;
+  row.classList.remove('tight');
+  if (row.scrollWidth > row.clientWidth + 1 || row.offsetHeight > 46) row.classList.add('tight');
+  const logo = document.querySelector('#game .logo.small');
+  if (logo) logo.style.top = Math.round(row.getBoundingClientRect().bottom + 8) + 'px';
+}
+
 function updateHud() {
   const s = game.state, b = s.board;
   const kt = s.keysTaken.filter(Boolean).length;
   const keyIcon = (on) => `<svg class="k" viewBox="0 0 60 80"><circle cx="30" cy="20" r="15" fill="${on ? '#ffcf3a' : '#4b4580'}"/><circle cx="30" cy="20" r="7" fill="#1a1250"/><rect x="26" y="32" width="8" height="34" rx="3" fill="${on ? '#ffcf3a' : '#4b4580'}"/><rect x="34" y="50" width="10" height="6" rx="2" fill="${on ? '#ffcf3a' : '#4b4580'}"/></svg>`;
-  $('chipKeys').innerHTML = b.keys.map((_, k) => keyIcon(s.keysTaken[k])).join('') + `<span>${kt}/${b.keys.length}</span>`;
+  // tek anahtar simgesi + sayı: kutular tek satıra sığsın
+  $('chipKeys').innerHTML = keyIcon(kt > 0 && kt === b.keys.length) + `<span>${kt}/${b.keys.length}</span>`;
   if (b.stars.mode === 'moves') $('chipCollapse').innerHTML = `<span class="lbl">Hedef</span>≤${b.stars.par[0]}`;
   else $('chipCollapse').innerHTML = `<span class="lbl">Çöken</span>${collapsedCount(s)}/${coverTarget(b)}`;
   const fc = $('chipFloor');
@@ -341,6 +364,7 @@ function updateHud() {
   const bc = $('chipBoss');
   if (s.boss) { bc.classList.remove('hidden'); bc.innerHTML = s.boss.alive ? '👹 <span class="lbl">Boss</span>' : '💥 <span class="lbl">Yenildi</span>'; } else bc.classList.add('hidden');
   $('hintCount').textContent = data.hints;
+  fitChips();
   const best = game.level.daily ? null : data.best[game.level.id];
   $('moveInfo').textContent = `Hamle: ${s.moves}` + (best != null ? `  •  En iyi: ${best}` : '') + (game.powerUsed ? '  •  ⚡ güç kullanıldı' : '');
   renderPowers();
@@ -370,6 +394,18 @@ function undo(free = false) {
   updateHud(); updateDanger();
 }
 
+/** Reklamla devam: hamleleri geri sar, hâlâ kazanılabilen son ana dön (gerekirse başa kadar) */
+function rewindToWinnable() {
+  let n = 0;
+  while (game.history.length) {
+    const prev = game.history.pop(); n++;
+    prev.status = 'play';
+    if (canWin(prev, 120000, 120) !== false || !game.history.length) { game.history.push(prev); break; }
+  }
+  undo(true);
+  toast(n > 1 ? `⏪ ${n} hamle geri sarıldı: buradan kazanabilirsin!` : '⏪ Bir hamle geri alındı.');
+}
+
 function trackEvents(events) {
   for (const e of events) {
     if (e.t === 'collapse') { Eco.stat(data, 'collapsed'); game.collapseOrder.push(e.cell); }
@@ -380,7 +416,7 @@ function trackEvents(events) {
 }
 
 async function input(dir) {
-  if (screen !== 'game' || !game.state || !$('modal').classList.contains('hidden')) return;
+  if (screen !== 'game' || !game.state || modalOpen()) return;
   if (game.busy) { game.queued = dir; return; }
   const s = game.state;
   if (s.status !== 'play') return;
@@ -669,10 +705,39 @@ function shipModal() {
     <button class="btn" data-act="story">📖 Hikâye</button>
     <button class="btn primary" data-act="close">Tamam</button>`, 'ship');
 }
-function openModal(html, cls = '') { $('card').className = 'card ' + cls; $('card').innerHTML = html; $('modal').classList.remove('hidden'); }
-function closeModal() { $('modal').classList.add('hidden'); energyModalOpen = false; }
+let modalT = 0;
+const modalOpen = () => { const m = $('modal'); return !m.classList.contains('hidden') && !m.classList.contains('closing'); };
+function openModal(html, cls = '') { clearTimeout(modalT); const m = $('modal'); m.classList.remove('closing'); $('card').className = 'card ' + cls; $('card').innerHTML = html; m.classList.remove('hidden'); }
+function closeModal() {
+  energyModalOpen = false;
+  const m = $('modal'); if (m.classList.contains('hidden') || m.classList.contains('closing')) return;
+  m.classList.add('closing'); clearTimeout(modalT);
+  modalT = setTimeout(() => { m.classList.add('hidden'); m.classList.remove('closing'); }, 200);
+}
+/** Menü <-> oyun gibi 3B sahne değişimlerinde kısa kararma: sert kesme olmasın */
+function fadeSwap(fn) {
+  const f = $('fader');
+  if (navigator.webdriver) { fn(); return; }
+  f.classList.add('on');
+  setTimeout(() => { fn(); requestAnimationFrame(() => requestAnimationFrame(() => f.classList.remove('on'))); }, 220);
+}
 let toastT = 0;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.add('hidden'), 2600); }
+
+/** Açılış: stüdyo ekranı solar, logo düşerek gelir, robot el sallar, düğmeler sırayla yükselir */
+function openingAnim() {
+  const sp = $('splash');
+  if (navigator.webdriver && !location.hash.includes('opening')) { if (sp) sp.remove(); return; }
+  if (stage.robot) stage.robot.visible = false;
+  // stüdyo ekranı en az ~1.3 sn görünsün
+  const wait = Math.max(0, 1300 - performance.now());
+  setTimeout(() => {
+    document.body.classList.add('opening');
+    if (sp) { sp.classList.add('out'); setTimeout(() => sp.remove(), 700); }
+    setTimeout(() => { if (stage.robot) { stage.robot.visible = true; stage.greet(); } }, 750);
+    setTimeout(() => document.body.classList.remove('opening'), 2300);
+  }, wait);
+}
 
 function settingsModal() {
   const s = data.settings;
@@ -732,8 +797,8 @@ document.addEventListener('click', (e) => {
   switch (el.dataset.act) {
     case 'continue': { const n = Save.continueLevel(data, MAX); currentWorld = Save.worldOf(n); return startLevel(n); }
     case 'worlds': stage.board = null; return show('worlds');
-    case 'map': if ($('modal').classList.contains('hidden') && guardLeave('map')) return; settleLoss(); if (game.level && !game.level.daily) currentWorld = game.level.world; stage.board = null; return show('map');
-    case 'menu': if ($('modal').classList.contains('hidden') && guardLeave('menu')) return; settleLoss(); stage.board = null; return show('menu');
+    case 'map': if (!modalOpen() && guardLeave('map')) return; settleLoss(); if (game.level && !game.level.daily) currentWorld = game.level.world; stage.board = null; return show('map');
+    case 'menu': if (!modalOpen() && guardLeave('menu')) return; settleLoss(); closeModal(); return fadeSwap(() => { stage.board = null; show('menu'); });
     case 'back': return back();
     case 'settings': return settingsModal();
     case 'howto': return howtoModal();
@@ -741,7 +806,7 @@ document.addEventListener('click', (e) => {
     case 'closeEnergy': closeModal(); renderRes(); return;
     case 'stay': return closeModal();
     case 'leave': return leaveNow(el.dataset.to);
-    case 'restart': if ($('modal').classList.contains('hidden') && guardLeave('restart')) return; return startLevel(game.level.daily ? game.level : game.level.id);
+    case 'restart': if (!modalOpen() && guardLeave('restart')) return; return startLevel(game.level.daily ? game.level : game.level.id);
     case 'next': { const id = game.level.id; closeModal(); return (Eco.isPro(data) ? Promise.resolve() : maybeInterstitial(id)).then(() => startLevel(id + 1)); }
     case 'undo': return undo();
     case 'hint': return useHint();
@@ -771,7 +836,7 @@ document.addEventListener('click', (e) => {
     case 'adEnergy': return showRewarded().then((ok) => { if (!ok) return toast('Reklam şu an yüklenemedi, biraz sonra tekrar dene.'); Eco.adUsed(data, 'energy', dateKey()); Eco.addEnergy(data, 1); save(); sfx.coin(); renderRes(); toast('+1 enerji!'); renderEnergyModal(energyThen ? false : true); });
     case 'adDouble': { const c = +el.dataset.c; el.disabled = true; return showRewarded().then((ok) => { if (!ok) { el.disabled = false; return toast('Reklam şu an yüklenemedi.'); } data.coins += c; save(); sfx.coin(); el.outerHTML = `<div class="tip">${COIN} +${c} altın daha kazandın!</div>`; }); }
     case 'adHint': return showRewarded().then((ok) => { if (!ok) return toast('Reklam şu an yüklenemedi.'); data.hints++; save(); closeModal(); updateHud(); sfx.hint(); useHint(); });
-    case 'adContinue': return showRewarded().then((ok) => { if (!ok) return toast('Reklam şu an yüklenemedi.'); game.adContinueUsed = true; undo(true); });
+    case 'adContinue': return showRewarded().then((ok) => { if (!ok) return toast('Reklam şu an yüklenemedi.'); game.adContinueUsed = true; rewindToWinnable(); });
     case 'refill': if (data.coins < Eco.REFILL_COST) return toast('Yeterli altının yok.'); data.coins -= Eco.REFILL_COST; data.energy = Eco.ENERGY_MAX; data.energyAt = Date.now(); save(); renderRes(); sfx.win(); return renderEnergyModal(false);
     case 'resetask': return openModal(`<div class="emoji">⚠️</div><h2>Emin misin?</h2><p>Tüm yıldızlar, altınlar ve kostümler silinecek. Bu işlem geri alınamaz.</p><button class="btn purple" data-act="reset">Evet, sıfırla</button><button class="btn primary" data-act="settings">Vazgeç</button>`, 'fail');
     case 'reset': data = Eco.ensure(Save.reset()); Eco.dailyQuests(data, dateKey()); save(); applySettings(); stage.setSkin(SKINS[0]); closeModal(); toast('İlerleme sıfırlandı.'); stage.board = null; return show('menu');
@@ -809,7 +874,7 @@ function leaveNow(to) {
 
 function back() {
   if (!$('intro').classList.contains('hidden')) return endIntro();
-  if (!$('modal').classList.contains('hidden')) {
+  if (modalOpen()) {
     if (screen === 'game' && game.state && game.state.status !== 'play') { settleLoss(); stage.board = null; return show(game.level.daily ? 'menu' : 'map'); }
     return closeModal();
   }
@@ -847,4 +912,5 @@ window.addEventListener('resize', () => { if (screen === 'game') layoutGame(); e
 initAds();
 initPurchases().then(() => proStatus()).then((st) => { if (st) { data.pro = { ...data.pro, ...st }; save(); } proDaily(); renderMenu(); });
 show('menu');
+openingAnim();
 if (document.fonts) document.fonts.ready.then(() => { if (screen === 'game') layoutGame(); if (screen === 'menu') layoutMenu(); });

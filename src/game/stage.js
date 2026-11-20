@@ -440,7 +440,8 @@ export class Stage {
   }
   setDanger(cells) {
     for (const d of this.dangerMarks) d?.removeFromParent();
-    this.dangerMarks = cells.map((i) => { const m = makeDangerMark(); m.position.copy(this.cellPos(i)).setY(0.2); this.root.add(m); return m; });
+    const b = this.board;
+    this.dangerMarks = cells.map((i) => { const m = makeDangerMark(); m.position.copy(this.cellPos(i)).setY(0.2); (b && b.floors ? this.floorG[floorOf(b, i)] : this.root).add(m); return m; });
   }
   setSkin(skin) {
     this.skin = skin;
@@ -737,6 +738,19 @@ export class Stage {
     g.renderOrder = 10; g.children.forEach((c) => (c.renderOrder = 10));
     this.root.add(g); this.hintMesh = g;
     this.face(dir);
+  }
+  /** Açılışta robot yukarıdan zıplayıp tahtaya iner */
+  async greet() {
+    const r = this.robot; if (!r) return;
+    const y0 = r.position.y, s0 = r.scale.clone();
+    const A = r.userData.anim; if (A) A.play('jump', { once: true, fade: 0.1, speed: 1.2 });
+    r.position.y = y0 + 4; r.visible = true;
+    await tween(620, (t) => { r.position.y = y0 + 4 * (1 - t) * (1 - t); }, ease.inQuad);
+    r.position.y = y0;
+    this._dust(r.position.clone().setY(0.2));
+    this._ring && this._ring(r.position.clone().setY(0.22), 0x5ae6ff);
+    await tween(260, (t) => { const k = Math.sin(t * Math.PI); r.scale.set(s0.x * (1 + k * 0.08), s0.y * (1 - k * 0.1), s0.z * (1 + k * 0.08)); });
+    r.scale.copy(s0);
   }
   clearHint() { if (this.hintMesh) { this.hintMesh?.removeFromParent(); this.hintMesh = null; } }
 
