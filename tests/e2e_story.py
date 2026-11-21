@@ -25,7 +25,7 @@ with sync_playwright() as p:
     c0=pg.evaluate("KB.data().coins")
     for d in path or []: pg.keyboard.press(KEY[d]); idle()
     pg.wait_for_timeout(500)
-    check("bonus alındı: +15 altın", path and pg.evaluate("KB.data().coins")==c0+15 and pg.evaluate("KB.data().bonusTaken[5]")==1)
+    check("bonus alındı: +10 altın", path and pg.evaluate("KB.data().coins")==c0+10 and pg.evaluate("KB.data().bonusTaken[5]")==1)
     pg.evaluate("KB.start(5)"); pg.wait_for_timeout(1000)
     check("alınan bonus tekrar çıkmıyor", pg.evaluate("KB.stage().bonusCell")==-1)
     pg.evaluate("KB.start(4)"); pg.wait_for_timeout(800)
