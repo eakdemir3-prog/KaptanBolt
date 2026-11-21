@@ -185,6 +185,8 @@ function buildArea(w, h, o) {
   const nb = nbFor(w, h);
   const holes = ri(...o.holes);
   for (let k = 0, t = 0; k < holes && t < 200; t++) { const i = ri(0, N - 1); if (get(i) === '.') { put(i, '#'); k++; } }
+  // zorunlu başlangıç (asansörden gelinen kare): kare olsun, arkası boş olsun (kabin arkayı örtmesin)
+  if (o.forceS != null) { put(o.forceS, '.'); if (o.forceS >= w) put(o.forceS - w, '#'); }
   const tiles = []; for (let i = 0; i < N; i++) if (get(i) === '.') tiles.push(i);
   if (tiles.length < o.minTiles) return null;
   // bağlantılı olsun, uçta tek komşulu kare en fazla 2 (yoksa çözüm zorunlu tek yola iner)
@@ -196,12 +198,12 @@ function buildArea(w, h, o) {
   if (leaves.length > 2) return null;
   const free = () => tiles.filter((i) => get(i) === '.');
   // başlangıç: kenar/köşe tercih
-  const sC = free().filter((i) => deg(i) <= 3);
+  const sC = o.forceS != null ? [o.forceS] : free().filter((i) => deg(i) <= 3);
   if (!sC.length) return null;
   const s = pick(sC); put(s, 'S');
   // kapı: başlangıçtan uzak değil ama bitişik de değil — kısa yoldan kaçmak zor olsun diye anahtarlar uzağa
   // kapı uzun bir model: arkasında kare kalmasın ki hiçbir şeyi örtmesin (arka sıra ya da arkası çukur)
-  const dC = free().filter((i) => dist(w, i, s) >= 2 && (i < w || get(i - w) === '#'));
+  const dC = free().filter((i) => dist(w, i, s) >= (o.dMin || 2) && (i < w || get(i - w) === '#'));
   if (!dC.length) return null;
   const d = pick(dC); put(d, 'D');
   for (let k = 0; k < o.keys; k++) {
@@ -361,10 +363,12 @@ function buildBoss(w, h, o) {
   const bp = pick(bossOpts);
   const bcells = [bp, bp + 1, bp + w, bp + w + 1];
   const free = () => tiles.filter((i) => get(i) === '.' && !bcells.includes(i));
-  const far = free().filter((i) => bcells.every((c) => dist(w, i, c) >= 4));
-  if (!far.length) return null;
+  if (o.forceS != null && (bcells.includes(o.forceS))) return null;
+  if (o.forceS != null) { put(o.forceS, '.'); if (o.forceS >= w && !bcells.includes(o.forceS - w)) put(o.forceS - w, '#'); }
+  const far = o.forceS != null ? [o.forceS] : free().filter((i) => bcells.every((c) => dist(w, i, c) >= 4));
+  if (!far.length || (o.forceS != null && !bcells.every((c) => dist(w, o.forceS, c) >= 4))) return null;
   const s = pick(far); put(s, 'S');
-  const dCand = free().filter((i) => dist(w, i, s) >= 3);
+  const dCand = free().filter((i) => dist(w, i, s) >= 3 && (i < w || get(i - w) === '#' || !o.tallDoor));
   if (!dCand.length) return null;
   put(pick(dCand), 'D');
   for (let k = 0; k < o.keys; k++) { const f = free(); if (!f.length) return null; put(pick(f), 'K'); }
@@ -500,6 +504,11 @@ function placeGear(lv) {
   const c = pick(cand); lv.gear = [c % b.w, Math.floor(c / b.w)];
 }
 
+export { buildArea, buildBoss, evaluate, placeGear, ri, pick, dist };
+export const setSeed = (v) => { seed = v; };
+const IS_MAIN = import.meta.url === 'file://' + process.argv[1];
+if (IS_MAIN) main();
+function main() {
 const only = process.argv[2] ? +process.argv[2] : 0; // hızlı deneme: belirli bir segment
 const levels = [{ id: 1, world: 1, grid: ['#####', 'S...K', '####.', 'D....', '#####'], tutorial: 'swipe' }];
 const t0 = Date.now();
@@ -583,3 +592,4 @@ for (const lv of levels) {
 fs.mkdirSync(new URL('../src/levels/', import.meta.url), { recursive: true });
 fs.writeFileSync(new URL('../src/levels/levels.json', import.meta.url), '[\n' + levels.map((l) => JSON.stringify(l)).join(',\n') + '\n]\n');
 console.log('Toplam', levels.length, 'bölüm yazıldı');
+}

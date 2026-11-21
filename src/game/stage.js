@@ -8,7 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { THEMES, PORTAL_COLORS, makeMaterials, makeTile, makeStrongTile, makePortalTile, makePit, makeKey, makeDoor, makeRobot, setRobotFace, makeEnemy, makeBoss, makeBridgeTile, makeBridgeGhost, makeButtonTile, makeArrowTile, makeLift, makeShip, makeCrate, makeColorKey, makeGate, makeGear, makeLabel, drawTimer, makeZzz, makeDangerMark, SKINS } from './models.js';
 import { tween, ease, updateTweens, clearTweens, wait } from './tween.js';
-import { HOLE, ICE, STRONG, BRIDGE, BUTTON, ARROW_DIR, doorOpen, gnawerNext, laserCells, floorOf, floorCount, isLift } from '../logic/rules.js';
+import { HOLE, ICE, STRONG, BRIDGE, BUTTON, ARROW_DIR, doorOpen, gnawerNext, laserCells, floorOf, floorCount, isLift, floorStartRow } from '../logic/rules.js';
 
 const DIR_ANGLE = { down: 0, up: Math.PI, right: Math.PI / 2, left: -Math.PI / 2 };
 const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
@@ -134,7 +134,7 @@ export class Stage {
     this.floorG = [new THREE.Group()]; this.base.add(this.floorG[0]);
     if (board.floors) {
       // her kat bir öncekinin FLOOR_Y üstünde; asansör çiftleri tam üst üste gelecek şekilde kaydırılır
-      const pairs = [board.lift, board.lift2];
+      const pairs = board.liftPairs;
       for (let f = 1; f < floorCount(board); f++) {
         const g = new THREE.Group(); this.floorG.push(g); this.base.add(g);
         const pr = pairs[f - 1];
@@ -144,11 +144,16 @@ export class Stage {
       }
     }
     // 2. kat taşları biraz farklı renkte: yeni kata çıkıldığı belli olsun
-    const M1 = this.M;
-    const MF = [M1];
-    for (let f = 1; f < this.floorG.length; f++) { const m = { ...M1, tile: M1.tile.clone(), side: M1.side.clone() }; m.tile.color.offsetHSL(0.06 * f, 0.05, 0.09); m.side.color.offsetHSL(0.06 * f, 0, 0.06); MF.push(m); }
-    const onFloor = (i) => { const f = floorOf(board, i); this.root = this.floorG[f]; this.M = MF[f]; };
-    for (let f = 0; f < this.floorG.length; f++) { this.root = this.floorG[f]; this.M = MF[f]; this.root.add(this._buildBackdrop(w, this.floorH(f))); }
+    const M1 = this.M, W1 = this.world, TH1 = this.th;
+    const MF = [M1], FT = board.floorThemes;
+    for (let f = 1; f < this.floorG.length; f++) {
+      if (FT) { MF.push(makeMaterials(THEMES[FT[f]] || TH1)); continue; }
+      const m = { ...M1, tile: M1.tile.clone(), side: M1.side.clone() }; m.tile.color.offsetHSL(0.06 * f, 0.05, 0.09); m.side.color.offsetHSL(0.06 * f, 0, 0.06); MF.push(m);
+    }
+    if (FT) MF[0] = makeMaterials(THEMES[FT[0]] || TH1);
+    const useFloor = (f) => { this.root = this.floorG[f]; this.M = MF[f]; if (FT) { this.world = FT[f]; this.th = THEMES[FT[f]] || TH1; } };
+    const onFloor = (i) => useFloor(floorOf(board, i));
+    for (let f = 0; f < this.floorG.length; f++) { useFloor(f); this.root.add(this._buildBackdrop(w, this.floorH(f))); }
     this.tiles = new Map(); this.keys = new Map(); this.portals = []; this.bridges = []; this.button = null; this.arrowTiles = []; this.zzz = []; this.dangerMarks = [];
     const pairId = new Map(); let pc = 0;
     for (let i = 0; i < board.cells.length; i++) if (board.portal[i] > i) pairId.set(i, pc++);
@@ -186,7 +191,7 @@ export class Stage {
     });
     this.bossMesh = null;
     if (state.boss && state.boss.alive) {
-      const bm = makeBoss(this.world); bm.position.copy(this._bossPos(state.boss.pos)); this.root.add(bm); this.bossMesh = bm;
+      onFloor(state.boss.pos); const bm = makeBoss(this.world); bm.position.copy(this._bossPos(state.boss.pos)); this.root.add(bm); this.bossMesh = bm;
       if (state.moves === 0) { const z = makeZzz(); z.scale.setScalar(0.8); z.position.copy(bm.position).add(new THREE.Vector3(0.4, 2.5, 0)); this.root.add(z); this.zzz.push(z); }
     }
     board.keys.forEach((ci, k) => {
@@ -220,8 +225,7 @@ export class Stage {
     this.door = makeDoor(); this.door.position.copy(this.cellPos(board.door)).add(new THREE.Vector3(0, 0.18, -0.12));
     this.root.add(this.door);
     this._setDoorOpen(doorOpen(state), false);
-    this.M = M1;
-    onFloor(state.pos); this.M = M1; this.floor = this.shownFloor = floorOf(board, state.pos); this._syncFloor();
+    onFloor(state.pos); this.M = M1; if (FT) { this.world = W1; this.th = TH1; } this.floor = this.shownFloor = floorOf(board, state.pos); this._syncFloor();
     this.robot = makeRobot(this.skin || SKINS[0]);
     if (!this.robot.userData.glb) this.robot.userData.head.rotation.x = -0.42; // üstten bakan kamerada yüz görünsün
     this._pendingFrozen = (state.frozen || 0) > 0; this.robot.position.copy(this.cellPos(state.pos)).add(new THREE.Vector3(0, 0.18, 0));
@@ -238,13 +242,8 @@ export class Stage {
     const f = floorOf(b, i), hf = this.floorH(f), ly = y - this.floorStart(f);
     return new THREE.Vector3(x - (b.w - 1) / 2, 0, ly - (hf - 1) / 2); // katın kendi grubuna göre
   }
-  floorStart(f) { const b = this.board; return f === 0 ? 0 : f === 1 ? b.floors + 2 : b.floors + 2 + b.floors2 + 2; }
-  floorH(f) {
-    const b = this.board; if (!b.floors) return b.h;
-    if (f === 0) return b.floors;
-    if (f === 1) return b.floors2 || b.h - b.floors - 2;
-    return b.h - (b.floors + 2 + b.floors2 + 2);
-  }
+  floorStart(f) { const b = this.board; return b.fh ? floorStartRow(b, f) : 0; }
+  floorH(f) { const b = this.board; return b.fh ? b.fh[f] : b.h; }
   /** -1: ayırıcı satır */
   floorRow(i) {
     const b = this.board, y = Math.floor(i / b.w);
@@ -254,6 +253,8 @@ export class Stage {
   /** Robotun bulunduğu kat görünür, öbürü gizli; ışıklar o kata kayar */
   _syncFloor() {
     this.floorG.forEach((g, f) => (g.visible = f === this.floor));
+    const FT = this.board && this.board.floorThemes;
+    if (FT && THEMES[FT[this.floor]]) { const th = THEMES[FT[this.floor]]; this.scene.background = new THREE.Color(th.bg); this.scene.fog = new THREE.Fog(th.fog, 22, 45); this.hemi.color.set(th.hemi); }
     this.root = this.floorG[this.floor] || this.base;
     const o = this.root.position;
     if (this.sun) { this.sun.position.set(-3 + o.x, 9 + o.y, 5 + o.z); this.sun.target.position.copy(o); this.sun.target.updateMatrixWorld(); }
@@ -704,7 +705,11 @@ export class Stage {
   /** Karanlık bölüm: ms sonra sadece robotun çevresi (2 kare) görünür */
   startDark(ms) { this._darkT = performance.now() + ms; }
   _fog(dt) {
-    const b = this.board; if (!b || !b.dark || !this.state || performance.now() < (this._darkT || 0)) return;
+    const b = this.board; if (!b || !this.state) return;
+    const darkNow = b.dark || (b.darkFloors && b.darkFloors.includes(this.floor));
+    if (!darkNow) { if (this._fogged) { this._fogged = false; for (const t of this.tiles.values()) { t.scale.setScalar(1); t.visible = true; t.userData._fs = 1; } } return; }
+    if (performance.now() < (this._darkT || 0)) return;
+    this._fogged = true;
     const st = this.state, w = b.w, px = st.pos % w, py = Math.floor(st.pos / w);
     const vis = (i) => Math.abs(i % w - px) + Math.abs(Math.floor(i / w) - py) <= 2;
     const k = Math.min(1, dt * 8);
@@ -756,7 +761,7 @@ export class Stage {
       const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96;
       const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
       sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-      sp.scale.set(0.95, 0.36, 1); sp.position.set(0, 1.62, 0); sp.renderOrder = 10;
+      sp.scale.set(0.9, 0.34, 1); sp.position.set(0, 1.95, 0); sp.renderOrder = 10;
       sp.userData = { cv, tex, last: '' };
       this.door.add(sp); this.door.userData.lockSprite = sp;
     }

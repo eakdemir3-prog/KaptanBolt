@@ -86,10 +86,12 @@ test('çözücü: en kısa çözüm ve 3 yıldız çözümü bulur, çıkmazı t
 test('ilerleme kaydı: kazanınca yıldız, kilit açılır, ipucu ödülü', () => {
   const mem = {}; Save._setStorage({ getItem: (k) => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } });
   const d = Save.load();
-  assert.equal(d.settings.unlockAll, false);           // test modu kapalı
+  assert.equal(d.settings.unlockAll, Save.TEST_BUILD);  // test sürümünde açık, yayında kapalı
+  d.settings.unlockAll = false;
   assert.equal(Save.isUnlocked(d, 2), false);
   Save.recordWin(d, 1, 3, 10, 60);
   const d2 = Save.load();
+  d2.settings.unlockAll = false;
   assert.equal(d2.stars[1], 3); assert.equal(Save.isUnlocked(d2, 2), true); assert.equal(d2.best[1], 10);
   Save.recordWin(d2, 1, 3, 4, 60, true);
   assert.equal(Save.load().best[1], 10); // güç kullanılınca en iyi değişmez
@@ -253,11 +255,11 @@ test('güç: dondur düşmanları bekletir', () => {
 });
 
 test('altın: ilk bitiriş taban+yıldız, tekrar sadece yeni yıldız, boss fazla, Pro 2 kat', () => {
-  assert.equal(Eco.winCoins({ stars: 3 }), 14);
+  assert.equal(Eco.winCoins({ stars: 3 }), 8);
   assert.equal(Eco.winCoins({ stars: 3, prevStars: 3 }), 0);
-  assert.equal(Eco.winCoins({ stars: 3, prevStars: 1 }), 6);
-  assert.equal(Eco.winCoins({ stars: 3, boss: true }), 105);
-  assert.equal(Eco.winCoins({ stars: 2, pro: true }), 22);
+  assert.equal(Eco.winCoins({ stars: 3, prevStars: 1 }), 4);
+  assert.equal(Eco.winCoins({ stars: 3, boss: true }), 50);
+  assert.equal(Eco.winCoins({ stars: 2, pro: true }), 12);
 });
 
 test('lazer nöbetçi: bir hamle uyarır, sonraki hamle ateş eder', () => {

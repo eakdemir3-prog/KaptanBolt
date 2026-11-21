@@ -25,6 +25,7 @@ export const SKINS = [
   { id: 'disli8', name: 'Çöl Kaşifi', gear: 8, body: 0xe8d0a0, joint: 0x5a3a1a, eye: 0x3affd0, cap: 0xc08a3a, band: 0x8a1a1a },
   { id: 'disli9', name: 'Derin Deniz', gear: 9, body: 0x3a8ab0, joint: 0x0a2a3a, eye: 0x7affea, cap: 0x1a5a7a, band: 0xffd23a, metal: true },
   { id: 'disli10', name: 'Gölge Kaptan', gear: 10, body: 0x2a2a3a, joint: 0x0a0a10, eye: 0xff3a5a, cap: 0x10101a, band: 0xff3a5a, metal: true },
+  { id: 'efsane', name: 'Efsane Bolt', grand: true, body: 0xfff3c8, joint: 0xb8862a, eye: 0xffffff, cap: 0xffc531, band: 0x7a1aff, metal: true, crown: true },
   { id: 'pro', name: 'Pro Kaptan', stars: 0, pro: true, body: 0x23232c, joint: 0xffcf3a, eye: 0xffe14a, cap: 0xffcf3a, band: 0x1c1c24, metal: true },
 ];
 

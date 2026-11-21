@@ -8,9 +8,11 @@ export const IAP = {
   entitlement: 'pro',
   products: {
     coins500: { id: 'kb_coins_500', coins: 500, price: '₺19,99' },
-    coins1300: { id: 'kb_coins_1300', coins: 1300, price: '₺44,99' },
-    coins3000: { id: 'kb_coins_3000', coins: 3000, price: '₺89,99' },
-    coins8000: { id: 'kb_coins_8000', coins: 8000, price: '₺199,99' },
+    coins1300: { id: 'kb_coins_1300', coins: 1300, bonus: 10, price: '₺44,99' },
+    coins3000: { id: 'kb_coins_3000', coins: 3000, bonus: 20, price: '₺89,99' },
+    coins8000: { id: 'kb_coins_8000', coins: 8000, bonus: 35, price: '₺199,99' },
+    // bir kez alınabilen başlangıç paketi: 1500 altın + her güçten 3 + Korsan kostümü
+    starter: { id: 'kb_starter_pack', coins: 1500, powers: 3, skin: 'korsan', once: true, price: '₺29,99' },
     proMonthly: { id: 'kb_pro_monthly', sub: true, price: '₺49,99 / ay' },
     proLifetime: { id: 'kb_pro_lifetime', price: '₺299,99' },
   },

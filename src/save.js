@@ -12,14 +12,18 @@ const DEFAULT = () => ({
 let store = (typeof localStorage !== 'undefined') ? localStorage : null;
 export function _setStorage(s) { store = s; } // testler için
 
+// TEST SÜRÜMÜ: true iken bütün bölümler açık ve enerji sınırsız (kapalı test öncesi son kontrol için).
+// Play'e yüklenecek AAB'den önce false yapılmalı.
+export const TEST_BUILD = true;
+const TEST = { unlockAll: TEST_BUILD, infiniteEnergy: TEST_BUILD };
 export function load() {
   try {
     const raw = store && store.getItem(KEY);
-    if (!raw) return DEFAULT();
+    if (!raw) { const d0 = DEFAULT(); Object.assign(d0.settings, TEST); return d0; }
     const d = JSON.parse(raw);
     const def = DEFAULT();
     // Yayın sürümü: test ayarları her açılışta kapalı (eski test kayıtları dahil)
-    return { ...def, ...d, settings: { ...def.settings, ...(d.settings || {}), unlockAll: false, infiniteEnergy: false } };
+    return { ...def, ...d, settings: { ...def.settings, ...(d.settings || {}), ...TEST } };
   } catch { return DEFAULT(); }
 }
 export function save(data) { try { store && store.setItem(KEY, JSON.stringify(data)); } catch { /* yer yok */ } }

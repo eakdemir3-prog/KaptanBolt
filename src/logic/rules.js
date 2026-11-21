@@ -17,6 +17,10 @@ const OPP = { up: 'down', down: 'up', left: 'right', right: 'left' };
  * X kutu (itilir; çukura/çökmüş kareye düşerse orayı doldurur, üstünden bir kez geçilir)
  * r R / g G: renkli anahtar ve bariyer (anahtarı alınca aynı renkteki bariyer açılır, normal kare olur)
  * timed: [[x, y, n]] zamanlı taş: n. hamleden sonra kendiliğinden çöker (üstündeysen düşersin)
+ * floorH: [h1, h2, ...] çok katlı bölüm (katlar arasında 2 boş satır); asansör çiftleri sırayla L M Q W Y
+ *   (eski biçim: floors: h1, floors2: h2)
+ * liftLock: [n1, n2, ...] her katta asansöre binmek için o katta çökmesi gereken taş sayısı
+ * darkFloors: [f...] karanlık katlar
  * floors: N  => iki katlı bölüm: ilk N satır 1. kat, sonra 2 boş ayırıcı satır, kalanlar 2. kat.
  *   L L: asansör çifti (portal gibi çalışır: binince öbür kata çıkar, bindiği kare çöker)
  */
@@ -44,7 +48,7 @@ export function parseLevel(level) {
         case 'K': cells[i] = TILE; keys.push(i); break;
         case 'D': cells[i] = TILE; door = i; break;
         case 'L': cells[i] = TILE; (pmap.L = pmap.L || []).push(i); break;
-        case 'M': cells[i] = TILE; (pmap.M = pmap.M || []).push(i); break;
+        case 'M': case 'Q': case 'W': case 'Y': cells[i] = TILE; (pmap[ch] = pmap[ch] || []).push(i); break;
         case 'X': cells[i] = TILE; boxes.push(i); break;
         case 'r': cells[i] = TILE; ckey[i] = 1; break;
         case 'g': cells[i] = TILE; ckey[i] = 2; break;
@@ -58,6 +62,12 @@ export function parseLevel(level) {
   }
   if (level.floors && (!pmap.L || pmap.L.length !== 2)) throw new Error(`Bölüm ${level.id}: iki katlı bölümde asansör çifti yok`);
   if (level.floors2 && (!pmap.M || pmap.M.length !== 2)) throw new Error(`Bölüm ${level.id}: üç katlı bölümde ikinci asansör yok`);
+  // kat yükseklikleri
+  let fh = null;
+  if (level.floorH) fh = level.floorH.slice();
+  else if (level.floors) { fh = [level.floors]; if (level.floors2) { fh.push(level.floors2); fh.push(h - level.floors - 2 - level.floors2 - 2); } else fh.push(h - level.floors - 2); }
+  const liftPairs = ['L', 'M', 'Q', 'W', 'Y'].map((c) => pmap[c]).filter(Boolean);
+  if (fh && liftPairs.length !== fh.length - 1) throw new Error(`Bölüm ${level.id}: ${fh.length} kat için ${fh.length - 1} asansör çifti gerekli`);
   for (const [k, v] of Object.entries(pmap)) {
     if (v.length !== 2) throw new Error(`Bölüm ${level.id}: portal ${k} çift değil`);
     portal[v[0]] = v[1]; portal[v[1]] = v[0];
@@ -68,7 +78,7 @@ export function parseLevel(level) {
   const enemies = (level.enemies || []).map((e) => ({ type: e.type, pos: e.at[1] * w + e.at[0], dir: e.dir || 'right' }));
   tileCount -= enemies.filter((e) => e.type === 'sentry').length; // nöbetçinin karesi hiç çökmez
   const boss = level.boss ? { pos: level.boss.at[1] * w + level.boss.at[0], every: level.boss.every || 2 } : null;
-  return { id: level.id, w, h, cells, portal, keys, start, door, tileCount, strongCount, enemies, boss, lock: level.lock || 0, floors: level.floors || 0, floors2: level.floors2 || 0, lift: pmap.L || null, lift2: pmap.M || null, boxes, ckey, gate, hasGate: gate.some((x) => x), timed: (level.timed || []).map(([x, y, n]) => [y * w + x, n]), dark: !!level.dark, challenge: !!level.challenge, gear: level.gear ? level.gear[1] * w + level.gear[0] : -1, stars: level.stars || { mode: 'cover' } };
+  return { id: level.id, w, h, cells, portal, keys, start, door, tileCount, strongCount, enemies, boss, lock: level.lock || 0, floors: fh ? fh[0] : 0, fh, liftPairs, liftLock: level.liftLock || null, darkFloors: level.darkFloors || [], floorThemes: level.floorThemes || null, floorNames: level.floorNames || null, lift: pmap.L || null, boxes, ckey, gate, hasGate: gate.some((x) => x), timed: (level.timed || []).map(([x, y, n]) => [y * w + x, n]), dark: !!level.dark, challenge: !!level.challenge, gear: level.gear ? level.gear[1] * w + level.gear[0] : -1, stars: level.stars || { mode: 'cover' } };
 }
 
 export function newState(board) {
@@ -138,6 +148,10 @@ export function enterable(s, i) {
   if (i === b.door && !doorOpen(s)) return false; // kilitli kapı duvardır
   if (occupied(s, i, null, true)) return false;     // düşmanın üstüne yürünmez (böcek hariç)
   if (s.box.includes(i)) return false;              // kutu: ancak itilerek (canMove)
+  if (b.liftLock && b.portal[i] >= 0 && isLift(b, i)) {   // kat kilidi: o katta yeterli taş çökmeden asansör çalışmaz
+    const f = floorOf(b, i);
+    if (floorOf(b, b.portal[i]) > f && floorCollapsed(s, f) < (b.liftLock[f] || 0)) return false;
+  }
   return true;
 }
 
@@ -207,8 +221,10 @@ function arrive(s, i, events) {
 
 function moveEnemies(s, events) {
   const b = s.board;
+  const pf = b.fh ? floorOf(b, s.pos) : 0;
   for (const e of s.enemies) {
     if (!e.alive) continue;
+    if (b.fh && floorOf(b, e.pos) !== pf) continue; // başka kattaki düşmanlar bekler
     if (e.type === 'patrol') {
       let moved = false;
       for (const d of [e.dir, OPP[e.dir]]) {
@@ -242,7 +258,7 @@ function moveEnemies(s, events) {
     if (e.alive && e.pos === s.pos) { s.status = 'caught'; events.push({ t: 'caught', by: s.enemies.indexOf(e) }); return; }
   }
   const bo = s.boss;
-  if (bo && bo.alive) {
+  if (bo && bo.alive && (!b.fh || floorOf(b, bo.pos) === pf)) {
     bo.tick++;
     if (bo.tick % bo.every === 0) chase(s, bo, 2, events);
     else events.push({ t: 'bossCharge' });
@@ -370,13 +386,15 @@ export function starsFor(s) {
 
 /** İki katlı bölümde karenin katı (0 = 1. kat, 1 = 2. kat) */
 export function floorOf(board, i) {
-  if (!board.floors) return 0;
-  const y = Math.floor(i / board.w);
-  if (y < board.floors) return 0;
-  if (!board.floors2 || y < board.floors + 2 + board.floors2) return 1;
-  return 2;
+  if (!board.fh) return 0;
+  let y = Math.floor(i / board.w);
+  for (let f = 0; f < board.fh.length; f++) { if (y < board.fh[f] + (f < board.fh.length - 1 ? 2 : 0)) return f; y -= board.fh[f] + 2; }
+  return board.fh.length - 1;
 }
 /** Kat sayısı */
-export const floorCount = (b) => (!b.floors ? 1 : b.floors2 ? 3 : 2);
-/** Asansör karesi mi (L veya M çifti) */
-export const isLift = (b, i) => !!((b.lift && b.lift.includes(i)) || (b.lift2 && b.lift2.includes(i)));
+export const floorCount = (b) => (b.fh ? b.fh.length : 1);
+/** Katın ilk satırı */
+export const floorStartRow = (b, f) => { let y = 0; for (let k = 0; k < f; k++) y += b.fh[k] + 2; return y; };
+/** O katta çöken taş sayısı */
+export function floorCollapsed(s, f) { const b = s.board; let n = 0; for (let i = 0; i < b.cells.length; i++) if (s.collapsed[i] && floorOf(b, i) === f) n++; return n; }
+export const isLift = (b, i) => !!(b.liftPairs && b.liftPairs.some((p) => p.includes(i)));

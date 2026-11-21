@@ -67,7 +67,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 /* game */
 .game-bottom { position: absolute; left: 0; right: 0; bottom: calc(var(--sb) + 26px); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .moves { font-size: 13px; opacity: .65; }
-.banner { position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--st) + 178px); padding: 9px 16px; border-radius: 18px; background: rgba(40, 10, 40, .9); border: 1.5px solid #ff6b9a; font-size: 14px; font-weight: 700; white-space: nowrap; box-shadow: 0 0 16px rgba(255, 90, 150, .4); animation: pop .25s ease-out; }
+.banner { position: absolute; left: 50%; transform: translateX(-50%); bottom: var(--msgb, 200px); z-index: 4; padding: 9px 16px; border-radius: 18px; background: rgba(40, 10, 40, .9); border: 1.5px solid #ff6b9a; font-size: 14px; font-weight: 700; white-space: nowrap; box-shadow: 0 0 16px rgba(255, 90, 150, .4); animation: pop .25s ease-out; }
 .tutorial { position: absolute; left: 14px; right: 14px; bottom: calc(var(--sb) + 190px); z-index: 3; padding: 10px 14px; border-radius: 18px; background: rgba(10, 8, 35, .92); border: 1.5px solid #ffcf3a; text-align: center; font-size: 15px; font-weight: 700; box-shadow: 0 0 16px rgba(255, 200, 60, .35); animation: pop .3s ease-out; pointer-events: auto; }
 .tutorial small { display: block; font-weight: 500; font-size: 13px; opacity: .8; margin-top: 4px; }
 .tutorial .hand { font-size: 38px; display: inline-block; animation: swipe 1.4s ease-in-out infinite; }
@@ -129,7 +129,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 .foot { margin-top: 14px; font-size: 11px; opacity: .45; }
 .linkbtn { margin-top: 12px; font-size: 14px; opacity: .75; text-decoration: underline; }
 
-.toast { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--sb) + 150px); width: max-content; max-width: 86vw; padding: 11px 18px; border-radius: 16px; background: rgba(10, 8, 35, .94); border: 1.5px solid #3fe2ff; font-size: 14px; font-weight: 700; text-align: center; animation: fade .2s; }
+.toast { position: absolute; left: 50%; transform: translateX(-50%); bottom: var(--msgb, 200px); z-index: 6; width: max-content; max-width: 86vw; padding: 11px 18px; border-radius: 16px; background: rgba(10, 8, 35, .94); border: 1.5px solid #3fe2ff; font-size: 14px; font-weight: 700; text-align: center; animation: fade .2s; }
 
 @media (max-height: 640px) {
   .logo.big .l2 { font-size: 58px; } .logo.big .l1 { font-size: 30px; } .logo.big { top: calc(var(--st) + 40px); }
@@ -149,7 +149,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 .undo-btn span { font-size: 15px; }
 .undo-btn.off { opacity: .4; }
 .garage-panel { position: absolute; left: 12px; right: 12px; bottom: calc(var(--sb) + 18px); padding: 14px 12px 10px; border-radius: 22px; background: rgba(15, 12, 45, .88); border: 1.5px solid rgba(70, 220, 255, .4); pointer-events: auto; }
-.skin-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.skin-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 2px; }
 .skin { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 2px; border-radius: 14px; background: rgba(255, 255, 255, .05); border: 1.5px solid rgba(255, 255, 255, .1); }
 .skin.on { border-color: #3fe2ff; box-shadow: 0 0 14px rgba(60, 220, 255, .6); }
 .skin.locked { opacity: .5; }
@@ -407,11 +407,35 @@ body.opening #menu .menu-bottom > *:nth-child(4) { animation-delay: 1.3s; }
 #modal.closing .card { animation: cardOut .2s ease both; }
 @keyframes fadeOutM { to { opacity: 0; } }
 @keyframes cardOut { to { opacity: 0; transform: scale(.92) translateY(8px); } }
-#toast:not(.hidden) { animation: fadeUp .25s ease both; }
-#banner:not(.hidden) { animation: fadeDown .3s ease both; }
+#toast:not(.hidden) { animation: toastIn .25s ease both; }
+#banner:not(.hidden) { animation: bannerIn .3s ease both; }
+/* ortalama (translateX -50%) animasyon boyunca korunur */
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes bannerIn { from { opacity: 0; transform: translate(-50%, -12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.banner { white-space: normal; max-width: calc(100vw - 32px); width: max-content; text-align: center; }
 @media (prefers-reduced-motion: reduce) { .screen.on, .screen.leaving, body.opening * { animation: none !important; } }
 
 /* uzun açılış sahnesi sürerken menü arayüzü gizli */
 body.intro-hold #menu .logo, body.intro-hold #menu .menu-bottom, body.intro-hold #menu .topbar { opacity: 0; pointer-events: none; }
 #fader.flash { background: #fff6dc; opacity: .6; transition: none; }
 body.opening.ui-only #c { animation: none; }
+
+/* final düğümü ve Kaptan Bolt 2 kartı */
+.node.grand { background: radial-gradient(circle at 50% 35%, #ffe27a, #b8862a 70%); border-color: #fff3c8; box-shadow: 0 0 26px rgba(255, 200, 60, .8); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.node.grand .gr { font-size: 34px; line-height: 1; }
+.node.grand small { font-size: 11px; font-weight: 800; color: #3a1a00; letter-spacing: 1px; }
+.card.kb2card { background: radial-gradient(ellipse at 50% 0%, #1f6a3a, #08180f 75%); border-color: #5aff8a; overflow: hidden; }
+.kb2 { position: relative; }
+.kb2 h2 { font-size: 30px; letter-spacing: 2px; color: #b8ffcf; text-shadow: 0 0 18px rgba(90, 255, 140, .7); margin-bottom: 2px; }
+.kb2-sub { font-weight: 800; color: #ffd23a; letter-spacing: 3px; text-transform: uppercase; font-size: 14px; margin-bottom: 8px; }
+.kb2-glow { position: absolute; inset: -40% -20% auto; height: 220px; background: radial-gradient(circle, rgba(90, 255, 140, .35), transparent 60%); animation: spPulse 2s ease-in-out infinite alternate; pointer-events: none; }
+
+.bonus-badge { display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 8px; background: #2aff8a; color: #062a14; font-size: 11px; font-weight: 800; vertical-align: middle; }
+.item.starter { border-color: #ffcf3a; box-shadow: 0 0 16px rgba(255, 200, 60, .35); background: linear-gradient(120deg, rgba(255, 200, 60, .16), rgba(20, 12, 45, .9)); }
+.amiral { margin: 6px 0 4px; padding: 8px 10px; border-radius: 12px; background: rgba(120, 40, 20, .35); border: 1px dashed rgba(255, 120, 80, .6); color: #ffcfb0; font-size: 13px; }
+
+/* mağaza: 6 sekme iki satıra sığar (kaydırma gerektirmez), açıklamalar iki satıra kadar kırılır */
+.shop-tabs { flex-wrap: wrap; overflow-x: visible; justify-content: center; }
+.shop-tabs button { flex: 1 1 30%; padding: 0 6px; }
+.item .it small { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.shop-list { top: calc(var(--st) + 160px); }

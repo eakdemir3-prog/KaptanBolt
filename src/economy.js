@@ -7,7 +7,7 @@ export const REFILL_COST = 300;
 export const HINT_COST = 120;
 export const HINT5_COST = 500;
 export const SKIN_PRICES = { klasik: 0, kaptan: 0, altin: 800, korsan: 1500, ninja: 2200, buz: 3000, lav: 4000, neon: 5000, kral: 6500, pro: -1 };
-export const AD_COINS = 25, AD_COINS_PER_DAY = 5;
+export const AD_COINS = 20, AD_COINS_PER_DAY = 3;
 export const PRO_DAILY_COINS = 100;
 /** Bölüm içi güçler (altınla alınır) */
 export const POWERS = [
@@ -82,7 +82,8 @@ export function fmtTime(ms) {
 // ---------------- Altın ----------------
 /** Bölüm ödülü (sadece altın): ilk bitirişte taban + yıldız; tekrar oynamada sadece yeni yıldızların karşılığı. Pro 2 kat. */
 export function winCoins({ stars, prevStars = 0, boss = false, pro = false }) {
-  const per = boss ? 15 : 3, base = boss ? 60 : 5;
+  // bölüm: 2 + yıldız başına 2 (3⭐ = 8); boss: 20 + yıldız başına 10 (3⭐ = 50)
+  const per = boss ? 10 : 2, base = boss ? 20 : 2;
   let c = prevStars ? Math.max(0, stars - prevStars) * per : base + stars * per;
   return pro ? c * 2 : c;
 }
@@ -93,13 +94,13 @@ export function stat(d, k, n = 1) { ensure(d); d.stats[k] = (d.stats[k] || 0) + 
 
 // ---------------- Günlük görevler ----------------
 const QUEST_POOL = [
-  { k: 'wins', min: 2, max: 4, t: (n) => `${n} bölüm bitir`, ic: '🏁', r: { coins: 40 } },
-  { k: 'stars3', min: 1, max: 3, t: (n) => `${n} bölümü 3 yıldızla bitir`, ic: '⭐', r: { coins: 60 } },
-  { k: 'bosses', min: 1, max: 1, t: () => '1 boss yen', ic: '👹', r: { coins: 60 } },
-  { k: 'keys', min: 4, max: 10, t: (n) => `${n} anahtar topla`, ic: '🔑', r: { coins: 30 } },
-  { k: 'collapsed', min: 40, max: 120, step: 10, t: (n) => `${n} kare çökert`, ic: '🧱', r: { coins: 40 } },
-  { k: 'enemyFalls', min: 1, max: 3, t: (n) => `${n} düşmanı boşluğa düşür`, ic: '🤖', r: { coins: 50 } },
-  { k: 'daily', min: 1, max: 1, t: () => 'Günlük bulmacayı çöz', ic: '🧩', r: { coins: 30 } },
+  { k: 'wins', min: 2, max: 4, t: (n) => `${n} bölüm bitir`, ic: '🏁', r: { coins: 25 } },
+  { k: 'stars3', min: 1, max: 3, t: (n) => `${n} bölümü 3 yıldızla bitir`, ic: '⭐', r: { coins: 40 } },
+  { k: 'bosses', min: 1, max: 1, t: () => '1 boss yen', ic: '👹', r: { coins: 40 } },
+  { k: 'keys', min: 4, max: 10, t: (n) => `${n} anahtar topla`, ic: '🔑', r: { coins: 20 } },
+  { k: 'collapsed', min: 40, max: 120, step: 10, t: (n) => `${n} kare çökert`, ic: '🧱', r: { coins: 25 } },
+  { k: 'enemyFalls', min: 1, max: 3, t: (n) => `${n} düşmanı boşluğa düşür`, ic: '🤖', r: { coins: 30 } },
+  { k: 'daily', min: 1, max: 1, t: () => 'Günlük bulmacayı çöz', ic: '🧩', r: { coins: 20 } },
 ];
 export const QUEST_BONUS = 100;
 

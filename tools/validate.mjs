@@ -10,6 +10,15 @@ const rows = [];
 for (const lv of levels) {
   const b = parseLevel(lv);
   const s = newState(b);
+  if (lv.grand) {
+    // final: kayıtlı çözüm baştan sona oynatılır (bölüm tek seferde aranamayacak kadar büyük)
+    const sol = JSON.parse(fs.readFileSync(new URL('../tests/final-solution.json', import.meta.url)));
+    const r = replay(b, sol);
+    const ok = r.ok && r.state.status === 'win' && starsFor(r.state) === 3;
+    if (!ok) bad++;
+    rows.push({ no: lv.id, dunya: 'FİNAL', tahta: `${b.w}x${b.h}`, kare: b.tileCount, enKisa: sol.length, ucYildiz: sol.length, durum: ok ? 'OK' : 'HATA' });
+    continue;
+  }
   let sh = shortest(s, 800000);
   // meydan okumada kapı ancak hepsi çökünce açılır: en kısa çözüm = 3 yıldızlı çözüm
   if ((!sh || !sh.moves) && b.challenge) { const bc = bestCover(s, 3000000, 20000, coverTarget(b)); if (bc && bc.moves) sh = { moves: bc.moves }; }
