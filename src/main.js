@@ -119,6 +119,9 @@ setInterval(() => { if (screen !== 'game') renderRes(); if (energyModalOpen) ren
 function renderMenu() {
   const n = Save.continueLevel(data, MAX);
   const done = Object.keys(data.stars).length;
+  // hiç bölüm oynanmadıysa "Başla", sonra "Devam Et"
+  const started = Object.keys(data.stars || {}).length > 0;
+  document.querySelector('[data-act=continue]').innerHTML = `<span class="i-play"></span>${started ? 'Devam Et' : 'Başla'}`;
   $('menuSub').innerHTML = (done >= MAX ? `Tüm bölümler tamamlandı • ⭐ ${Save.totalStars(data)}` : `Bölüm ${n} • Dünya ${Save.worldOf(n)} • ⭐ ${Save.totalStars(data)}`) + ` • <button class="ship-chip" data-act="ship">🚀 Gemi ${partsHave(data)}/10</button>`;
   const dd = data.daily || {};
   $('dailyInfo').textContent = dd.lastDone === dateKey() ? `✔ Bugün • 🔥${dd.streak}` : (dd.lastDone === yesterdayKey() ? `🔥 ${dd.streak} gün` : 'Yeni bulmaca!');

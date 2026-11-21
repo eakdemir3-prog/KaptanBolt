@@ -14,7 +14,7 @@ export function _setStorage(s) { store = s; } // testler için
 
 // TEST SÜRÜMÜ: true iken bütün bölümler açık ve enerji sınırsız (kapalı test öncesi son kontrol için).
 // Play'e yüklenecek AAB'den önce false yapılmalı.
-export const TEST_BUILD = true;
+export const TEST_BUILD = false;
 const TEST = { unlockAll: TEST_BUILD, infiniteEnergy: TEST_BUILD };
 export function load() {
   try {
