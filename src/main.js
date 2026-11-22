@@ -11,7 +11,8 @@ import * as Save from './save.js';
 import * as Eco from './economy.js';
 import { sfx, unlock as audioUnlock, setSound, setMusic, setTrack, suspend, resume } from './audio.js';
 import { initAds, showRewarded, maybeInterstitial } from './ads.js';
-import { IAP, initPurchases, buy as iapBuy, proStatus, restore as iapRestore, purchasesReady } from './purchases.js';
+import { IAP, initPurchases, buy as iapBuy, restore as iapRestore, purchasesReady, setPurchaseHandler } from './purchases.js';
+import * as Cloud from './cloud.js';
 import { vibrate, setVibration, onBack, exitApp, onPause } from './platform.js';
 
 const MAX = LEVELS.length;
@@ -25,7 +26,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 let data = Eco.ensure(Save.load());
 Eco.dailyQuests(data, dateKey());
-const save = () => Save.save(data);
+const save = () => { Save.save(data); Cloud.pushSoon(); };
 const stage = new Stage($('c'));
 stage.skin = SKINS.find((k) => k.id === data.skin) || SKINS[0];
 stage.onFloor = (f) => {
@@ -743,11 +744,22 @@ function renderShop() {
   $('shopList').innerHTML = h;
   renderRes();
 }
-async function doIap(k) {
-  const p = IAP.products[k];
-  const r = await iapBuy(k);
-  if (!r.ok) return r.cancelled ? null : toast(r.message || 'Satın alma tamamlanamadı.');
-  if (p.coins) {
+/** Satın alınan ürünü oyuna ver. Aynı jeton iki kez verilmez. Dönüş: true | 'dup' | false */
+function grantPurchase(k, token) {
+  const p = IAP.products[k]; if (!p) return false;
+  data.iapTokens = data.iapTokens || [];
+  if (token && data.iapTokens.includes(token)) {
+    // Pro'yu yine de açık tut (yeniden kurulum / geri yükleme)
+    if (p.pro && !(data.pro && data.pro.lifetime)) { data.pro = { ...(data.pro || {}), active: true, lifetime: true, until: 0 }; save(); }
+    return 'dup';
+  }
+  if (p.pro) {
+    data.pro = { ...(data.pro || {}), active: true, lifetime: true, until: 0 };
+    toast('👑 Pro aktif! Teşekkürler Kaptan!');
+    proDaily();
+  } else if (p.once && data.starterBought) {
+    // başlangıç paketi bu kayıtta zaten açılmış (ör. buluttan gelen kayıt)
+  } else if (p.coins) {
     const tot = Math.round(p.coins * (1 + (p.bonus || 0) / 100));
     data.coins += tot;
     if (p.powers) for (const pw of Eco.POWERS) data.powers[pw.id] = (data.powers[pw.id] || 0) + p.powers;
@@ -755,13 +767,18 @@ async function doIap(k) {
     if (p.once) data.starterBought = true;
     toast(p.once ? '🎁 Başlangıç paketi açıldı! +1.500 altın, güçler ve Korsan kostümü' : `+${fmtNum(tot)} altın!`);
   }
-  else {
-    const st = r.info ? await proStatus(r.info) : null;
-    data.pro = st ? { ...data.pro, ...st } : { ...data.pro, active: true, lifetime: k === 'proLifetime', until: k === 'proLifetime' ? 0 : Date.now() + 30 * 864e5 };
-    toast('👑 Pro aktif! Teşekkürler Kaptan!');
-    proDaily();
-  }
-  save(); sfx.win(); vibrate('heavy'); renderShop();
+  if (token) { data.iapTokens.push(token); if (data.iapTokens.length > 200) data.iapTokens = data.iapTokens.slice(-200); }
+  save(); sfx.win(); vibrate('heavy');
+  if (screen === 'shop') renderShop(); else renderRes();
+  Cloud.pushSoon(true);
+  if (!Cloud.signedIn() && Cloud.available()) setTimeout(() => toast('Satın aldıkların kaybolmasın: Ayarlar → Google ile giriş yap.'), 2600);
+  return true;
+}
+setPurchaseHandler((k, token) => grantPurchase(k, token));
+async function doIap(k) {
+  const r = await iapBuy(k);
+  if (!r.ok) return r.cancelled ? null : toast(r.message || 'Satın alma tamamlanamadı.');
+  if (r.test) grantPurchase(k, 'test-' + Date.now()); // tarayıcı testi
 }
 /** Pro: her gün 100 altın */
 function proDaily() {
@@ -887,10 +904,54 @@ function settingsModal() {
       ${tile('vibration', '📳', 'Titreşim')}
       <div class="set-tile q"><span class="si">✨</span>Grafik<div class="seg"><button class="${s.quality === 'high' ? 'on' : ''}" data-quality="high">Yüksek</button><button class="${s.quality !== 'high' ? 'on' : ''}" data-quality="low">Dengeli</button></div></div>
     </div>
+    ${accountBlock()}
     <div class="set-row"><button class="btn small" data-act="howto">❔ Yardım</button><button class="btn small purple" data-act="resetask">♻ Sıfırla</button></div>
     <button class="btn primary" data-act="close">Kapat</button>
-    <div class="foot">Kaptan Bolt v1.0.0 • EA Vision Labs</div>`);
+    <div class="foot">Kaptan Bolt v1.0.1 • EA Vision Labs</div>`);
 }
+// ---------------- Google hesabı / bulut kayıt ----------------
+const esc = (t) => String(t || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function accountBlock() {
+  if (!Cloud.available()) return '';
+  const u = Cloud.currentUser();
+  if (!u) return `<div class="acct"><button class="btn google" data-act="gsign"><span class="g">G</span>Google ile giriş yap</button><small>İlerlemen ve satın aldıkların kaybolmasın, başka telefonda da devam et.</small></div>`;
+  return `<div class="acct in"><div class="who">☁️ <b>${esc(u.name || 'Kaptan')}</b><small>${esc(u.email)} • ilerlemen buluta kaydediliyor</small></div>
+    <div class="set-row"><button class="btn small" data-act="gsync">⤴ Şimdi kaydet</button><button class="btn small" data-act="gout">Çıkış yap</button></div>
+    <button class="linkbtn" data-act="gdelask">Hesabımı ve bulut kaydımı sil</button></div>`;
+}
+let pendingCloud = null;
+async function doSignIn() {
+  try { await Cloud.signIn(); } catch (e) {
+    const m = String((e && e.message) || e);
+    if (!/cancel/i.test(m)) toast(/NoCredential/i.test(m) ? 'Telefonda Google hesabı bulunamadı.' : 'Giriş yapılamadı. İnternetini kontrol edip tekrar dene.');
+    return;
+  }
+  let cloud = null;
+  try { cloud = await Cloud.loadCloud(); } catch { cloud = null; }
+  if (!cloud) { await Cloud.pushNow(); toast('✔ Giriş yapıldı. İlerlemen buluta kaydedildi.'); return settingsModal(); }
+  const a = Cloud.summary(data), b = Cloud.summary(cloud);
+  if (a.stars === b.stars && a.coins === b.coins) { Cloud.mergePurchases(data, cloud); save(); await Cloud.pushNow(); toast('✔ Giriş yapıldı.'); return settingsModal(); }
+  pendingCloud = cloud;
+  const row = (t, x) => `<div class="cmp"><b>${t}</b><span>⭐ ${x.stars}</span><span>🏁 ${x.levels} bölüm</span><span>🪙 ${fmtNum(x.coins)}</span>${x.pro ? '<span>👑 Pro</span>' : ''}</div>`;
+  openModal(`<div class="emoji">☁️</div><h2>Bulutta kayıt bulundu</h2><p>Hangi ilerleme kalsın? Satın aldıkların her iki durumda da korunur.</p>
+    ${row('Bulut', b)}${row('Bu telefon', a)}
+    <button class="btn primary" data-act="usecloud">Buluttakini yükle</button><button class="btn" data-act="uselocal">Bu telefondakini kullan</button>`);
+}
+async function useCloud() {
+  if (!pendingCloud) return closeModal();
+  const d = Cloud.mergePurchases(Eco.ensure({ ...Save.load(), ...pendingCloud }), data);
+  data = d; Save.save(data); pendingCloud = null;
+  await Cloud.pushNow();
+  toast('Buluttaki kayıt yüklendi.');
+  setTimeout(() => location.reload(), 600);
+}
+async function useLocal() {
+  if (pendingCloud) { Cloud.mergePurchases(data, pendingCloud); pendingCloud = null; }
+  save(); await Cloud.pushNow();
+  toast('✔ Bu telefondaki ilerleme buluta kaydedildi.');
+  settingsModal();
+}
+
 function howtoModal() {
   openModal(`
     <h2>Nasıl Oynanır?</h2>
@@ -974,12 +1035,19 @@ document.addEventListener('click', (e) => {
     case 'adEnergyShop': if (data.energy >= Eco.ENERGY_MAX) return toast('Enerjin zaten dolu.'); if (Eco.adCount(data, 'energy', dateKey()) >= Eco.AD_ENERGY_PER_DAY) return toast('Bugünkü reklam hakkın bitti.'); return showRewarded().then((ok) => { if (!ok) return toast('Reklam şu an yüklenemedi.'); Eco.adUsed(data, 'energy', dateKey()); Eco.addEnergy(data, 1); save(); sfx.coin(); toast('+1 enerji!'); renderShop(); });
     case 'adCoins': if (Eco.adCount(data, 'coins', dateKey()) >= Eco.AD_COINS_PER_DAY) return toast('Bugünkü reklam hakkın bitti.'); return showRewarded().then((ok) => { if (!ok) return toast('Reklam şu an yüklenemedi.'); Eco.adUsed(data, 'coins', dateKey()); data.coins += Eco.AD_COINS; save(); sfx.coin(); toast(`+${Eco.AD_COINS} altın!`); renderShop(); });
     case 'iap': return doIap(el.dataset.k);
-    case 'restore': return iapRestore().then((st) => { if (!st) return toast('Geri yüklenecek satın alım bulunamadı.'); data.pro = { ...data.pro, ...st }; save(); toast(st.active ? '👑 Pro geri yüklendi' : 'Aktif Pro üyelik bulunamadı.'); renderShop(); });
+    case 'restore': return iapRestore().then((st) => { if (!st) return toast('Mağazaya bağlanılamadı.'); setTimeout(() => { toast(st.owned.includes('proLifetime') ? '👑 Pro geri yüklendi' : 'Geri yüklenecek satın alım bulunamadı.'); renderShop(); }, 900); });
     case 'adEnergy': return showRewarded().then((ok) => { if (!ok) return toast('Reklam şu an yüklenemedi, biraz sonra tekrar dene.'); Eco.adUsed(data, 'energy', dateKey()); Eco.addEnergy(data, 1); save(); sfx.coin(); renderRes(); toast('+1 enerji!'); renderEnergyModal(energyThen ? false : true); });
     case 'adDouble': { const c = +el.dataset.c; el.disabled = true; return showRewarded().then((ok) => { if (!ok) { el.disabled = false; return toast('Reklam şu an yüklenemedi.'); } data.coins += c; save(); sfx.coin(); el.outerHTML = `<div class="tip">${COIN} +${c} altın daha kazandın!</div>`; }); }
     case 'adHint': return showRewarded().then((ok) => { if (!ok) return toast('Reklam şu an yüklenemedi.'); data.hints++; save(); closeModal(); updateHud(); sfx.hint(); useHint(); });
     case 'adContinue': return showRewarded().then((ok) => { if (!ok) return toast('Reklam şu an yüklenemedi.'); game.adContinueUsed = true; rewindToWinnable(); });
     case 'refill': if (data.coins < Eco.REFILL_COST) return toast('Yeterli altının yok.'); data.coins -= Eco.REFILL_COST; data.energy = Eco.ENERGY_MAX; data.energyAt = Date.now(); save(); renderRes(); sfx.win(); return renderEnergyModal(false);
+    case 'gsign': return doSignIn();
+    case 'gsync': return Cloud.pushNow().then((ok) => toast(ok ? '✔ Buluta kaydedildi.' : 'Kaydedilemedi, sonra tekrar denenecek.'));
+    case 'gout': return Cloud.signOut().then(() => { toast('Çıkış yapıldı. İlerlemen bu telefonda kalıyor.'); settingsModal(); });
+    case 'usecloud': return useCloud();
+    case 'uselocal': return useLocal();
+    case 'gdelask': return openModal(`<div class="emoji">⚠️</div><h2>Hesap silinsin mi?</h2><p>Google hesabınla bağlantı ve bulut kaydın kalıcı olarak silinir. Bu telefondaki ilerleme kalır.</p><button class="btn purple" data-act="gdel">Evet, sil</button><button class="btn primary" data-act="settings">Vazgeç</button>`, 'fail');
+    case 'gdel': return Cloud.deleteAccount().then(() => { toast('Hesabın ve bulut kaydın silindi.'); settingsModal(); }).catch(() => { toast('Güvenlik için çıkış yapıp tekrar giriş yap, sonra yeniden dene.'); settingsModal(); });
     case 'resetask': return openModal(`<div class="emoji">⚠️</div><h2>Emin misin?</h2><p>Tüm yıldızlar, altınlar ve kostümler silinecek. Bu işlem geri alınamaz.</p><button class="btn purple" data-act="reset">Evet, sıfırla</button><button class="btn primary" data-act="settings">Vazgeç</button>`, 'fail');
     case 'reset': data = Eco.ensure(Save.reset()); Eco.dailyQuests(data, dateKey()); save(); applySettings(); stage.setSkin(SKINS[0]); closeModal(); toast('İlerleme sıfırlandı.'); stage.board = null; return show('menu');
   }
@@ -1052,7 +1120,8 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('resize', () => { if (screen === 'game') layoutGame(); else if (screen === 'menu') layoutMenu(); else if (screen === 'map') renderMap(); });
 
 initAds();
-initPurchases().then(() => proStatus()).then((st) => { if (st) { data.pro = { ...data.pro, ...st }; save(); } proDaily(); renderMenu(); });
+initPurchases().then(() => { proDaily(); renderMenu(); });
+Cloud.init(() => data);
 show('menu');
 openingAnim();
 if (document.fonts) document.fonts.ready.then(() => { if (screen === 'game') layoutGame(); if (screen === 'menu') layoutMenu(); });

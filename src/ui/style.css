@@ -443,3 +443,13 @@ body.opening.ui-only #c { animation: none; }
 /* menü alt satırı: dar ekranda iki satıra kırılır, gemi rozeti kesilmez */
 .menu-sub { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 6px; text-align: center; max-width: calc(100vw - 32px); margin-left: auto; margin-right: auto; }
 .menu-sub .ship-chip { white-space: nowrap; }
+/* Google hesabı / bulut kayıt */
+.acct { margin: 12px 0 2px; text-align: center; }
+.acct small { display: block; font-size: 12px; opacity: .7; margin-top: 6px; line-height: 1.35; }
+.acct .btn.google { width: 100%; background: #fff; color: #1f1f1f; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 800; }
+.acct .btn.google .g { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 900; color: #fff; background: conic-gradient(#ea4335 0 25%, #fbbc05 0 50%, #34a853 0 75%, #4285f4 0); }
+.acct.in .who { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 10px 12px; text-align: left; }
+.acct.in .who b { font-size: 15px; }
+.acct .linkbtn { display: block; width: 100%; margin-top: 8px; font-size: 12px; background: none; border: 0; color: inherit; }
+.cmp { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; background: rgba(255,255,255,.06); border-radius: 12px; padding: 10px 12px; margin: 8px 0; font-size: 14px; }
+.cmp b { width: 100%; font-size: 13px; opacity: .8; }

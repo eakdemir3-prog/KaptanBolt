@@ -14,6 +14,7 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(KbNativePlugin.class);
         super.onCreate(savedInstanceState);
         // Durum çubuğu ve gezinme çubuğunun arkası oyunun koyu rengiyle dolsun, simgeler açık renk olsun
         getWindow().getDecorView().setBackgroundColor(Color.parseColor("#110C30"));
