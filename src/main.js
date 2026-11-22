@@ -888,7 +888,7 @@ function settingsModal() {
     </div>
     <div class="set-row"><button class="btn small" data-act="howto">❔ Yardım</button><button class="btn small purple" data-act="resetask">♻ Sıfırla</button></div>
     <button class="btn primary" data-act="close">Kapat</button>
-    <div class="foot">Kaptan Bolt v1.0 • EA Vision Labs</div>`);
+    <div class="foot">Kaptan Bolt v1.0.0 • EA Vision Labs</div>`);
 }
 function howtoModal() {
   openModal(`
