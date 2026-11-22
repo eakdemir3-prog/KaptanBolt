@@ -9,7 +9,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <!-- AdMob uygulama kimliği (şimdilik Google TEST kimliği; yayından önce kendi kimliğinle değiştir) -->
-        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/>
+        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-2435516035253344~1212607253"/>
 
 
         <activity

@@ -1,12 +1,11 @@
-// Reklamlar (AdMob). Şimdilik Google'ın TEST reklam kimlikleri kullanılıyor.
-// Gerçek yayından önce: ADS.testing = false yap, kendi kimliklerini aşağıya ve
-// android/app/src/main/AndroidManifest.xml içindeki APPLICATION_ID'ye yaz.
+// Reklamlar (AdMob) — gerçek EA Vision Labs kimlikleri.
+// Uygulama kimliği android/app/src/main/AndroidManifest.xml içindeki APPLICATION_ID'de.
 import { Capacitor } from '@capacitor/core';
 
 export const ADS = {
-  testing: true,
-  rewarded: 'ca-app-pub-3940256099942544/5224354917',     // Google test ödüllü reklam
-  interstitial: 'ca-app-pub-3940256099942544/1033173712', // Google test geçiş reklamı
+  testing: false,
+  rewarded: 'ca-app-pub-2435516035253344/7380675767',     // Odullu
+  interstitial: 'ca-app-pub-2435516035253344/1282171274', // Gecis
   interstitialEvery: 4,   // her 4 bölümde bir
   interstitialFromLevel: 11, // ilk 10 bölümde hiç geçiş reklamı yok
 };
