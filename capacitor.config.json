@@ -1,0 +1,6 @@
+{
+  "appId": "com.eavisionlabs.kaptanbolt2",
+  "appName": "Kaptan Bolt 2",
+  "webDir": "dist",
+  "android": { "backgroundColor": "#0d2a1a" }
+}
