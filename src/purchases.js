@@ -13,8 +13,8 @@ export const IAP = {
     coins8000: { id: 'kb_coins_8000', coins: 8000, bonus: 35, price: '₺199,99' },
     // bir kez alınabilen başlangıç paketi: 1500 altın + her güçten 3 + Korsan kostümü
     starter: { id: 'kb_starter_pack', coins: 1500, powers: 3, skin: 'korsan', once: true, price: '₺29,99' },
-    proMonthly: { id: 'kb_pro_monthly', sub: true, price: '₺49,99 / ay' },
-    proLifetime: { id: 'kb_pro_lifetime', price: '₺299,99' },
+    // Kampanya: 31 Ocak 2027'ye kadar 199,99 (normal 299,99). 1 Şubat'ta Play Console'da fiyatı 299,99'a çek.
+    proLifetime: { id: 'kb_pro_lifetime', price: '₺199,99', oldPrice: '₺299,99', saleEnd: '2027-02-01T00:00:00+03:00', salePct: 33 },
   },
 };
 
@@ -28,12 +28,10 @@ export async function initPurchases() {
     const mod = await import('@revenuecat/purchases-capacitor');
     P = mod.Purchases; CAT = mod.PRODUCT_CATEGORY;
     await P.configure({ apiKey: IAP.apiKey });
-    const one = Object.values(IAP.products).filter((p) => !p.sub).map((p) => p.id);
-    const subs = Object.values(IAP.products).filter((p) => p.sub).map((p) => p.id);
-    const a = await P.getProducts({ productIdentifiers: one, type: CAT.NON_SUBSCRIPTION });
-    const b = await P.getProducts({ productIdentifiers: subs, type: CAT.SUBSCRIPTION });
-    for (const sp of [...(a.products || []), ...(b.products || [])]) storeProducts[sp.identifier.split(':')[0]] = sp;
-    for (const p of Object.values(IAP.products)) if (storeProducts[p.id]) p.price = storeProducts[p.id].priceString + (p.sub ? ' / ay' : '');
+    const ids = Object.values(IAP.products).map((p) => p.id);
+    const a = await P.getProducts({ productIdentifiers: ids, type: CAT.NON_SUBSCRIPTION });
+    for (const sp of a.products || []) storeProducts[sp.identifier] = sp;
+    for (const p of Object.values(IAP.products)) if (storeProducts[p.id]) p.price = storeProducts[p.id].priceString;
     ready = true;
   } catch { ready = false; }
   return ready;

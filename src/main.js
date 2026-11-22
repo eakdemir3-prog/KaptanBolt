@@ -730,14 +730,15 @@ function renderShop() {
       + ['coins500', 'coins1300', 'coins3000', 'coins8000'].map((k, i) => { const p = IAP.products[k]; const tot = Math.round(p.coins * (1 + (p.bonus || 0) / 100)); return `<div class="item"><div class="ii">${coinStack(i + 1)}</div><div class="it">${fmtNum(tot)} Altın${p.bonus ? ` <span class="bonus-badge">+%${p.bonus}</span>` : ''}<small>${['Başlangıç', 'Popüler', 'Avantajlı', 'En iyi değer'][i]}</small></div>${moneyBtn(k, p.price)}</div>`; }).join('')
       + '<p class="shop-note">Ödemeler Google Play üzerinden yapılır.</p>';
   } else if (shopTab === 'pro') {
+    const proSale = () => Date.now() < Date.parse(IAP.products.proLifetime.saleEnd);
     const pro = Eco.isPro(data);
     h = `<div class="pro-card"><h3>👑 Kaptan Bolt PRO</h3>
       <ul><li>Geçiş reklamı yok</li><li>Sınırsız enerji</li><li>Her gün ${Eco.PRO_DAILY_COINS} altın hediye</li><li>Bölüm altınları 2 katı</li><li>Özel "Pro Kaptan" kostümü</li></ul>
       ${pro ? `<div class="tip">✔ Pro üyesisin${data.pro.lifetime ? ' (ömür boyu)' : data.pro.until ? ` • ${new Date(data.pro.until).toLocaleDateString('tr-TR')} tarihine kadar` : ''}</div>` : `<div class="row2">
-        ${moneyBtn('proMonthly', `Aylık<small>${IAP.products.proMonthly.price}</small>`)}
-        ${moneyBtn('proLifetime', `Ömür Boyu<small>${IAP.products.proLifetime.price}</small>`, 'gold')}</div>`}
+        ${moneyBtn('proLifetime', `Ömür Boyu Pro<small>${proSale() ? `<s>${IAP.products.proLifetime.oldPrice}</s> ` : ''}${IAP.products.proLifetime.price} • tek ödeme</small>`, 'gold')}</div>
+      ${proSale() ? `<div class="tip">🔥 %${IAP.products.proLifetime.salePct} indirim • 31 Ocak'a kadar</div>` : ''}`}
       </div><button class="btn small" data-act="restore" style="width:100%">Satın alımları geri yükle</button>
-      <p class="shop-note">Aylık abonelik Google Play'den istediğin zaman iptal edilebilir.</p>`;
+      <p class="shop-note">Tek seferlik ödeme, abonelik yok. Aynı Google hesabıyla geri yüklenir.</p>`;
   }
   $('shopList').innerHTML = h;
   renderRes();
