@@ -255,13 +255,14 @@ public class KbNativePlugin extends Plugin {
                             FirebaseAuth.getInstance().signInWithCredential(GoogleAuthProvider.getCredential(token, null))
                                 .addOnCompleteListener(t -> {
                                     if (t.isSuccessful()) call.resolve(userJson());
-                                    else call.reject("firebase");
+                                    else call.reject("firebase " + (t.getException() == null ? "" : t.getException().getMessage()));
                                 });
                         } catch (Exception e) { call.reject("token"); }
                     } else call.reject("type");
                 }
                 @Override public void onError(GetCredentialException e) {
-                    call.reject(e instanceof GetCredentialCancellationException ? "cancel" : e.getClass().getSimpleName());
+                    String msg = e.getMessage() == null ? "" : e.getMessage();
+                    call.reject((e instanceof GetCredentialCancellationException ? "cancel " : e.getClass().getSimpleName() + " ") + msg);
                 }
             });
     }

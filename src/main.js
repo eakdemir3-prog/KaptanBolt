@@ -923,7 +923,7 @@ let pendingCloud = null;
 async function doSignIn() {
   try { await Cloud.signIn(); } catch (e) {
     const m = String((e && e.message) || e);
-    if (!/cancel/i.test(m)) toast(/NoCredential/i.test(m) ? 'Telefonda Google hesabı bulunamadı.' : 'Giriş yapılamadı. İnternetini kontrol edip tekrar dene.');
+    toast(/NoCredential/i.test(m) ? 'Telefonda Google hesabı bulunamadı.' : /^cancel/i.test(m) ? 'Giriş tamamlanmadı (iptal).' : `Giriş yapılamadı (${m.slice(0, 40)}).`);
     return;
   }
   let cloud = null;
