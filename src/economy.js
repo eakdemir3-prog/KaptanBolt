@@ -7,7 +7,8 @@ export const REFILL_COST = 300;
 export const HINT_COST = 120;
 export const HINT5_COST = 500;
 export const SKIN_PRICES = { klasik: 0, kaptan: 0, altin: 800, korsan: 1500, ninja: 2200, buz: 3000, lav: 4000, neon: 5000, kral: 6500, pro: -1 };
-export const AD_COINS = 20, AD_COINS_PER_DAY = 3;
+export const AD_COINS = 40, AD_COINS_PER_DAY = 5;
+export const WORLD_CHEST_COINS = 200;
 export const PRO_DAILY_COINS = 100;
 /** Bölüm içi güçler (altınla alınır) */
 export const POWERS = [
@@ -82,9 +83,10 @@ export function fmtTime(ms) {
 // ---------------- Altın ----------------
 /** Bölüm ödülü (sadece altın): ilk bitirişte taban + yıldız; tekrar oynamada sadece yeni yıldızların karşılığı. Pro 2 kat. */
 export function winCoins({ stars, prevStars = 0, boss = false, pro = false }) {
-  // bölüm: 2 + yıldız başına 2 (3⭐ = 8); boss: 20 + yıldız başına 10 (3⭐ = 50)
-  const per = boss ? 10 : 2, base = boss ? 20 : 2;
-  let c = prevStars ? Math.max(0, stars - prevStars) * per : base + stars * per;
+  // bölüm: 1⭐ 5, 2⭐ 8, 3⭐ 12 (tekrar oynayınca sadece yeni yıldızların farkı); boss: 20 + yıldız başına 10 (3⭐ = 50)
+  let c;
+  if (boss) c = prevStars ? Math.max(0, stars - prevStars) * 10 : 20 + stars * 10;
+  else { const T = [0, 5, 8, 12]; c = Math.max(0, T[stars] - T[prevStars]); }
   return pro ? c * 2 : c;
 }
 export const isPro = (d) => !!(d.pro && (d.pro.lifetime || (d.pro.active && d.pro.until > Date.now())));

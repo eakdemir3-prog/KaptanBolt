@@ -255,11 +255,11 @@ test('güç: dondur düşmanları bekletir', () => {
 });
 
 test('altın: ilk bitiriş taban+yıldız, tekrar sadece yeni yıldız, boss fazla, Pro 2 kat', () => {
-  assert.equal(Eco.winCoins({ stars: 3 }), 8);
+  assert.equal(Eco.winCoins({ stars: 3 }), 12);
   assert.equal(Eco.winCoins({ stars: 3, prevStars: 3 }), 0);
-  assert.equal(Eco.winCoins({ stars: 3, prevStars: 1 }), 4);
+  assert.equal(Eco.winCoins({ stars: 3, prevStars: 1 }), 7);
   assert.equal(Eco.winCoins({ stars: 3, boss: true }), 50);
-  assert.equal(Eco.winCoins({ stars: 2, pro: true }), 12);
+  assert.equal(Eco.winCoins({ stars: 2, pro: true }), 16);
 });
 
 test('lazer nöbetçi: bir hamle uyarır, sonraki hamle ateş eder', () => {

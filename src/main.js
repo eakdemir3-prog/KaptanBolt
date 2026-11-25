@@ -521,6 +521,7 @@ function onWin() {
   Eco.stat(data, 'wins');
   if (stars === 3) Eco.stat(data, 'stars3');
   if (lv.final) Eco.stat(data, 'bosses');
+  const chest = worldChest(Save.worldOf(id));
   save();
   sfx.win(); vibrate('heavy');
   if (game.level.grand) return grandEnding(stars);
@@ -534,6 +535,7 @@ function onWin() {
     ${lv.final && !lv.grand ? `<div class="amiral">📡 <i>${AMIRAL[lv.world - 1]}</i></div>` : ''}
     ${lv.final && !prev ? `<div class="part-won"><span>${SHIP_PARTS[lv.world - 1].ic}</span><div><b>Gemi parçası bulundu: ${SHIP_PARTS[lv.world - 1].name}</b><small>Şimşek gemisi ${partsHave(data)}/10 tamir edildi</small></div></div>` : ''}
     ${starsHtml(stars)}
+    ${chest ? `<div class="part-won chest"><span>🎁</span><div><b>Dünya ${Save.worldOf(id)} sandığı açıldı!</b><small>${COIN} +${Eco.WORLD_CHEST_COINS} altın • ${chest.ic} +1 ${chest.name}</small></div></div>` : ''}
     <div class="stat"><div><b>${s.moves}</b>hamle</div>${s.board.stars.mode === 'moves' ? `<div><b>≤${s.board.stars.par[0]}</b>hedef</div>` : `<div><b>${cnt}/${tgt}</b>çöken kare</div>`}<div><b>+${coins}</b>altın</div></div>
     ${stars < 3 ? `<div class="tip">${s.board.stars.mode === 'moves' ? `⭐⭐⭐ için en fazla <b>${s.board.stars.par[0]} hamlede</b> bitir!` : `⭐⭐⭐ için kapıya girmeden önce <b>bütün kareleri</b> çökert!`}</div>` : ''}
     ${coins > 0 ? `<button class="btn gold" data-act="adDouble" data-c="${coins}">📺 Reklam izle: 2× altın (+${coins})</button>` : `<div class="tip">Tekrar oynamada altın sadece yeni yıldızlar için verilir.</div>`}
@@ -541,6 +543,19 @@ function onWin() {
     <button class="btn" data-act="restart"><span class="i-restart"></span>Tekrar Oyna</button>
     <button class="linkbtn" data-act="map">Haritaya dön</button>`);
   for (let i = 0; i < stars; i++) setTimeout(() => sfx.star(i), 250 + i * 250);
+}
+
+/** Bir dünyanın bütün bölümleri ilk kez bitince: 200 altın + 1 rastgele güç (bir kez) */
+function worldChest(w) {
+  if (!w || w > WORLDS || worldDone(w) < WORLD_SIZE) return null;
+  data.chests = data.chests || {};
+  if (data.chests[w]) return null;
+  data.chests[w] = true;
+  const pw = Eco.POWERS[Math.floor(Math.random() * Eco.POWERS.length)];
+  data.coins += Eco.WORLD_CHEST_COINS;
+  data.powers[pw.id] = (data.powers[pw.id] || 0) + 1;
+  setTimeout(() => sfx.star(2), 900);
+  return pw;
 }
 
 function onDailyWin(stars) {
@@ -907,7 +922,7 @@ function settingsModal() {
     ${accountBlock()}
     <div class="set-row"><button class="btn small" data-act="howto">❔ Yardım</button><button class="btn small purple" data-act="resetask">♻ Sıfırla</button></div>
     <button class="btn primary" data-act="close">Kapat</button>
-    <div class="foot">Kaptan Bolt v1.0.1 • EA Vision Labs</div>`);
+    <div class="foot">Kaptan Bolt v1.0.2 • EA Vision Labs</div>`);
 }
 // ---------------- Google hesabı / bulut kayıt ----------------
 const esc = (t) => String(t || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
