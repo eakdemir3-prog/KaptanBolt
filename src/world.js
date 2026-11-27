@@ -128,24 +128,77 @@ function soilBlock(shape, top, depth) {
   const m = new THREE.Mesh(geo, [capMat(), sideMat()]); m.receiveShadow = true;
   return m;
 }
-/** Bir sıra zemin: yanları hafif şişkin ve dalgalı, üst köşeleri yuvarlak (Red Ball tarzı yamaç) */
-function groundRun(x0, w, h, leftOpen, rightOpen) {
+// Kesintisiz zemin: boşluklar arasındaki tüm basamaklar TEK parça. Toprak dünya koordinatıyla döşenir
+// (basamak sınırında dikiş olmaz); çimen saçağı her düzlüğün üstüne ayrı şerit olarak, alta doğru kaybolarak eklenir.
+let SOIL = null, LIP = null;
+const SOIL_H = GROUND_TH * 452 / 682, LIP_H = GROUND_TH * 300 / 682;
+function soilTextures() {
+  if (SOIL) return;
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 452;
+  const l = document.createElement('canvas'); l.width = 1024; l.height = 300;
+  SOIL = new THREE.CanvasTexture(c); SOIL.colorSpace = THREE.SRGBColorSpace; SOIL.wrapS = THREE.RepeatWrapping; SOIL.wrapT = THREE.MirroredRepeatWrapping; SOIL.anisotropy = 8;
+  LIP = new THREE.CanvasTexture(l); LIP.colorSpace = THREE.SRGBColorSpace; LIP.wrapS = THREE.RepeatWrapping; LIP.anisotropy = 8;
+  c.getContext('2d').fillStyle = '#9a4a1c'; c.getContext('2d').fillRect(0, 0, 1024, 452);
+  new THREE.ImageLoader().load('props/ground.webp', (img) => {
+    c.getContext('2d').drawImage(img, 0, 230, 1024, 452, 0, 0, 1024, 452); SOIL.needsUpdate = true;
+    const g = l.getContext('2d'); g.drawImage(img, 0, 0, 1024, 300, 0, 0, 1024, 300);
+    const d = g.getImageData(0, 0, 1024, 300); // alt 80 piksel saydamlaşarak toprağa karışır
+    for (let y = 220; y < 300; y++) { const a = Math.round(255 * (1 - (y - 220) / 80)); for (let x = 0; x < 1024; x++) d.data[(y * 1024 + x) * 4 + 3] = a; }
+    g.putImageData(d, 0, 0); LIP.needsUpdate = true;
+  });
+}
+function terrainRegion(L, xs, xe) {
+  soilTextures();
   const g = new THREE.Group();
-  const bot = -8, r = 0.32;
+  const h = (x) => L.cols[x], bot = -8, r = 0.3, D = DEPTH - 0.28;
   const s = new THREE.Shape();
-  const L = x0, Rr = x0 + w;
-  // sol kenar: boşluğa bakıyorsa kavisli yamaç, komşu zemine bitişikse düz
-  s.moveTo(leftOpen ? L + 0.25 : L - 0.02, bot);
-  if (leftOpen) { s.bezierCurveTo(L - 0.05, bot + 3, L + 0.18, h - 2.4, L - 0.06, h - 1.1); s.quadraticCurveTo(L - 0.14, h - 0.45, L, h - r); s.quadraticCurveTo(L + 0.02, h, L + r, h); }
-  else s.lineTo(L - 0.02, h);
-  if (rightOpen) { s.lineTo(Rr - r, h); s.quadraticCurveTo(Rr - 0.02, h, Rr, h - r); s.quadraticCurveTo(Rr + 0.14, h - 0.45, Rr + 0.06, h - 1.1); s.bezierCurveTo(Rr - 0.18, h - 2.4, Rr + 0.05, bot + 3, Rr - 0.25, bot); }
-  else { s.lineTo(Rr + 0.02, h); s.lineTo(Rr + 0.02, bot); }
+  // sol kenar (boşluğa bakan kavisli yamaç)
+  let H = h(xs);
+  s.moveTo(xs + 0.25, bot);
+  s.bezierCurveTo(xs - 0.05, bot + 3, xs + 0.18, H - 2.4, xs - 0.06, H - 1.1);
+  s.quadraticCurveTo(xs - 0.14, H - 0.45, xs, H - r); s.quadraticCurveTo(xs + 0.02, H, xs + r, H);
+  // üst hat: basamaklarda yuvarlak dış köşeler
+  for (let x = xs + 1; x <= xe; x++) {
+    const nh = h(x); if (nh === H) continue;
+    if (nh > H) { s.lineTo(x, H); s.lineTo(x, nh - r); s.quadraticCurveTo(x, nh, x + r, nh); }
+    else { s.lineTo(x - r, H); s.quadraticCurveTo(x, H, x, H - r); s.lineTo(x, nh); }
+    H = nh;
+  }
+  const Rr = xe + 1;
+  s.lineTo(Rr - r, H); s.quadraticCurveTo(Rr - 0.02, H, Rr, H - r);
+  s.quadraticCurveTo(Rr + 0.14, H - 0.45, Rr + 0.06, H - 1.1); s.bezierCurveTo(Rr - 0.18, H - 2.4, Rr + 0.05, bot + 3, Rr - 0.25, bot);
   s.closePath();
-  g.add(soilBlock(s, h, DEPTH - 0.28));
-  g.position.z = h * 0.012; // yüksek blok önde: komşu alçak blokla üst üste binen yerde titreme olmasın
-  // üst çimen yüzeyi (önden bakınca dokunun çimen saçağı görünür)
-  const top = new THREE.Mesh(new RoundedBoxGeometry(w + (leftOpen ? 0.2 : 0.02) + (rightOpen ? 0.2 : 0.02), 0.3, DEPTH + 0.06, 3, 0.12), M.top);
-  top.position.set(x0 + w / 2 + (rightOpen ? 0.09 : 0) - (leftOpen ? 0.09 : 0), h - 0.13, 0.03); top.receiveShadow = true; g.add(top);
+  const geo = new THREE.ExtrudeGeometry(s, { depth: D, bevelEnabled: true, bevelThickness: 0.14, bevelSize: 0.12, bevelSegments: 3, curveSegments: 10 });
+  geo.translate(0, -0.13, -D / 2);
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / GROUND_TW, pos.getY(i) / SOIL_H);
+  const side = geo.groups[1];
+  for (let i = side.start; i < side.start + side.count; i++) { const vi = geo.index ? geo.index.getX(i) : i; uv.setXY(vi, (pos.getX(vi) + pos.getZ(vi)) / GROUND_TW, pos.getY(vi) / SOIL_H); }
+  uv.needsUpdate = true;
+  const soilM = M.soilM || (M.soilM = new THREE.MeshStandardMaterial({ map: SOIL, roughness: 0.95 }));
+  const m = new THREE.Mesh(geo, [soilM, soilM]); m.receiveShadow = true; g.add(m);
+  // her düzlük: üst çimen yüzeyi + öndeki çimen saçağı şeridi
+  const front = D / 2 + 0.14 + 0.006;
+  const lipM = M.lipM || (M.lipM = new THREE.MeshStandardMaterial({ map: LIP, transparent: true, roughness: 0.9, depthWrite: false }));
+  let x = xs;
+  while (x <= xe) {
+    const hh = h(x); let e = x; while (e + 1 <= xe && h(e + 1) === hh) e++;
+    const leftOut = x === xs || h(x - 1) < hh, rightOut = e === xe || h(e + 1) < hh;
+    const x0 = x - (leftOut ? 0.1 : 0), x1 = e + 1 + (rightOut ? 0.1 : 0);
+    // çimen saçağı: dış köşeleri yuvarlak şerit
+    const ls = new THREE.Shape(), top = hh - 0.01, b0 = top - LIP_H;
+    ls.moveTo(x0, b0); ls.lineTo(x1, b0);
+    if (rightOut) { ls.lineTo(x1, top - r); ls.quadraticCurveTo(x1, top, x1 - r, top); } else ls.lineTo(x1, top);
+    if (leftOut) { ls.lineTo(x0 + r, top); ls.quadraticCurveTo(x0, top, x0, top - r); } else ls.lineTo(x0, top);
+    ls.closePath();
+    const lg = new THREE.ShapeGeometry(ls, 8), lp = lg.attributes.position, lu = lg.attributes.uv;
+    for (let i = 0; i < lu.count; i++) lu.setXY(i, lp.getX(i) / GROUND_TW, 1 - (top - lp.getY(i)) / LIP_H);
+    const lip = new THREE.Mesh(lg, lipM); lip.position.z = front; lip.renderOrder = 1; lip.receiveShadow = true; g.add(lip);
+    const w = e - x + 1;
+    const tb = new THREE.Mesh(new RoundedBoxGeometry(w + (leftOut ? 0.2 : 0.02) + (rightOut ? 0.2 : 0.02), 0.3, DEPTH + 0.06, 3, 0.12), M.top);
+    tb.position.set(x + w / 2 + (rightOut ? 0.09 : 0) - (leftOut ? 0.09 : 0), hh - 0.13, 0.03); tb.receiveShadow = true; g.add(tb);
+    x = e + 1;
+  }
   return g;
 }
 /** Yüzen ada: düz üst, yuvarlak köşeler, alttan kavisli çanak; önü aynı boyalı doku */
@@ -225,11 +278,16 @@ export function buildWorld(scene, L) {
   mats();
   const root = new THREE.Group(); scene.add(root);
   // zemin sıraları
+  // boşluklar arasındaki her kara parçası tek gövde
+  for (let x = 0; x < L.w; x++) {
+    if (!L.cols[x]) continue;
+    let e = x; while (e + 1 < L.w && L.cols[e + 1]) e++;
+    root.add(terrainRegion(L, x, e)); x = e;
+  }
   let x = 0;
   while (x < L.w) {
     const h = L.cols[x]; if (!h) { x++; continue; }
     let e = x; while (e + 1 < L.w && L.cols[e + 1] === h) e++;
-    root.add(groundRun(x, e - x + 1, h, !(L.cols[x - 1] >= h), !(L.cols[e + 1] >= h)));
     // üstte çalı, çiçek, çimen tutamı
     for (let i = x; i <= e; i++) {
       if (R() < 0.2) { const [k, a] = BUSH[Math.floor(R() * 3)]; const b = sprite(`bush${k}`, 0.9 + R() * 0.6, a); b.position.set(i + 0.5, h - 0.05, -0.75 - R() * 0.3); if (R() < 0.5) b.scale.x = -1; root.add(b); }

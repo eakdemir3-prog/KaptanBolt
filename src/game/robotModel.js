@@ -149,7 +149,7 @@ export function makeAnimator(model) {
   const legs = [[bone('LeftUpLeg'), bone('LeftFoot'), 1], [bone('RightUpLeg'), bone('RightFoot'), -1]].filter((l) => l[0] && l[1]);
   const qz = new THREE.Quaternion(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), Z = new THREE.Vector3(0, 0, 1), ax = new THREE.Vector3();
   // el sallama hareketinde ayaklar orijinalde bitişik: o sırada kalçalar daha çok açılır (yumuşak geçişle)
-  const st = { headUp: 0, stance: STANCE, spineBack: 0, armOut: 0, stanceK: 1 };
+  const st = { headUp: 0, stance: STANCE, spineBack: 0, armOut: 0, stanceK: 1, air: 0, fall: 0 };
   const WIDE = { wave: 0.24, cheer: 0.1 };
   const spread = () => {
     for (const [up, foot, sx] of legs) {
@@ -174,9 +174,19 @@ export function makeAnimator(model) {
   const spines = ['Spine', 'Spine1'].map(bone).filter(Boolean);
   const arms = [[bone('LeftArm'), 1], [bone('RightArm'), -1]].filter((a) => a[0]);
   const rotModel = (b, axis, ang) => { if (!b || !ang) return; model.getWorldQuaternion(qb); ax.copy(axis).applyQuaternion(qb); b.parent.getWorldQuaternion(qb); ax.applyQuaternion(qb.invert()).normalize(); qz.setFromAxisAngle(ax, ang); b.quaternion.premultiply(qz); };
+  // Havada (zıplama) kodla poz: dik duruş hareketinin üstüne bacak ve kol açıları; takla/eğilme olmaz
+  const lUp = bone('LeftUpLeg'), lKn = bone('LeftLeg'), rUp = bone('RightUpLeg'), rKn = bone('RightLeg');
+  const fore = [[bone('LeftForeArm'), 1], [bone('RightForeArm'), -1]].filter((a) => a[0]);
   const posture = () => {
     for (const b of spines) rotModel(b, X, -st.spineBack / spines.length);
-    for (const [b, sx] of arms) rotModel(b, Z, sx * st.armOut);
+    const a = st.air, f = st.fall;
+    for (const [b, sx] of arms) rotModel(b, Z, sx * (st.armOut + a * (0.75 - f * 0.25)));
+    for (const [b, sx] of fore) rotModel(b, Z, sx * a * (0.35 - f * 0.2));
+    if (a > 0.001) {
+      // çıkış: ön diz yukarı, arka bacak aşağı uzanır; düşüş: iki ayak aşağı, hafif açık (inişe hazır)
+      rotModel(lUp, X, -a * (0.75 - f * 0.55)); rotModel(lKn, X, a * (0.9 - f * 0.6));
+      rotModel(rUp, X, a * (0.25 - f * 0.1)); rotModel(rKn, X, a * (0.35 - f * 0.1));
+    }
   };
   const update = (dt) => { mixer.update(dt); const tgt = (STANCE + (WIDE[cur && cur.getClip().name] || 0)) * st.stanceK; st.stance += (tgt - st.stance) * Math.min(1, dt * 6); posture(); spread(); tilt(); };
   play('idle', { fade: 0 }); update(0.4);

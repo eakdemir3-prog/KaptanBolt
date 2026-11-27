@@ -27,6 +27,11 @@ const sun = new THREE.DirectionalLight(0xfff1d6, 2.1);
 sun.position.set(6, 18, 12); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 12, bottom: -8, near: 1, far: 60 }); sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02; sun.shadow.radius = 4;
 scene.add(sun, sun.target);
+for (const l of scene.children) if (l.isLight) l.layers.enableAll();
+sun.shadow.camera.layers.enableAll();
+renderer.autoClear = false;
+const ACTOR = 1; // karakter katmanı: zeminden sonra, derinlik temizlenerek çizilir
+const toActor = (o) => { o.traverse((c) => c.layers.set(ACTOR)); return o; };
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false); camera.aspect = w / h;
@@ -89,7 +94,7 @@ function loadLevel(n) {
   for (const c of L.coins) { const m = add(makeCoin()); m.position.set(c.x, c.y, 0); ents.coins.push({ ...c, m, taken: false, ph: Math.random() * 6 }); }
   G.coinsTotal = L.coins.length + L.crates.size * 3;
   for (const e of L.enemies) {
-    const holder = add(new THREE.Group()); const em = cloneM(e.type); holder.add(em);
+    const holder = add(new THREE.Group()); const em = cloneM(e.type); holder.add(em); toActor(holder);
     ents.enemies.push({ walker: makeWalker(em, e.type), type: e.type, x: e.x, y: e.t, vx: e.type === 'kirpi' ? -0.75 : -1.05, w: e.type === 'kirpi' ? 1.1 : 1.05, h: e.type === 'kirpi' ? 0.95 : 0.8, m: holder, alive: true, squash: 0, ph: Math.random() * 6 });
   }
   for (const c of L.cages) {
@@ -116,7 +121,7 @@ function loadLevel(n) {
     if (bolt.userData.fill) bolt.userData.fill.intensity = 0.8;
     anim = bolt.userData.anim;
   }
-  scene.add(bolt); bolt.visible = true; bolt.scale.setScalar(BOLT_S); bolt.position.set(0, 0, 0);
+  scene.add(toActor(bolt)); bolt.visible = true; bolt.scale.setScalar(BOLT_S); bolt.position.set(0, 0, 0);
   player = newPlayer(L.start.x, L.cols[2] || 2); player.ground = true; player.lastAnim = '';
   Object.assign(G, { coins: 0, cages: 0, hearts: 3, inv: 0, star: false, won: false, cp: { x: player.x, y: player.y }, state: 'play', end: 0, ch: 3, cd: 0, bossTip: false });
   G.gun = !!save.gun || n > 6;
@@ -170,17 +175,15 @@ function updatePlayer(dt) {
   const lean = sp > 0.4 || !p.ground ? 0.35 : 0.8; // dururken kameraya daha dönük
   const targetRot = p.face * (Math.PI / 2 - lean);
   bolt.rotation.y += (targetRot - bolt.rotation.y) * Math.min(1, dt * 7); // dönüş ~0,3 sn, önce kameraya bakarak
-  if (!p.ground) {
-    if (p.vy > 1.5) { if (player.lastAnim !== 'jumpUp') { player.lastAnim = 'jumpUp'; anim.pose('jumpUp', 0.03, 0.08); } }
-    else if (player.lastAnim !== 'jumpDown') { player.lastAnim = 'jumpDown'; anim.pose('jumpDown', 0.16, 0.2); }
-  }
+  if (!p.ground) playAnim('idle', { fade: 0.12 }); // havada dik duruş + kodla bacak/kol pozu (aşağıda)
   else if (sp > P.RUN * 0.6) { playAnim('run', { fade: 0.12 }); anim.play('run', { speed: 0.75 + sp / P.RUN * 0.35 }); }
   else if (sp > 0.4) { playAnim('walk', { fade: 0.15 }); anim.play('walk', { speed: 0.9 + sp / P.RUN * 1.2 }); }
   else playAnim('idle', { fade: 0.25 });
   bolt.visible = G.inv <= 0 || Math.floor(G.t * 16) % 2 === 0;
   // duruş: dururken dik ve göğüs önde, yürürken biraz, koşarken ve havada doğal
-  const T = !p.ground ? [0.04, 0.12, 0.06, 1] : sp > P.RUN * 0.6 ? [0.08, 0.15, 0.06, 0.9] : sp > 0.4 ? [0.13, 0.17, 0.12, 0.8] : [0.16, 0.2, 0.18, 0.65];
+  const T = !p.ground ? [0.06, -0.02, 0.06, 0.8] : sp > P.RUN * 0.6 ? [0.08, -0.04, 0.06, 0.9] : sp > 0.4 ? [0.12, 0.0, 0.12, 0.8] : [0.16, 0.2, 0.18, 0.65];
   const S = anim.st, k = Math.min(1, dt * 6);
+  const ka = Math.min(1, dt * 14); S.air += ((p.ground ? 0 : 1) - S.air) * ka; S.fall += ((p.vy < -1 ? 1 : 0) - S.fall) * Math.min(1, dt * 6);
   if (!POSTURE_OFF) { S.spineBack += (T[0] - S.spineBack) * k; S.headUp += (T[1] - S.headUp) * k; S.armOut += (T[2] - S.armOut) * k; S.stanceK += (T[3] - S.stanceK) * k; }
 }
 let POSTURE_OFF = /noposture/.test(location.hash);
@@ -269,7 +272,7 @@ function updateGun(dt) {
 // ---------- Boss: Dev Paslı Böcek ----------
 function setupBoss() {
   const B = L.boss;
-  const m = add(new THREE.Group()); const body = cloneM('bocek'); body.scale.setScalar(3.0); m.add(body); const walker = makeWalker(body, 'bocek');
+  const m = add(new THREE.Group()); const body = cloneM('bocek'); body.scale.setScalar(3.0); m.add(body); const walker = makeWalker(body, 'bocek'); toActor(m);
   body.traverse((o) => { if (o.isMesh && o.material) { o.material = o.material.clone(); o.material.color?.multiplyScalar(0.9); o.material.emissive = new THREE.Color(0x000000); } });
   const stars = add(new THREE.Group()); for (let i = 0; i < 4; i++) { const s = makeSprite('star', 0.4, ASPECT.star); s.position.set(Math.cos(i * 1.57) * 0.8, 0, Math.sin(i * 1.57) * 0.8); stars.add(s); } stars.visible = false;
   const walls = [B.x0 - 1, B.x1];
@@ -541,7 +544,10 @@ function frame() {
     updateGun(dt); updateEnemies(dt); updateBoss(dt); updateShip(dt); updateItems(dt); updateParts(dt); updateCamera(dt);
     anim.update(dt);
   } else if (G.state === 'menu') { menuCam(dt); }
-  renderer.render(scene, camera);
+  renderer.clear();
+  camera.layers.set(0); renderer.render(scene, camera);
+  renderer.clearDepth(); const bg = scene.background; scene.background = null;
+  camera.layers.set(ACTOR); renderer.render(scene, camera); scene.background = bg;
   requestAnimationFrame(frame);
 }
 // menü arka planı: vadi üzerinde yavaş kayan kamera
