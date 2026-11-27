@@ -1,6 +1,11 @@
 // Bölüm kurucu: levels.js'deki tarifleri oyunun kullandığı ızgaraya çevirir.
 // Koordinatlar: 1 birim = 1 kare, y=0 en alt. "t" = üstünde durulan yüzeyin yüksekliği.
 import { LEVELS } from './levels.js';
+import { P } from './physics.js';
+
+// Bölüm tarifleri eski (3,3 kare) zıplamaya göre yazıldı: yükseklikler 2,5 kareye göre sıkıştırılır
+const V = (t) => 2 + Math.round((t - 2) * 0.75);
+const VF = (t) => 2 + (t - 2) * 0.75;
 
 export function buildLevel(n) {
   const def = LEVELS[n - 1];
@@ -10,29 +15,29 @@ export function buildLevel(n) {
   };
   const b = {
     x: 0, at: 0, h: 2,
-    ground(n, h = b.h) { b.at = b.x; b.h = h; for (let i = 0; i < n; i++) L.cols[b.x++] = h; return b; },
-    gap(n) { b.at = b.x; for (let i = 0; i < n; i++) L.cols[b.x++] = 0; return b; },
+    ground(n, h = null) { b.at = b.x; b.h = h == null ? b.h : V(h); const hh = b.h; for (let i = 0; i < n; i++) L.cols[b.x++] = hh; return b; },
+    gap(n) { if (n === 4) n = 3; b.at = b.x; for (let i = 0; i < n; i++) L.cols[b.x++] = 0; return b; },
     /** boşluk + üstünde ip köprü (yalnızca yukarıdan basılır) */
     bridge(n) { b.at = b.x; L.bridges.push({ x0: b.x - 0.2, x1: b.x + n + 0.2, y: b.h }); for (let i = 0; i < n; i++) L.cols[b.x++] = 0; return b; },
     /** yüzen kaya: üst yüzeyi t */
-    plat(dx, t, w) { L.plats.push({ x: b.at + dx, y: t - 1, w }); return b; },
+    plat(dx, t, w) { L.plats.push({ x: b.at + dx, y: V(t) - 1, w }); return b; },
     /** hareketli sal: axis 'x' ya da 'y', range kare, hız kare/sn */
-    raft(dx, t, w, axis = 'x', range = 3, speed = 1.6) { L.rafts.push({ x: b.at + dx, t, w, axis, range, speed }); return b; },
-    row(dx, t, n, step = 1) { for (let i = 0; i < n; i++) L.coins.push({ x: b.at + dx + i * step + 0.5, y: t + 0.75 }); return b; },
+    raft(dx, t, w, axis = 'x', range = 3, speed = 1.6) { L.rafts.push({ x: b.at + dx, t: V(t), w, axis, range: axis === 'y' ? Math.max(2, Math.round(range * 0.75)) : range, speed: speed * 0.8 }); return b; },
+    row(dx, t, n, step = 1) { const y = Number.isInteger(t) ? V(t) : VF(t); for (let i = 0; i < n; i++) L.coins.push({ x: b.at + dx + i * step + 0.5, y: y + 0.75 }); return b; },
     /** gerçek zıplama eğrisi üzerinde para (koşarak, tuş basılı) */
     arc(dx, t, n, step = 0.9) {
-      const RUN = 6.8, GU = 46, GD = 74, H = 3.3, V0 = Math.sqrt(2 * GU * H), tu = V0 / GU;
+      t = V(t); const RUN = P.RUN, GU = P.G_UP, GD = P.G_DOWN, H = P.JUMP_H, V0 = Math.sqrt(2 * GU * H), tu = V0 / GU; step *= RUN / 6.8;
       for (let i = 1; i <= n; i++) { const tt = (i * step) / RUN; const y = tt <= tu ? V0 * tt - 0.5 * GU * tt * tt : H - 0.5 * GD * (tt - tu) ** 2; L.coins.push({ x: b.at + dx + i * step, y: t + y + 0.6 }); }
       return b;
     },
-    col(dx, t0, n) { for (let i = 0; i < n; i++) L.coins.push({ x: b.at + dx + 0.5, y: t0 + 0.75 + i }); return b; },
-    e(type, dx, t = null) { L.enemies.push({ type, x: b.at + dx + 0.5, t: t ?? b.h }); return b; },
-    cage(dx, t = null, animal = null) { L.cages.push({ x: b.at + dx + 0.5, y: t ?? b.h, animal }); return b; },
-    spring(dx, t = null) { L.springs.push({ x: b.at + dx + 0.5, y: t ?? b.h }); return b; },
-    crate(dx, t = null) { const y = t ?? b.h; L.crates.set(`${b.at + dx},${y}`, { x: b.at + dx, y }); return b; },
-    thorns(dx, w, t = null) { L.thorns.push({ x0: b.at + dx, x1: b.at + dx + w, y: t ?? b.h }); return b; },
-    heart(dx, t = null) { L.hearts.push({ x: b.at + dx + 0.5, y: (t ?? b.h) + 0.8 }); return b; },
-    star(dx, t = null) { L.star = { x: b.at + dx + 0.5, y: (t ?? b.h) + 0.9 }; return b; },
+    col(dx, t0, n) { const y0 = VF(t0); for (let i = 0; i < n; i++) L.coins.push({ x: b.at + dx + 0.5, y: y0 + 0.75 + i * 0.85 }); return b; },
+    e(type, dx, t = null) { L.enemies.push({ type, x: b.at + dx + 0.5, t: t == null ? b.h : V(t) }); return b; },
+    cage(dx, t = null, animal = null) { L.cages.push({ x: b.at + dx + 0.5, y: t == null ? b.h : V(t), animal }); return b; },
+    spring(dx, t = null) { L.springs.push({ x: b.at + dx + 0.5, y: t == null ? b.h : V(t) }); return b; },
+    crate(dx, t = null) { const y = t == null ? b.h : V(t); L.crates.set(`${b.at + dx},${y}`, { x: b.at + dx, y }); return b; },
+    thorns(dx, w, t = null) { if (t == null || t >= 0) w = Math.min(w, 2); L.thorns.push({ x0: b.at + dx, x1: b.at + dx + w, y: t == null ? b.h : t < 0 ? t : V(t) }); return b; },
+    heart(dx, t = null) { L.hearts.push({ x: b.at + dx + 0.5, y: (t == null ? b.h : V(t)) + 0.8 }); return b; },
+    star(dx, t = null) { L.star = { x: b.at + dx + 0.5, y: (t == null ? b.h : V(t)) + 0.9 }; return b; },
     sign(dx, text = '') { L.signs.push({ x: b.at + dx + 0.5, y: b.h, text }); return b; },
     deco(kind, dx, t = null, z = -0.85, s = 1) { L.decos.push({ kind, x: b.at + dx + 0.5, y: t ?? b.h, z, s }); return b; },
     cp(dx = 1) { L.checkpoints.push({ x: b.at + dx + 0.5, y: b.h }); return b; },

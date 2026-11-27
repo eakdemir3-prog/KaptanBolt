@@ -70,8 +70,8 @@ const store = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save))
 // ---------- Oyun durumu ----------
 const G = { t: 0, state: 'load', n: 1, coins: 0, coinsTotal: 0, cages: 0, hearts: 3, cp: null, inv: 0, star: false, won: false, end: 0 };
 let L = null, player = null, levelRoot = null;
-const ents = { coins: [], enemies: [], cages: [], springs: [], posts: [], parts: [], crates: [], hearts: [], rafts: [], signs: [], star: null, end: null, boss: null, ship: null, flying: [] };
-const input = { left: false, right: false, jump: false, jumpPressed: false };
+const ents = { shots: [], glove: null, coins: [], enemies: [], cages: [], springs: [], posts: [], parts: [], crates: [], hearts: [], rafts: [], signs: [], star: null, end: null, boss: null, ship: null, flying: [] };
+const input = { left: false, right: false, jump: false, jumpPressed: false, fire: false };
 const BOLT_S = 1.12 * 1.2;
 let bolt, anim;
 
@@ -90,7 +90,7 @@ function loadLevel(n) {
   G.coinsTotal = L.coins.length + L.crates.size * 3;
   for (const e of L.enemies) {
     const holder = add(new THREE.Group()); const em = cloneM(e.type); holder.add(em);
-    ents.enemies.push({ walker: makeWalker(em, e.type), type: e.type, x: e.x, y: e.t, vx: e.type === 'kirpi' ? -1.0 : -1.4, w: e.type === 'kirpi' ? 1.1 : 1.05, h: e.type === 'kirpi' ? 0.95 : 0.8, m: holder, alive: true, squash: 0, ph: Math.random() * 6 });
+    ents.enemies.push({ walker: makeWalker(em, e.type), type: e.type, x: e.x, y: e.t, vx: e.type === 'kirpi' ? -0.75 : -1.05, w: e.type === 'kirpi' ? 1.1 : 1.05, h: e.type === 'kirpi' ? 0.95 : 0.8, m: holder, alive: true, squash: 0, ph: Math.random() * 6 });
   }
   for (const c of L.cages) {
     const g = add(new THREE.Group()); const cm = cloneM('cage'); g.add(cm); g.position.set(c.x, c.y - 0.05, 0);
@@ -107,7 +107,7 @@ function loadLevel(n) {
   for (const r of L.rafts) { const m = add(makeRaft(r.w)); ents.rafts.push({ r, m }); }
   for (const s of L.signs) { const m = add(makeSprite('sign', 1.3, ASPECT.sign)); m.position.set(s.x, s.y - 0.05, -0.7); ents.signs.push({ ...s, m, shown: false }); }
   for (const d of L.decos) { const m = add(makeSprite(d.kind, 1, ASPECT[d.kind])); m.position.set(d.x, d.y - 0.04, d.z); }
-  if (L.end && !L.boss) { const m = add(makePost(true)); m.position.set(L.end.x, L.end.y, 0); ents.end = { ...L.end, m, beam: add(makeBeam()) }; ents.end.beam.position.set(L.end.x, L.end.y, 0); }
+  if (L.end && !L.boss) { const m = add(makePost(true)); m.position.set(L.end.x, L.end.y, 0); const beam = makeBeam(); beam.g.position.set(L.end.x, L.end.y, 0); add(beam.g); ents.end = { ...L.end, m, beam }; }
   if (L.boss) setupBoss();
 
   if (!bolt) {
@@ -118,7 +118,13 @@ function loadLevel(n) {
   }
   scene.add(bolt); bolt.visible = true; bolt.scale.setScalar(BOLT_S); bolt.position.set(0, 0, 0);
   player = newPlayer(L.start.x, L.cols[2] || 2); player.ground = true; player.lastAnim = '';
-  Object.assign(G, { coins: 0, cages: 0, hearts: 3, inv: 0, star: false, won: false, cp: { x: player.x, y: player.y }, state: 'play', end: 0 });
+  Object.assign(G, { coins: 0, cages: 0, hearts: 3, inv: 0, star: false, won: false, cp: { x: player.x, y: player.y }, state: 'play', end: 0, ch: 3, cd: 0, bossTip: false });
+  G.gun = !!save.gun || n > 6;
+  if (n === 6 && !save.gun) { // şimşek eldiveni: 6. bölümün başında gemiden düşer
+    const g = add(new THREE.Group()); const orb = new THREE.Mesh(new THREE.SphereGeometry(0.28, 20, 14), new THREE.MeshStandardMaterial({ color: 0x8af0ff, emissive: 0x2ab8ff, emissiveIntensity: 1.6, roughness: 0.2 }));
+    g.add(orb); const gl = makeSprite('star', 0.5, ASPECT.star); gl.position.set(0, -0.25, 0.3); g.add(gl); g.position.set(8.5, L.cols[8] + 1.0, 0.2); ents.glove = { m: g, x: 8.5, y: L.cols[8] + 1.0, taken: false };
+  }
+  $('bF').classList.toggle('hidden', !G.gun); updateCharges();
   Object.assign(input, { left: false, right: false, jump: false, jumpPressed: false });
   camSnap = true; updateCamera(0);
   updateHud(); showScreen(null);
@@ -160,10 +166,14 @@ function updatePlayer(dt) {
   p.squash = (p.squash || 0) * Math.max(0, 1 - dt * 12);
   const sq = p.squash;
   bolt.position.set(p.x, p.y, 0); bolt.scale.set(BOLT_S * (1 + sq * 0.6), BOLT_S * (1 - sq), BOLT_S * (1 + sq * 0.6));
-  const targetRot = p.face > 0 ? Math.PI / 2 - 0.35 : -Math.PI / 2 + 0.35;
-  bolt.rotation.y += (targetRot - bolt.rotation.y) * Math.min(1, dt * 14);
   const sp = Math.abs(p.vx);
-  if (!p.ground) { playAnim('jump', { once: true, fade: 0.1, speed: 1.5 }); anim.hold('jump', 0.5); }
+  const lean = sp > 0.4 || !p.ground ? 0.35 : 0.8; // dururken kameraya daha dönük
+  const targetRot = p.face * (Math.PI / 2 - lean);
+  bolt.rotation.y += (targetRot - bolt.rotation.y) * Math.min(1, dt * 7); // dönüş ~0,3 sn, önce kameraya bakarak
+  if (!p.ground) {
+    if (p.vy > 1.5) { if (player.lastAnim !== 'jumpUp') { player.lastAnim = 'jumpUp'; anim.pose('jumpUp', 0.03, 0.08); } }
+    else if (player.lastAnim !== 'jumpDown') { player.lastAnim = 'jumpDown'; anim.pose('jumpDown', 0.55, 0.22); }
+  }
   else if (sp > P.RUN * 0.6) { playAnim('run', { fade: 0.12 }); anim.play('run', { speed: 0.75 + sp / P.RUN * 0.35 }); }
   else if (sp > 0.4) { playAnim('walk', { fade: 0.15 }); anim.play('walk', { speed: 0.9 + sp / P.RUN * 1.2 }); }
   else playAnim('idle', { fade: 0.25 });
@@ -190,7 +200,8 @@ function updateEnemies(dt) {
     if (!e.alive) { e.squash += dt; e.m.scale.y = Math.max(0.05, 1 - e.squash * 6); e.m.position.y -= dt * (e.squash > 0.3 ? 4 : 0); if (e.squash > 1) e.m.visible = false; continue; }
     const nx = e.x + e.vx * dt, front = nx + Math.sign(e.vx) * e.w / 2;
     let moving = 0;
-    if (e.wait > 0) { e.wait -= dt; if (e.wait <= 0) e.vx = -e.vx; } // kenarda kısa durup döner
+    if (e.curled > 0) { e.curled -= dt; e.m.scale.set(1.1, 0.72, 1.1); if (e.curled <= 0) e.m.scale.set(1, 1, 1); }
+    else if (e.wait > 0) { e.wait -= dt; if (e.wait <= 0) e.vx = -e.vx; } // kenarda kısa durup döner
     else if (L.solid(Math.floor(front), Math.floor(e.y + 0.3)) || !groundUnder(front, e.y)) e.wait = 0.35;
     else { e.x = nx; moving = e.vx; }
     e.m.position.set(e.x, e.y, 0);
@@ -199,8 +210,54 @@ function updateEnemies(dt) {
     const p = player;
     if (G.state !== 'play' || Math.abs(p.x - e.x) > (P.PW + e.w) / 2 - 0.08 || p.y > e.y + e.h || p.y + P.PH < e.y + 0.1) continue;
     const stomp = p.vy < -1 && p.y > e.y + e.h * 0.45;
-    if (stomp && e.type === 'bocek') { e.alive = false; p.vy = input.jump ? P.STOMP_HOLD : P.STOMP; p.noCut = true; sfx.stomp(); vibrate(30); burst(e.x, e.y + 0.5, 0xffa040, 10); }
+    if (stomp && (e.type === 'bocek' || e.curled > 0)) { e.alive = false; p.vy = input.jump ? P.STOMP_HOLD : P.STOMP; p.noCut = true; sfx.stomp(); vibrate(30); burst(e.x, e.y + 0.5, 0xffa040, 10); dropCoins(e.x, e.y + 0.6, 2); }
     else hurt(e.x);
+  }
+}
+
+// ---------- Şimşek atışı ----------
+const shotGeo = new THREE.SphereGeometry(0.17, 16, 12); shotGeo.userData.shared = true;
+const shotMat = new THREE.MeshBasicMaterial({ color: 0xbdf6ff, toneMapped: false });
+function updateCharges() { const n = Math.floor(G.ch); $('fCh').querySelectorAll('i').forEach((i, k) => i.classList.toggle('on', k < n)); $('bF').classList.toggle('empty', n < 1); }
+function dropCoins(x, y, n) { for (let i = 0; i < n; i++) { const m = add(makeCoin()); m.position.set(x, y, 0.4); ents.flying.push({ m, v: new THREE.Vector3((i - (n - 1) / 2) * 2, 6 + Math.random() * 2, 0), t: -i * 0.06 }); } }
+function updateGun(dt) {
+  const p = player;
+  const gv = ents.glove;
+  if (gv && !gv.taken) {
+    gv.m.position.y = gv.y + Math.sin(G.t * 3) * 0.12; gv.m.rotation.y += dt * 2;
+    if (G.state === 'play' && Math.abs(p.x - gv.x) < 0.8 && gv.y > p.y - 0.4 && gv.y < p.y + P.PH + 0.6) {
+      gv.taken = true; gv.m.visible = false; save.gun = true; store(); G.gun = true; G.ch = 3; $('bF').classList.remove('hidden'); updateCharges();
+      sfx.cage(); for (let i = 0; i < 18; i++) spark(gv.x, gv.y, 1.3); toast('⚡ Şimşek eldiveni! Mavi tuşla şimşek fırlat');
+    }
+  }
+  if (!G.gun) { input.fire = false; return; }
+  const before = Math.floor(G.ch);
+  G.ch = Math.min(3, G.ch + dt * 0.5); G.cd = Math.max(0, G.cd - dt);
+  if (input.fire) {
+    input.fire = false;
+    if (G.state === 'play' && G.ch >= 1 && G.cd <= 0) {
+      G.ch -= 1; G.cd = 0.3;
+      const m = add(new THREE.Mesh(shotGeo, shotMat)); const glow = makeSprite('star', 0.55, ASPECT.star); glow.material = glow.material.clone(); glow.material.color.set(0x66ddff); glow.position.set(0, -0.27, 0.05); m.add(glow);
+      m.position.set(p.x + p.face * 0.55, p.y + 0.72, 0.35);
+      ents.shots.push({ m, x: m.position.x, y: m.position.y, vx: p.face * 11, t: 0 });
+      sfx.spring(); vibrate(15); for (let i = 0; i < 5; i++) spark(m.position.x, m.position.y, 0.6);
+    } else if (G.ch < 1) sfx.bump();
+  }
+  if (Math.floor(G.ch) !== before) updateCharges();
+  for (let i = ents.shots.length - 1; i >= 0; i--) {
+    const s = ents.shots[i]; s.t += dt; s.x += s.vx * dt; s.m.position.x = s.x; s.m.rotation.z += dt * 12;
+    if (Math.random() < 0.6) spark(s.x - Math.sign(s.vx) * 0.2, s.y + (Math.random() - 0.5) * 0.15, 0.3);
+    let hit = s.t > 1.3 || L.solid(Math.floor(s.x), Math.floor(s.y));
+    if (!hit) for (const e of ents.enemies) {
+      if (!e.alive || Math.abs(e.x - s.x) > e.w / 2 + 0.15 || s.y < e.y - 0.1 || s.y > e.y + e.h + 0.35) continue;
+      hit = true;
+      if (e.type === 'kirpi' && !(e.curled > 0)) { e.curled = 2.2; sfx.bump(); burst(e.x, e.y + 0.5, 0x8af0ff, 8); toast('Kirpi top oldu! Bir daha vur'); }
+      else { e.alive = false; sfx.stomp(); vibrate(25); burst(e.x, e.y + 0.5, 0x8af0ff, 14); dropCoins(e.x, e.y + 0.6, 1); }
+      break;
+    }
+    const b = ents.boss;
+    if (!hit && b && !b.dead && b.st !== 'wait' && Math.abs(b.x - s.x) < b.w / 2 && s.y > b.y && s.y < b.y + b.h) { hit = true; if (!G.bossTip) { G.bossTip = true; toast('Şimşek işlemiyor! Duvara çarptırıp üstüne zıpla'); } }
+    if (hit) { for (let k = 0; k < 8; k++) spark(s.x, s.y, 0.9); levelRoot.remove(s.m); ents.shots.splice(i, 1); }
   }
 }
 
@@ -228,9 +285,9 @@ function updateBoss(dt) {
   if (b.st === 'wait') { if (p.x > b.x0 + 2) { b.wallsUp = true; b.st = 'roar'; b.t = 0; sfx.bump(); toast('⚠️ Dev Paslı Böcek! Duvara çarpınca sersemler, üstüne zıpla!'); } }
   else if (b.st === 'roar') { b.m.position.y = b.y + Math.abs(Math.sin(b.t * 20)) * 0.15; if (b.t > 1.2) { b.st = 'walk'; b.t = 0; } }
   else if (b.st === 'walk') {
-    b.dir = p.x < b.x ? -1 : 1; b.vx = b.dir * (1.6 + (3 - b.hp) * 0.5);
+    b.dir = p.x < b.x ? -1 : 1; b.vx = b.dir * (1.25 + (3 - b.hp) * 0.4);
     if (b.t > 2.2 - (3 - b.hp) * 0.4) { b.st = 'prep'; b.t = 0; }
-  } else if (b.st === 'prep') { b.vx = 0; b.m.position.x = b.x + Math.sin(b.t * 60) * 0.06; if (b.t > 0.65) { b.st = 'charge'; b.t = 0; b.vx = b.dir * (8 + (3 - b.hp)); sfx.spring(); } }
+  } else if (b.st === 'prep') { b.vx = 0; b.m.position.x = b.x + Math.sin(b.t * 60) * 0.06; if (b.t > 0.65) { b.st = 'charge'; b.t = 0; b.vx = b.dir * (6.5 + (3 - b.hp) * 0.8); sfx.spring(); } }
   else if (b.st === 'charge') {
     const front = b.x + b.dir * b.w / 2;
     if ((b.dir < 0 && front <= b.x0 + 0.05) || (b.dir > 0 && front >= b.x1 - 0.05)) { b.st = 'stun'; b.t = 0; b.vx = 0; sfx.stomp(); vibrate(60); burst(front, b.y + 1, 0xd8b070, 16); shake = 0.4; }
@@ -274,7 +331,7 @@ function updateShip(dt) {
 }
 
 // ---------- Para, kafes, mantar, direkler, can, yıldız ----------
-const SIGN_TIP = { move: '◀ ▶ tuşlarıyla yürü', jump: 'Sarı tuş: zıpla! Basılı tutarsan daha yükseğe', stomp: 'Böceklerin üstüne zıpla, ez!', spike: 'Kirpinin üstüne zıplama, üstünden atla!', spring: 'Mantara bas, yükseğe fırla!', thorn: 'Dikenli çalılara değme!', bridge: 'İp köprüler sağlam, rahat geç', crate: 'Sandığın üstüne zıpla ya da alttan kafa at: altın çıkar!', raft: 'Sal gidip gelir: üstüne atla, taşısın' };
+const SIGN_TIP = { move: '◀ ▶ tuşlarıyla yürü', jump: 'Sarı tuş: zıpla! Basılı tutarsan daha yükseğe', stomp: 'Böceklerin üstüne zıpla, ez!', spike: 'Kirpinin üstüne zıplama, üstünden atla!', spring: 'Mantara bas, yükseğe fırla!', thorn: 'Dikenli çalılara değme!', bridge: 'İp köprüler sağlam, rahat geç', crate: 'Sandığın üstüne zıpla ya da alttan kafa at: altın çıkar!', raft: 'Sal gidip gelir: üstüne atla, taşısın', gun: 'Parlayan küreyi al: şimşek eldiveni!' };
 function updateItems(dt) {
   const p = player;
   for (const c of ents.coins) {
@@ -319,7 +376,7 @@ function updateItems(dt) {
   if (e) {
     e.m.userData.glow.scale.setScalar(1.5 + Math.sin(G.t * 4) * 0.2);
     if (G.state === 'play' && p.x > e.x - 0.4 && Math.abs(p.y - e.y) < 3) { setPost(e.m, true); win(); }
-    if (G.state === 'win') { e.beam.material.opacity = Math.min(0.55, e.beam.material.opacity + dt); bolt.position.y += dt * G.end * 3; bolt.scale.setScalar(Math.max(0.01, BOLT_S * (1 - G.end * 0.55))); bolt.position.x += (e.x - bolt.position.x) * Math.min(1, dt * 4); }
+    if (G.state === 'win') teleportFx(e, dt);
   }
 }
 function openCage(c) {
@@ -330,6 +387,24 @@ function openCage(c) {
   toast(`🐾 ${names[c.kind] || 'Dostun'} kurtarıldı! ${G.cages}/${ents.cages.length}`);
 }
 
+// ---------- Işınlanma ----------
+function teleportFx(e, dt) {
+  const t = G.end, B = e.beam;
+  B.beam.material.opacity = Math.min(0.85, t * 2.2) * (t > 1.35 ? Math.max(0, 1 - (t - 1.35) * 3) : 1);
+  B.rings.forEach((r, i) => { const k = (t * 0.9 + i / 3) % 1; r.position.y = 0.15 + k * 3.4; r.scale.setScalar(1 - k * 0.35); r.material.opacity = (1 - k) * Math.min(1, t * 3) * (t > 1.35 ? 0 : 0.9); });
+  bolt.position.x += (e.x - bolt.position.x) * Math.min(1, dt * 5);
+  if (t < 0.35) { bolt.position.y = e.y + t * 0.6; }
+  else if (t < 1.1) { // Bolt incelip uzar ve ışığa dönüşür
+    const k = (t - 0.35) / 0.75; bolt.position.y = e.y + 0.2 + k * 1.6;
+    bolt.scale.set(BOLT_S * (1 - k), BOLT_S * (1 + k * 0.8), BOLT_S * (1 - k)); bolt.visible = k < 0.98;
+    if (Math.random() < 0.7) spark(e.x + (Math.random() - 0.5) * 0.6, bolt.position.y + Math.random() * 1.2);
+  } else if (!B.flashed) { B.flashed = true; bolt.visible = false; for (let i = 0; i < 26; i++) spark(e.x + (Math.random() - 0.5) * 1.2, e.y + 1.5 + Math.random() * 1.5, 1.6); sfx.checkpoint(); }
+  B.flash.material.opacity = t > 1.0 && t < 1.6 ? Math.sin((t - 1.0) / 0.6 * Math.PI) * 0.9 : 0; B.flash.scale.setScalar(2 + (t - 1) * 4);
+}
+const sparkGeo = new THREE.SphereGeometry(0.06, 6, 4); sparkGeo.userData.shared = true;
+const sparkMat = new THREE.MeshBasicMaterial({ color: 0x9af6ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+function spark(x, y, k = 1) { const m = add(new THREE.Mesh(sparkGeo, sparkMat)); m.position.set(x, y, 0.5); ents.parts.push({ m, v: new THREE.Vector3((Math.random() - 0.5) * 1.5 * k, (1.5 + Math.random() * 2.5) * k, 0), t: 0, spark: true }); }
+
 // ---------- Parçacıklar ----------
 const partGeo = new THREE.SphereGeometry(0.07, 6, 4); partGeo.userData.shared = true;
 function burst(x, y, color, n) {
@@ -338,24 +413,27 @@ function burst(x, y, color, n) {
 }
 function updateParts(dt) {
   for (let i = ents.parts.length - 1; i >= 0; i--) {
-    const q = ents.parts[i]; q.t += dt; q.v.y -= (q.dust ? 1 : 14) * dt; if (q.dust) q.v.x *= 1 - dt * 3;
+    const q = ents.parts[i]; q.t += dt; q.v.y -= (q.dust ? 1 : q.spark ? -1.5 : 14) * dt; if (q.dust) q.v.x *= 1 - dt * 3;
     q.m.position.addScaledVector(q.v, dt); q.m.scale.setScalar(Math.max(0, 1 - q.t * 1.4));
     if (q.t > 0.7) { levelRoot.remove(q.m); ents.parts.splice(i, 1); }
   }
 }
 
 // ---------- Kamera ----------
-const cam = { x: 0, y: 0 }; let camSnap = true, camBase = 2, shake = 0;
+const cam = { x: 0, y: 0, look: 0, dirT: 0, dir: 1 }; let camSnap = true, camBase = 2, shake = 0;
 function updateCamera(dt) {
   const p = player; if (!p) return;
-  const lookAhead = p.face * 1.8 + p.vx * 0.1;
-  let tx = Math.max(7, Math.min(L.w - 7, p.x + lookAhead));
+  // önden bakma: Bolt aynı yöne 0,4 sn yürüyünce yavaşça kayar; kısa ters basışlarda kamera kıpırdamaz
+  const md = Math.abs(p.vx) > 1 ? Math.sign(p.vx) : 0;
+  if (md && md !== cam.dir) { cam.dirT += dt; if (cam.dirT > 0.4) { cam.dir = md; cam.dirT = 0; } } else cam.dirT = 0;
+  cam.look += (cam.dir * 1.6 - cam.look) * Math.min(1, dt * 1.3);
+  let tx = Math.max(7, Math.min(L.w - 7, p.x + cam.look));
   const b = ents.boss; if (b && b.wallsUp) tx = (b.x0 + b.x1) / 2; // boss savaşında arena sabit
   // dikey: yerdeyken basılan yüksekliğe oturur; havada yalnızca çok yükselince/düşünce takip eder
-  if (p.ground || p.y < camBase - 1.2 || p.y > camBase + 3.0) camBase += (p.y - camBase) * Math.min(1, dt * (p.ground ? 3.5 : 5));
+  if (p.ground || p.y < camBase - 1.2 || p.y > camBase + 1.6) camBase += (p.y - (p.ground ? 0 : 1.2) - camBase) * Math.min(1, dt * (p.ground ? 3 : 2.2));
   const ty = camBase + 1.6;
-  if (camSnap) { camBase = p.y; cam.x = tx; cam.y = camBase + 1.6; camSnap = false; }
-  cam.x += (tx - cam.x) * Math.min(1, dt * 4); cam.y += (ty - cam.y) * Math.min(1, dt * 2.6);
+  if (camSnap) { camBase = p.y; cam.look = cam.dir * 1.6; tx = Math.max(7, Math.min(L.w - 7, p.x + cam.look)); cam.x = tx; cam.y = camBase + 1.6; camSnap = false; }
+  cam.x += (tx - cam.x) * Math.min(1, dt * 3.2); cam.y += (ty - cam.y) * Math.min(1, dt * 2.6);
   shake = Math.max(0, shake - dt); const sx = shake ? (Math.random() - 0.5) * shake * 0.5 : 0, sy = shake ? (Math.random() - 0.5) * shake * 0.5 : 0;
   const dist = b && b.wallsUp ? 13.5 : 11.2;
   camera.position.set(cam.x + sx, cam.y + 0.4 + sy, dist); camera.lookAt(cam.x + sx, cam.y - 0.1 + sy, 0);
@@ -427,8 +505,9 @@ function bindControls() {
   btn('bL', () => (input.left = true), () => (input.left = false));
   btn('bR', () => (input.right = true), () => (input.right = false));
   btn('bJ', () => { input.jump = true; input.jumpPressed = true; }, () => (input.jump = false));
+  btn('bF', () => { input.fire = true; }, () => {});
   const K = { ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right' };
-  window.addEventListener('keydown', (e) => { if (K[e.key]) input[K[e.key]] = true; if ((e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w') && !e.repeat) { input.jump = true; input.jumpPressed = true; } unlockAudio(); });
+  window.addEventListener('keydown', (e) => { if (K[e.key]) input[K[e.key]] = true; if ((e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w') && !e.repeat) { input.jump = true; input.jumpPressed = true; } if ((e.key === 'f' || e.key === 'x') && !e.repeat) input.fire = true; unlockAudio(); });
   window.addEventListener('keyup', (e) => { if (K[e.key]) input[K[e.key]] = false; if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w') input.jump = false; });
   const click = (id, f) => $(id).addEventListener('click', () => { unlockAudio(); f(); });
   click('play', () => renderMap());
@@ -454,7 +533,7 @@ function frame() {
     if (AUTO) autopilot();
     if (G.state === 'play') updatePlayer(dt);
     else if (G.state === 'win') G.end += dt;
-    updateEnemies(dt); updateBoss(dt); updateShip(dt); updateItems(dt); updateParts(dt); updateCamera(dt);
+    updateGun(dt); updateEnemies(dt); updateBoss(dt); updateShip(dt); updateItems(dt); updateParts(dt); updateCamera(dt);
     anim.update(dt);
   } else if (G.state === 'menu') { menuCam(dt); }
   renderer.render(scene, camera);

@@ -59,3 +59,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d2a1a; fon
 .lv .st img { width: 14px; height: 14px; margin-left: 2px; }
 .lv.boss { background: linear-gradient(#b0502a, #6a2a14); box-shadow: 0 4px 0 #3a1408; }
 .lv.lock { opacity: .45; }
+
+#pad #bF { right: calc(max(26px, env(safe-area-inset-right)) + 128px); bottom: calc(max(18px, env(safe-area-inset-bottom)) + 34px) !important; width: 82px; height: 82px; background: rgba(80, 200, 255, .26); border-color: rgba(150, 230, 255, .85); flex-direction: column; }
+#pad #bF svg { width: 38px; height: 38px; }
+#bF .ch { display: flex; gap: 4px; margin-top: -2px; }
+#bF .ch i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.25); }
+#bF .ch i.on { background: #8af0ff; box-shadow: 0 0 6px #8af0ff; }
+#bF.empty { opacity: .55; }

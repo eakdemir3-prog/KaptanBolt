@@ -177,8 +177,12 @@ function makeModelRobot(skin) {
   root.scale.setScalar(1.2);
   root.userData = { body, turn, head: wrap, eyeL: dummy(), eyeR: dummy(), legL: dummy(), legR: dummy(), armL: dummy(), armR: dummy(), eyeMat: mat, eyeColor: skin.eye, glb: true, mat, anim, headBone, headGroup: head, fill };
   if (headBone) { // aksesuarları kafa kemiğine taşı (kemik ölçeğini dengele)
+    // şapka, kafanın düz (bağlama) pozuna göre takılır; hangi duruş hareketi seçilirse seçilsin yerinde durur
+    let sk = null; model.traverse((o) => { if (o.isSkinnedMesh && !sk) sk = o.skeleton; });
+    if (sk) sk.pose();
     model.updateMatrixWorld(true); wrap.updateMatrixWorld(true);
     headBone.attach(head);
+    anim.update(0);
   }
   return root;
 }

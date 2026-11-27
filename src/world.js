@@ -89,49 +89,81 @@ function mats() {
 const mesh = (geo, mat, x = 0, y = 0, z = 0, shadow = true) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = shadow; m.receiveShadow = true; return m; };
 
 /** Ön yüze boyalı zemin dokusu giydirilmiş bant: üstte çimen saçağı, altta toprak (x0'a göre kesintisiz) */
-function soilFace(x0, w, yTop, hgt, z, lip = true) {
+// ---------- Zemin: kavisli kenarlı, önü baştan sona boyalı doku ----------
+// Uzun doku: üstte senin zemin resmin (çimen saçağı + toprak), altına resmin toprak kısmı aynalanarak eklenir
+const TALL_H = GROUND_TW * 2;           // 1024x2048 kanvas = 3.6 x 7.2 kare
+let TALL = null, DIRT = null;
+function tallTextures() {
+  if (TALL) return;
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 2048;
+  const d = document.createElement('canvas'); d.width = 512; d.height = 512;
+  TALL = new THREE.CanvasTexture(c); TALL.colorSpace = THREE.SRGBColorSpace; TALL.wrapS = THREE.RepeatWrapping; TALL.anisotropy = 8;
+  DIRT = new THREE.CanvasTexture(d); DIRT.colorSpace = THREE.SRGBColorSpace; DIRT.wrapS = DIRT.wrapT = THREE.MirroredRepeatWrapping; DIRT.anisotropy = 4;
+  const g = c.getContext('2d'); g.fillStyle = '#9a4a1c'; g.fillRect(0, 0, 1024, 2048);
+  new THREE.ImageLoader().load('props/ground.webp', (img) => {
+    g.drawImage(img, 0, 0, 1024, 682);
+    // toprak kısmı (çimen ve kökler hariç) aşağıya aynalı kopyalanır
+    const sy = 230, sh = 682 - sy; let y = 682, flip = true;
+    while (y < 2048) { g.save(); if (flip) { g.translate(0, y + sh); g.scale(1, -1); g.drawImage(img, 0, sy, 1024, sh, 0, 0, 1024, sh); } else g.drawImage(img, 0, sy, 1024, sh, 0, y, 1024, sh); g.restore(); y += sh; flip = !flip; }
+    TALL.needsUpdate = true;
+    d.getContext('2d').drawImage(img, 0, 300, 512, 300, 0, 0, 512, 512); DIRT.needsUpdate = true;
+  });
+}
+const capMat = () => M.cap || (M.cap = new THREE.MeshStandardMaterial({ map: TALL, roughness: 0.92 }));
+const sideMat = () => M.side || (M.side = new THREE.MeshStandardMaterial({ map: DIRT, roughness: 0.95, color: 0xd8c0b0 }));
+/** Dış hattı verilen şekli z ekseninde kalınlaştırır; ön/arka yüze dünya koordinatlı uzun doku, yanlara toprak */
+function soilBlock(shape, top, depth) {
+  tallTextures();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: 0.14, bevelSize: 0.12, bevelSegments: 3, curveSegments: 10 });
+  geo.translate(0, -0.13, -depth / 2); // pah payı: blok üstü çimen yüzeyinin altında kalsın
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  const cap = geo.groups[0];
+  for (let i = cap.start; i < cap.start + cap.count; i++) {
+    const vi = geo.index ? geo.index.getX(i) : i;
+    uv.setXY(vi, pos.getX(vi) / GROUND_TW, 1 - (top - 0.1 - pos.getY(vi)) / TALL_H);
+  }
+  const side = geo.groups[1];
+  for (let i = side.start; i < side.start + side.count; i++) { const vi = geo.index ? geo.index.getX(i) : i; uv.setXY(vi, (pos.getX(vi) + pos.getZ(vi)) / 3, pos.getY(vi) / 3); }
+  uv.needsUpdate = true;
+  const m = new THREE.Mesh(geo, [capMat(), sideMat()]); m.receiveShadow = true;
+  return m;
+}
+/** Bir sıra zemin: yanları hafif şişkin ve dalgalı, üst köşeleri yuvarlak (Red Ball tarzı yamaç) */
+function groundRun(x0, w, h, leftOpen, rightOpen) {
   const g = new THREE.Group();
-  if (lip) {
-    const lh = Math.min(GROUND_TH, hgt), k = lh / GROUND_TH; // kısa bantta dokunun sadece üst kısmı
-    const t = M.lip.clone(); t.needsUpdate = true; t.repeat.set(w / GROUND_TW, k); t.offset.set(x0 / GROUND_TW, 1 - k);
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, lh), new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 }));
-    m.position.set(x0 + w / 2, yTop - lh / 2, z); m.receiveShadow = true; g.add(m);
-  }
-  const rest = hgt - (lip ? GROUND_TH : 0);
-  if (rest > 0.01) { // altı: dokunun toprak kısmı aynalı tekrar
-    const t = M.soil.clone(); t.needsUpdate = true; t.repeat.set(w / GROUND_TW, rest / (GROUND_TH * 0.75)); t.offset.set(x0 / GROUND_TW + 0.37, 0);
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, rest), new THREE.MeshStandardMaterial({ map: t, roughness: 0.95 }));
-    m.position.set(x0 + w / 2, yTop - (lip ? GROUND_TH : 0) - rest / 2, z); m.receiveShadow = true; g.add(m);
-  }
+  const bot = -8, r = 0.32;
+  const s = new THREE.Shape();
+  const L = x0, Rr = x0 + w;
+  // sol kenar: boşluğa bakıyorsa kavisli yamaç, komşu zemine bitişikse düz
+  s.moveTo(leftOpen ? L + 0.25 : L - 0.02, bot);
+  if (leftOpen) { s.bezierCurveTo(L - 0.05, bot + 3, L + 0.18, h - 2.4, L - 0.06, h - 1.1); s.quadraticCurveTo(L - 0.14, h - 0.45, L, h - r); s.quadraticCurveTo(L + 0.02, h, L + r, h); }
+  else s.lineTo(L - 0.02, h);
+  if (rightOpen) { s.lineTo(Rr - r, h); s.quadraticCurveTo(Rr - 0.02, h, Rr, h - r); s.quadraticCurveTo(Rr + 0.14, h - 0.45, Rr + 0.06, h - 1.1); s.bezierCurveTo(Rr - 0.18, h - 2.4, Rr + 0.05, bot + 3, Rr - 0.25, bot); }
+  else { s.lineTo(Rr + 0.02, h); s.lineTo(Rr + 0.02, bot); }
+  s.closePath();
+  g.add(soilBlock(s, h, DEPTH - 0.28));
+  g.position.z = h * 0.012; // yüksek blok önde: komşu alçak blokla üst üste binen yerde titreme olmasın
+  // üst çimen yüzeyi (önden bakınca dokunun çimen saçağı görünür)
+  const top = new THREE.Mesh(new RoundedBoxGeometry(w + (leftOpen ? 0.2 : 0.02) + (rightOpen ? 0.2 : 0.02), 0.3, DEPTH + 0.06, 3, 0.12), M.top);
+  top.position.set(x0 + w / 2 + (rightOpen ? 0.09 : 0) - (leftOpen ? 0.09 : 0), h - 0.13, 0.03); top.receiveShadow = true; g.add(top);
   return g;
 }
-/** Bir sıra zemin: üst çimen yüzeyi, boyalı ön yüz, toprak yanlar */
-function groundRun(x0, w, h) {
-  const g = new THREE.Group();
-  const deep = h + 8;
-  const box = new THREE.Mesh(new THREE.BoxGeometry(w, deep, DEPTH), [M.soilColor, M.soilColor, M.top, M.soilColor, M.soilColor, M.soilColor]);
-  box.position.set(x0 + w / 2, h - deep / 2, 0); box.receiveShadow = true; g.add(box);
-  g.add(soilFace(x0, w, h + 0.02, deep, DEPTH / 2 + 0.005));
-  // yan yüzler (boşluk kenarı): toprak dokusu
-  for (const sx of [x0, x0 + w]) {
-    const t = M.lip.clone(); t.needsUpdate = true; t.repeat.set(DEPTH / GROUND_TW, 1);
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(DEPTH, GROUND_TH), new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 }));
-    m.position.set(sx + (sx === x0 ? -0.005 : 0.005), h + 0.02 - GROUND_TH / 2, 0); m.rotation.y = sx === x0 ? -Math.PI / 2 : Math.PI / 2; g.add(m);
-  }
-  return g;
-}
-
-/** Yüzen kaya platformu (üst yüzey y+1) */
+/** Yüzen ada: düz üst, yuvarlak köşeler, alttan kavisli çanak; önü aynı boyalı doku */
 function floatRock(x, y, w) {
   const g = new THREE.Group();
-  const cx = x + w / 2;
-  const top = new THREE.Mesh(new RoundedBoxGeometry(w + 0.2, 0.36, 2.0, 3, 0.14), M.top); top.position.set(cx, y + 0.9, 0); top.castShadow = top.receiveShadow = true; g.add(top);
-  const body = new THREE.Mesh(new RoundedBoxGeometry(w + 0.1, 1.0, 1.9, 3, 0.35), M.underside); body.position.set(cx, y + 0.5, 0); body.castShadow = true; g.add(body);
-  g.add(soilFace(x - 0.1, w + 0.2, y + 1.06, 1.12, 1.0));
-  // alttan sarkan sarmaşık
+  const top = y + 1, L = x - 0.08, Rr = x + w + 0.08, r = 0.28, belly = Math.min(1.5, 0.7 + w * 0.22);
+  const s = new THREE.Shape();
+  s.moveTo(L + r, top);
+  s.lineTo(Rr - r, top); s.quadraticCurveTo(Rr, top, Rr, top - r);
+  s.quadraticCurveTo(Rr + 0.08, top - 0.7, Rr - 0.25, top - 1.0);
+  s.bezierCurveTo(Rr - w * 0.25, top - 1.0 - belly * 0.6, x + w * 0.62, top - 1.0 - belly, x + w * 0.5, top - 1.0 - belly);
+  s.bezierCurveTo(x + w * 0.38, top - 1.0 - belly, L + w * 0.25, top - 1.0 - belly * 0.6, L + 0.25, top - 1.0);
+  s.quadraticCurveTo(L - 0.08, top - 0.7, L, top - r); s.quadraticCurveTo(L, top, L + r, top);
+  g.add(soilBlock(s, top, 1.7));
+  const t = new THREE.Mesh(new RoundedBoxGeometry(w + 0.3, 0.28, 2.04, 3, 0.12), M.top); t.position.set(x + w / 2, top - 0.12, 0.02); t.receiveShadow = true; g.add(t);
   const nv = Math.max(1, Math.round(w / 2.5));
-  for (let i = 0; i < nv; i++) { const hh = 1.1 + R() * 0.6; const v = sprite('vines', hh, 209 / 352); v.position.set(x + (i + 0.5) * w / nv + (R() - 0.5) * 0.4, y + 0.25 - hh, 0.85); g.add(v); }
-  if (w >= 2) for (let i = 0; i < 2; i++) { const k = Math.floor(R() * 6); const f = sprite(`flower${k + 1}`, 0.4, FLOWER_A[k]); f.position.set(x + 0.4 + R() * (w - 0.8), y + 1.05, -0.5); g.add(f); }
+  for (let i = 0; i < nv; i++) { const hh = 1.0 + R() * 0.6; const v = sprite('vines', hh, 209 / 352); v.position.set(x + (i + 0.5) * w / nv + (R() - 0.5) * 0.4, top - 0.9 - hh * 0.75, 1.0); g.add(v); }
+  if (w >= 2) for (let i = 0; i < 2; i++) { const k = Math.floor(R() * 6); const f = sprite(`flower${k + 1}`, 0.4, FLOWER_A[k]); f.position.set(x + 0.4 + R() * (w - 0.8), top - 0.02, -0.45); g.add(f); }
   return g;
 }
 
@@ -197,7 +229,7 @@ export function buildWorld(scene, L) {
   while (x < L.w) {
     const h = L.cols[x]; if (!h) { x++; continue; }
     let e = x; while (e + 1 < L.w && L.cols[e + 1] === h) e++;
-    root.add(groundRun(x, e - x + 1, h));
+    root.add(groundRun(x, e - x + 1, h, !(L.cols[x - 1] >= h), !(L.cols[e + 1] >= h)));
     // üstte çalı, çiçek, çimen tutamı
     for (let i = x; i <= e; i++) {
       if (R() < 0.2) { const [k, a] = BUSH[Math.floor(R() * 3)]; const b = sprite(`bush${k}`, 0.9 + R() * 0.6, a); b.position.set(i + 0.5, h - 0.05, -0.75 - R() * 0.3); if (R() < 0.5) b.scale.x = -1; root.add(b); }
@@ -248,10 +280,16 @@ export function makePost(big = false) {
 export function setPost(g, on) { const u = g.userData; u.on = on; u.mat.color.setScalar(on ? 1 : 0.55); u.glow.visible = on; }
 let GLOW = null;
 function glowTex() { return GLOW || (GLOW = canvasTex(64, 64, (g, w) => { const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.35, 'rgba(255,255,255,0.5)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, w, w); }, false)); }
-/** Işınlanma sütunu (bitişte) */
+/** Işınlanma: alttan yukarı saydamlaşan ince mavi ışık, yukarı akan halkalar ve parlama */
 export function makeBeam() {
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 14, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0x8af4ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
-  m.geometry.translate(0, 7, 0); return m;
+  const g = new THREE.Group();
+  const grad = canvasTex(4, 128, (c, w, h) => { const r = c.createLinearGradient(0, 0, 0, h); r.addColorStop(0, 'rgba(255,255,255,0)'); r.addColorStop(0.55, 'rgba(255,255,255,0.35)'); r.addColorStop(0.92, 'rgba(255,255,255,0.9)'); r.addColorStop(1, 'rgba(255,255,255,1)'); c.fillStyle = r; c.fillRect(0, 0, w, h); }, false);
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.55, 5, 28, 1, true), new THREE.MeshBasicMaterial({ map: grad, color: 0x6fe6ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+  beam.position.y = 2.5; g.add(beam);
+  const rings = [0, 1, 2].map(() => { const r = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.035, 8, 40), new THREE.MeshBasicMaterial({ color: 0xbaf6ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); r.rotation.x = Math.PI / 2; g.add(r); return r; });
+  const flash = new THREE.Mesh(new THREE.CircleGeometry(0.6, 32), new THREE.MeshBasicMaterial({ map: glowTex(), color: 0xcff8ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  flash.position.set(0, 2.2, 0.6); g.add(flash);
+  return { g, beam, rings, flash, flashed: false };
 }
 export const makeSprite = (name, h, aspect) => { mats(); return sprite(name, h, aspect); };
 export const ASPECT = { heart: 236 / 212, star: 249 / 237, crate: 245 / 251, bridge: 329 / 125, raft: 333 / 187, thorns: 339 / 170, sign: 244 / 271, stump: 308 / 246, rocks: 306 / 223, log: 330 / 188, vines: 209 / 352, mushrooms: 241 / 227 };

@@ -60,6 +60,7 @@ function simLevel(n) {
       const k = key(r); if (seen.has(k)) continue; seen.add(k); q.push(r);
     }
   }
+  got.maxX = Math.max(...[...seen].map((k) => +k.split(',')[0] / 4));
   return { L, got, states: seen.size };
 }
 const only = process.argv[2] ? [+process.argv[2]] : LEVELS.map((_, i) => i + 1);
@@ -73,6 +74,6 @@ for (const n of only) {
   if (!got.end) miss.push('BİTİŞ');
   const missC = L.coins.map((c, i) => (got.coins.has(i) ? null : `${c.x.toFixed(1)},${c.y.toFixed(1)}`)).filter(Boolean);
   if (miss.length) bad++;
-  console.log(`${String(n).padStart(2)} ${LEVELS[n - 1].name.padEnd(20)} w=${L.w} altın=${L.coins.length} alınan=${got.coins.size} kafes=${L.cages.length} durum=${states} ${((Date.now() - t0) / 1000).toFixed(1)}sn ${miss.length ? 'EKSİK: ' + miss.join(' ') : 'TAMAM'}${missC.length ? ' | ulaşılamayan altın: ' + missC.join(' ') : ''}`);
+  console.log(`${String(n).padStart(2)} ${LEVELS[n - 1].name.padEnd(20)} w=${L.w} altın=${L.coins.length} alınan=${got.coins.size} kafes=${L.cages.length} durum=${states} enUzak=${got.maxX} ${((Date.now() - t0) / 1000).toFixed(1)}sn ${miss.length ? 'EKSİK: ' + miss.join(' ') : 'TAMAM'}${missC.length ? ' | ulaşılamayan altın: ' + missC.join(' ') : ''}`);
 }
 process.exitCode = bad ? 1 : 0;

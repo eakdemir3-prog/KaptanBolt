@@ -32,6 +32,7 @@ export function loadRobotModel() {
           for (const tr of c.tracks) if (/Hips\.position$/.test(tr.name)) { const v = tr.values; for (let i = 0; i < v.length; i += 3) { v[i] = v[0]; v[i + 2] = v[2]; } }
           clips[c.name] = c;
         }
+        if (clips.jump) { clips.jumpUp = clips.jump.clone(); clips.jumpUp.name = 'jumpUp'; clips.jumpDown = clips.jump.clone(); clips.jumpDown.name = 'jumpDown'; }
         resolve(true);
       }, undefined, () => resolve(true));
     }, undefined, (e) => { console.warn('robot.glb yüklenemedi', e); resolve(false); });
@@ -171,6 +172,8 @@ export function makeAnimator(model) {
   };
   const update = (dt) => { mixer.update(dt); const tgt = STANCE + (WIDE[cur && cur.getClip().name] || 0); st.stance += (tgt - st.stance) * Math.min(1, dt * 6); spread(); tilt(); };
   play('idle', { fade: 0 }); update(0.4);
+  /** donmuş poz: klibin t anında durur (zıplama: çıkış ve düşüş pozları) */
+  const pose = (name, t, fade = 0.12) => { const a = acts[name]; if (!a) return; if (cur !== a) { play(name, { once: true, fade }); } a.time = t; a.timeScale = 0; };
   const hold = (name, t) => { const a = acts[name]; if (a && cur === a && a.time >= t) a.timeScale = 0; };
-  return { mixer, update, play, hold, st, has: (n) => !!acts[n], current: () => (cur ? cur.getClip().name : null) };
+  return { mixer, update, play, hold, pose, st, has: (n) => !!acts[n], current: () => (cur ? cur.getClip().name : null) };
 }

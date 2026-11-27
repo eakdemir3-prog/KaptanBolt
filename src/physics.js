@@ -1,9 +1,9 @@
 // Oyuncu fiziği — oyun ve erişilebilirlik testi aynı kodu kullanır.
 // Birim = 1 kare. y yukarı. Oyuncunun konumu ayaklarının ortası.
 export const P = {
-  RUN: 6.8, ACC: 55, AIR_ACC: 38, FRICT: 60, TURN: 2.0,
-  G_UP: 46, G_DOWN: 74, G_APEX: 0.6, MAXFALL: 22,
-  JUMP_H: 3.3, SPRING_H: 6.4, STOMP_H: 2.0, STOMP_HOLD_H: 3.6,
+  RUN: 5.2, ACC: 17, AIR_ACC: 15, FRICT: 20, TURN: 2.6,
+  G_UP: 38, G_DOWN: 60, G_APEX: 0.6, MAXFALL: 18,
+  JUMP_H: 2.5, SPRING_H: 5.4, STOMP_H: 1.6, STOMP_HOLD_H: 2.8,
   PW: 0.62, PH: 1.22,
   COYOTE: 0.1, BUFFER: 0.13,
 };
