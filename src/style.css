@@ -37,3 +37,25 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d2a1a; fon
 #splash .bar { width: 220px; height: 8px; border-radius: 6px; background: rgba(255,255,255,.15); margin-top: 16px; overflow: hidden; }
 #splash .bar i { display: block; height: 100%; width: 40%; background: #7affa8; animation: ld 1s infinite ease-in-out; }
 @keyframes ld { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+
+.ci.dim { filter: grayscale(1) opacity(.35); }
+#hudStar { width: 22px; height: 22px; margin-left: 4px; }
+.screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 5; background: linear-gradient(rgba(5,30,15,.15), rgba(5,30,15,.55)); }
+.screen .logo { font: 900 italic 64px Mont, sans-serif; color: #e8fbff; text-shadow: 0 0 22px rgba(90,230,255,.8), 0 5px 0 rgba(0,0,0,.35); }
+.screen .logo span { color: #7affa8; }
+.screen .tag { margin: 6px 0 18px; font-size: 17px; text-shadow: 0 2px 4px rgba(0,0,0,.6); }
+.btn.big { width: 260px; font-size: 26px; padding: 14px; }
+#map { justify-content: flex-start; padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); background: linear-gradient(rgba(5,30,15,.55), rgba(5,30,15,.75)); }
+.maphead { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 980px; }
+.maphead h2 { flex: 1; margin: 0; font-size: 26px; text-shadow: 0 2px 4px rgba(0,0,0,.5); }
+#mapInfo .ci { width: 20px; height: 20px; }
+#levels { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; width: 100%; max-width: 980px; margin-top: 10px; overflow-y: auto; touch-action: pan-y; }
+.lv { touch-action: manipulation; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 16px; border: 2px solid rgba(255,255,255,.35); background: linear-gradient(#3a8a4a, #1f5a2c); color: #fff; font-family: Pop, sans-serif; box-shadow: 0 4px 0 #123a1c; }
+.lv b { font-size: 24px; line-height: 1; }
+.lv small { font-size: 9px; opacity: .85; line-height: 1.1; min-height: 20px; text-align: center; }
+.lv .st { display: flex; align-items: center; gap: 1px; }
+.lv .st i { font-style: normal; color: rgba(255,255,255,.25); font-size: 13px; }
+.lv .st i.on { color: #ffd23a; }
+.lv .st img { width: 14px; height: 14px; margin-left: 2px; }
+.lv.boss { background: linear-gradient(#b0502a, #6a2a14); box-shadow: 0 4px 0 #3a1408; }
+.lv.lock { opacity: .45; }

@@ -5,6 +5,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const DEPTH = 2.4; // zeminin derinliği (z yönünde)
+export function seed(n) { rnd = 12345 + n * 7919; }
 let rnd = 12345; const R = () => ((rnd = (rnd * 16807) % 2147483647) / 2147483647);
 
 function canvasTex(w, h, draw, repeat = true) {
@@ -70,6 +71,7 @@ function mats() {
   M.lip = tex('ground', (t) => { t.wrapS = THREE.RepeatWrapping; });
   M.soil = tex('ground', (t) => { t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.MirroredRepeatWrapping; });
   M.soilColor = new THREE.MeshStandardMaterial({ color: 0x9a4a1c, roughness: 0.95 });
+  M.underside = new THREE.MeshStandardMaterial({ color: 0xb8622a, roughness: 0.95, emissive: 0x4a1e08, emissiveIntensity: 0.5 });
   M.top = new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#86c602'; g.fillRect(0, 0, w, h); for (let i = 0; i < 500; i++) { g.fillStyle = R() < 0.5 ? 'rgba(60,140,0,0.35)' : 'rgba(190,240,60,0.35)'; g.beginPath(); g.ellipse(R() * w, R() * h, 2 + R() * 4, 1 + R() * 2, R() * 3, 0, 7); g.fill(); } }), roughness: 0.85 });
   M.grass = new THREE.MeshStandardMaterial({ map: grassTex(), roughness: 0.8 });
   M.rock = new THREE.MeshStandardMaterial({ map: rockTex(), roughness: 0.9 });
@@ -123,11 +125,13 @@ function groundRun(x0, w, h) {
 function floatRock(x, y, w) {
   const g = new THREE.Group();
   const cx = x + w / 2;
-  const top = new THREE.Mesh(new RoundedBoxGeometry(w + 0.2, 0.36, 2.4, 3, 0.14), M.top); top.position.set(cx, y + 0.9, 0); top.castShadow = top.receiveShadow = true; g.add(top);
-  const body = new THREE.Mesh(new RoundedBoxGeometry(w, 0.8, 2.2, 3, 0.25), M.soilColor); body.position.set(cx, y + 0.45, 0); body.castShadow = body.receiveShadow = true; g.add(body);
-  const bottom = new THREE.Mesh(new THREE.ConeGeometry(Math.min(w * 0.45, 1.4), 1.3, 7), M.soilColor); bottom.position.set(cx, y - 0.45, 0); bottom.rotation.x = Math.PI; bottom.scale.z = 0.8; bottom.castShadow = true; g.add(bottom);
-  const face = soilFace(x - 0.1, w + 0.2, y + 1.06, 1.12, 1.215); g.add(face);
-  for (let i = 0; i < 2; i++) { const f = sprite(`flower${1 + Math.floor(R() * 6)}`, 0.42, 1.35); f.position.set(x + 0.4 + R() * (w - 0.8), y + 1.05, -0.6); g.add(f); }
+  const top = new THREE.Mesh(new RoundedBoxGeometry(w + 0.2, 0.36, 2.0, 3, 0.14), M.top); top.position.set(cx, y + 0.9, 0); top.castShadow = top.receiveShadow = true; g.add(top);
+  const body = new THREE.Mesh(new RoundedBoxGeometry(w + 0.1, 1.0, 1.9, 3, 0.35), M.underside); body.position.set(cx, y + 0.5, 0); body.castShadow = true; g.add(body);
+  g.add(soilFace(x - 0.1, w + 0.2, y + 1.06, 1.12, 1.0));
+  // alttan sarkan sarmaşık
+  const nv = Math.max(1, Math.round(w / 2.5));
+  for (let i = 0; i < nv; i++) { const hh = 1.1 + R() * 0.6; const v = sprite('vines', hh, 209 / 352); v.position.set(x + (i + 0.5) * w / nv + (R() - 0.5) * 0.4, y + 0.25 - hh, 0.85); g.add(v); }
+  if (w >= 2) for (let i = 0; i < 2; i++) { const k = Math.floor(R() * 6); const f = sprite(`flower${k + 1}`, 0.4, FLOWER_A[k]); f.position.set(x + 0.4 + R() * (w - 0.8), y + 1.05, -0.5); g.add(f); }
   return g;
 }
 
@@ -181,7 +185,7 @@ export function backdrop(scene, levelW) {
   };
   const sky = layer('bg/vadi-gok.webp', -120, 120, -20, { aspect: 1672 / 941 });
   const far = layer('bg/vadi-uzak.webp', -70, 46, -14, { alpha: true, aspect: 1532 / 941, order: 1, tint: 0xf4fbff, fill: 0x3f8f73 });
-  const mid = layer('bg/vadi-orta.webp', -26, 18, -4.5, { alpha: true, aspect: 1532 / 941, order: 2, tint: 0xe8f4e0, fill: 0x1f4a26 });
+  const mid = layer('bg/vadi-orta.webp', -26, 21, -9, { alpha: true, aspect: 1532 / 941, order: 2, tint: 0xe8f4e0, fill: 0x3a7330 });
   return { sky, far, mid };
 }
 
@@ -203,15 +207,11 @@ export function buildWorld(scene, L) {
     x = e + 1;
   }
   for (const p of L.plats) root.add(floatRock(p.x, p.y, p.w));
-  // uçurumlar: boşluğun arkası derinlere doğru kararan bir yarık (düz yeşil zemin görünmesin)
-  const abyss = canvasTex(4, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(20,40,22,0)'); gr.addColorStop(0.12, 'rgba(20,40,22,0.55)'); gr.addColorStop(0.35, 'rgba(10,20,12,0.95)'); gr.addColorStop(1, 'rgba(5,10,6,1)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); }, false);
-  const abyssMat = new THREE.MeshBasicMaterial({ map: abyss, fog: false, transparent: true, depthWrite: false });
-  for (let x = 1; x < L.w - 1; x++) {
-    if (L.cols[x] || !L.cols[x - 1]) continue;
-    let e = x; while (e + 1 < L.w && !L.cols[e + 1]) e++;
-    const top = Math.min(L.cols[x - 1], L.cols[e + 1] || L.cols[x - 1]) - 0.15, w = e - x + 1;
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.4, top + 10), abyssMat); back.position.set(x + w / 2, top + 1.2 - (top + 10) / 2, DEPTH / 2 - 0.02); root.add(back);
-    x = e;
+  // arka planda süs: kütük, kayalar, devrik ağaç, mantarlar (zemin üstünde, rastgele)
+  const DECO = [['stump', 1.0, 308 / 246], ['rocks', 0.8, 306 / 223], ['log', 0.75, 330 / 188], ['mushrooms', 0.7, 241 / 227]];
+  for (let x2 = 3; x2 < L.w - 3; x2++) {
+    const h = L.cols[x2]; if (!h || L.cols[x2 - 1] !== h || L.cols[x2 + 1] !== h || R() > 0.07) continue;
+    const [k, hh, a] = DECO[Math.floor(R() * DECO.length)]; const d = sprite(k, hh * (0.85 + R() * 0.3), a); d.position.set(x2 + 0.5, h - 0.04, -0.95 - R() * 0.15); if (R() < 0.5) d.scale.x = -1; root.add(d); x2 += 4;
   }
   return root;
 }
@@ -226,16 +226,47 @@ export function makeCoin() {
   return g;
 }
 
-/** Zıplatan mantar: pembe benekli şapka, yaylı sap */
+/** Zıplatan mantar (resim). userData.spr basılınca y ölçeğiyle ezilir */
 export function makeSpring() {
   mats();
-  const g = new THREE.Group();
-  const coil = new THREE.Group(); g.add(coil);
-  for (let i = 0; i < 4; i++) { const t = mesh(new THREE.TorusGeometry(0.22, 0.035, 6, 18), M.iron, 0, 0.12 + i * 0.1, 0); t.rotation.x = Math.PI / 2; coil.add(t); }
-  const capM = new THREE.MeshStandardMaterial({ color: 0xff5aa8, roughness: 0.45, emissive: 0x6a1040, emissiveIntensity: 0.35 });
-  const cap = mesh(new THREE.SphereGeometry(0.62, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), capM, 0, 0.5, 0); cap.scale.y = 0.6; g.add(cap);
-  for (let i = 0; i < 7; i++) { const a = R() * Math.PI * 2, r = 0.15 + R() * 0.35; const d = mesh(new THREE.SphereGeometry(0.07, 8, 6), M.white, Math.cos(a) * r, 0.5 + 0.36 * Math.sqrt(1 - (r / 0.62) ** 2), Math.sin(a) * r, false); d.scale.y = 0.4; g.add(d); }
-  g.userData.cap = cap; g.userData.coil = coil;
+  const g = new THREE.Group(); const sp = sprite('spring', 1.05, 400 / 345); sp.position.z = 0.3; g.add(sp); g.userData.spr = sp; return g;
+}
+/** Şarj direği: kontrol noktası (küçük) ya da bitiş ışınlanma direği (büyük). Sönükken gri. */
+export function makePost(big = false) {
+  mats();
+  const g = new THREE.Group(); const H = big ? 3.0 : 1.75;
+  const mat = new THREE.MeshBasicMaterial({ map: tex('post'), transparent: true, alphaTest: 0.3, toneMapped: false, side: THREE.DoubleSide });
+  const geo = new THREE.PlaneGeometry(H * 196 / 420, H); geo.translate(0, H / 2, 0);
+  const sp = new THREE.Mesh(geo, mat); sp.position.z = -0.5; g.add(sp);
+  // kürenin ışığı (yanınca parlar)
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(H * 0.32, 24), new THREE.MeshBasicMaterial({ map: glowTex(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0x66e8ff, toneMapped: false }));
+  glow.position.set(0, H * 0.78, -0.45); glow.scale.setScalar(1.6); g.add(glow);
+  g.userData = { sp, mat, glow, H, on: false };
+  setPost(g, false);
+  return g;
+}
+export function setPost(g, on) { const u = g.userData; u.on = on; u.mat.color.setScalar(on ? 1 : 0.55); u.glow.visible = on; }
+let GLOW = null;
+function glowTex() { return GLOW || (GLOW = canvasTex(64, 64, (g, w) => { const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.35, 'rgba(255,255,255,0.5)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, w, w); }, false)); }
+/** Işınlanma sütunu (bitişte) */
+export function makeBeam() {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 14, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0x8af4ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+  m.geometry.translate(0, 7, 0); return m;
+}
+export const makeSprite = (name, h, aspect) => { mats(); return sprite(name, h, aspect); };
+export const ASPECT = { heart: 236 / 212, star: 249 / 237, crate: 245 / 251, bridge: 329 / 125, raft: 333 / 187, thorns: 339 / 170, sign: 244 / 271, stump: 308 / 246, rocks: 306 / 223, log: 330 / 188, vines: 209 / 352, mushrooms: 241 / 227 };
+/** Köprü: ip köprü parçaları yan yana (uçlar biraz bindirilir) */
+export function makeBridge(x0, x1, y) {
+  mats();
+  const g = new THREE.Group(); const segW = 2.4, h = segW / ASPECT.bridge, n = Math.ceil((x1 - x0) / (segW * 0.92));
+  const step = (x1 - x0) / n;
+  for (let i = 0; i < n; i++) { const s = sprite('bridge', h, ASPECT.bridge); s.scale.x = (step * 1.06) / segW; s.position.set(x0 + (i + 0.5) * step, y - h * 0.62, 0.1); g.add(s); }
+  return g;
+}
+export function makeRaft(w) { mats(); const g = new THREE.Group(); const h = w / ASPECT.raft; const s = sprite('raft', h, ASPECT.raft); s.position.set(w / 2, -h * 0.72, 0.1); g.add(s); return g; }
+export function makeThorns(w) {
+  mats(); const g = new THREE.Group(); const segW = 1.5, n = Math.max(1, Math.round(w / segW)), step = w / n;
+  for (let i = 0; i < n; i++) { const s = sprite("thorns", segW / ASPECT.thorns * 1.35, ASPECT.thorns); s.scale.x = step / segW * 1.15; s.position.set((i + 0.5) * step, -0.06, 0.15 + (i % 2) * 0.05); g.add(s); }
   return g;
 }
 
