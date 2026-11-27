@@ -5,17 +5,15 @@ const DEFAULT = () => ({
   best: {},           // { bölümNo: en az hamle }
   last: 1,            // kalınan bölüm
   hints: 5,
-  settings: { sound: true, music: true, vibration: true, quality: 'high', unlockAll: false, infiniteEnergy: false },
+  settings: { sound: true, music: true, vibration: true, notify: true, quality: 'high', unlockAll: false, infiniteEnergy: false },
   seenTutorial: {},
 });
 
 let store = (typeof localStorage !== 'undefined') ? localStorage : null;
 export function _setStorage(s) { store = s; } // testler için
 
-// TEST SÜRÜMÜ: true iken bütün bölümler açık ve enerji sınırsız (kapalı test öncesi son kontrol için).
-// Play'e yüklenecek AAB'den önce false yapılmalı.
-export const TEST_BUILD = false;
-const TEST = { unlockAll: TEST_BUILD, infiniteEnergy: TEST_BUILD };
+// Yayın sürümü: geliştirici test ayarları (tüm bölümler açık, sınırsız enerji) kayıttan her açılışta silinir.
+const TEST = { unlockAll: false, infiniteEnergy: false };
 export function load() {
   try {
     const raw = store && store.getItem(KEY);

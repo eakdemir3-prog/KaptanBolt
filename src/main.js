@@ -11,9 +11,13 @@ import * as Save from './save.js';
 import * as Eco from './economy.js';
 import { sfx, unlock as audioUnlock, setSound, setMusic, setTrack, suspend, resume } from './audio.js';
 import { initAds, showRewarded, maybeInterstitial } from './ads.js';
-import { IAP, initPurchases, buy as iapBuy, restore as iapRestore, purchasesReady, setPurchaseHandler } from './purchases.js';
+import { IAP, initPurchases, buy as iapBuy, restore as iapRestore, purchasesReady, setPurchaseHandler, setOwnedHandler } from './purchases.js';
 import * as Cloud from './cloud.js';
 import { vibrate, setVibration, onBack, exitApp, onPause } from './platform.js';
+import { LANG, setLang, initI18n } from './i18n.js';
+import { RC, initRemote, track, setUserProps, initCrashReports } from './remote.js';
+import { weekly, claimWeekly, weekLeft } from './weekly.js';
+import { maybeReview, shareCard, askNotifyPermission, scheduleReminders, cancelReminders } from './extras.js';
 
 const MAX = LEVELS.length;
 const WORLD_SIZE = Save.WORLD_SIZE;
@@ -55,7 +59,7 @@ const game = { state: null, level: null, busy: false, queued: null, deadTimer: 0
 // SVG simgeler (emoji yerine; her telefonda aynı görünür)
 const BOLT = (cls = '') => `<svg viewBox="0 0 24 32" class="ic ${cls}"><path d="M14 0L2 18h8l-3 14L22 12h-9z" fill="#ffd54a" stroke="#a86a00" stroke-width="1"/></svg>`;
 const COIN = `<svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="12" r="10" fill="#ffcf3a" stroke="#b07a00" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="#b07a00" stroke-width="1.5"/></svg>`;
-const fmtNum = (n) => n.toLocaleString('tr-TR');
+const fmtNum = (n) => n.toLocaleString(LANG === 'tr' ? 'tr-TR' : 'en-US');
 const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 
 // Test ve hata ayıklama için dışarıdan erişim
@@ -118,6 +122,7 @@ function renderRes() {
 setInterval(() => { if (screen !== 'game') renderRes(); if (energyModalOpen) renderEnergyModal(); }, 1000);
 
 function renderMenu() {
+  setTimeout(promptAhead, 400);
   const n = Save.continueLevel(data, MAX);
   const done = Object.keys(data.stars).length;
   // hiç bölüm oynanmadıysa "Başla", sonra "Devam Et"
@@ -127,7 +132,10 @@ function renderMenu() {
   const dd = data.daily || {};
   $('dailyInfo').textContent = dd.lastDone === dateKey() ? `✔ Bugün • 🔥${dd.streak}` : (dd.lastDone === yesterdayKey() ? `🔥 ${dd.streak} gün` : 'Yeni bulmaca!');
   const qr = Eco.questsReady(data), ar = Eco.achReady({ ...data, totalStars: Save.totalStars(data) });
-  $('questBadge').textContent = qr; $('questBadge').classList.toggle('hidden', !qr);
+  const wr = RC.weekly_on ? weekly(data, RC.weekly_reward).ready : 0;
+  $('questBadge').textContent = qr + wr; $('questBadge').classList.toggle('hidden', !(qr + wr));
+  $('kb2Card').classList.toggle('hidden', !RC.kb2_teaser);
+  $('menuNotice').textContent = RC.notice || ''; $('menuNotice').classList.toggle('hidden', !RC.notice);
   $('achBadge').textContent = ar; $('achBadge').classList.toggle('hidden', !ar);
 }
 
@@ -218,9 +226,12 @@ function pickSkin(id) {
   if (k.pro && !own) { shopTab = 'pro'; return show('shop'); }
   if (!own) {
     const price = Eco.SKIN_PRICES[id];
-    if (data.coins < price) { vibrate('light'); return toast(`Bu kostüm için ${fmtNum(price)} altın gerekiyor. Sende ${fmtNum(data.coins)} var.`); }
-    return openModal(`<img src="${skinImg(k)}" style="height:120px" alt=""><h2>${k.name}</h2><p>Bu kostümü almak istiyor musun?</p>
-      <button class="btn gold" data-act="buyskin" data-id="${id}">${COIN} ${fmtNum(price)} ile al</button><button class="btn" data-act="close">Vazgeç</button>`);
+    const enough = data.coins >= price;
+    $('heroImg').src = skinImg(k, true); $('heroName').textContent = k.name + ' (önizleme)';
+    return openModal(`<img src="${skinImg(k, true)}" class="skin-preview" alt=""><h2>${k.name}</h2>
+      <p>${enough ? 'Bu kostümü almak istiyor musun?' : `Bu kostüm ${fmtNum(price)} altın. Sende ${fmtNum(data.coins)} var — ${fmtNum(price - data.coins)} altın eksik.`}</p>
+      ${enough ? `<button class="btn gold" data-act="buyskin" data-id="${id}">${COIN} ${fmtNum(price)} ile al</button>` : `<button class="btn gold" data-act="getcoins">${COIN} Altın al</button>`}
+      <button class="btn" data-act="closepreview">Vazgeç</button>`);
   }
   data.skin = id; save();
   stage.setSkin(k); sfx.star(1);
@@ -246,10 +257,26 @@ function renderAch() {
 
 // ---------------- Görevler / enerji ----------------
 const rewardHtml = (r) => [r.coins && `${COIN} ${r.coins}`, r.hints && `💡 +${r.hints}`, r.energy && `${BOLT()}+${r.energy}`].filter(Boolean).join(' ');
+function kb2Modal() {
+  openModal(`<div class="emoji">🎮🚀</div><h2>Kaptan Bolt 2</h2>
+    <p>Kaptan Bolt geri dönüyor — bu sefer <b>koşan, zıplayan bir platform macerası!</b></p>
+    <ul class="kb2-list"><li>🌍 6 yeni dünya: Yeşil Vadi'den Paslı Fabrika'ya</li><li>🐾 Kafeslere kapatılan hayvanları kurtar</li><li>🦍 Dev boss'lar ve final: <b>Paslı Amiral</b></li><li>🎩 Kaptan şapkalı Bolt seni bekliyor</li></ul>
+    ${RC.kb2_url ? '<button class="btn gold" data-act="kb2go">▶ Google Play\'de aç</button>' : '<div class="tip">📣 Çok yakında! Çıktığında burada haber vereceğiz.</div>'}
+    <button class="btn primary" data-act="close">Kapat</button>`);
+}
+function weeklyHtml() {
+  if (!RC.weekly_on) return '';
+  const w = weekly(data, RC.weekly_reward);
+  const left = weekLeft(), dd = Math.floor(left / 864e5), hh = Math.floor((left % 864e5) / 36e5);
+  const next = w.tiers.find((t) => !t.claimed);
+  return `<div class="weekly"><div class="wk-head"><span class="wk-ic">${w.ev.ic}</span><div><b>Haftalık: ${w.ev.name}</b><small>${dd ? `⏳ ${dd} gün ${hh} saat kaldı` : `⏳ ${hh} saat kaldı`}</small></div></div>
+    <div class="wk-tiers">${w.tiers.map((t) => `<div class="wk-t ${t.claimed ? 'claimed' : t.done ? 'done' : ''}"><small>${w.text(t.n)}</small><b>${t.claimed ? '✔' : `${COIN} ${t.coins}${t.power ? ' + 🎁' : ''}`}</b><div class="qbar"><i style="width:${Math.min(100, (w.have / t.n) * 100)}%"></i></div></div>`).join('')}</div>
+    ${next && next.done ? `<button class="btn gold small" data-act="claimweekly">🎁 Haftalık ödülü al</button>` : next ? `<div class="tip">${w.have} / ${next.n} — devam!</div>` : '<div class="tip">🏆 Bu haftanın bütün ödülleri alındı. Pazartesi yeni etkinlik!</div>'}</div>`;
+}
 function questsModal() {
   const q = Eco.dailyQuests(data, dateKey());
   const all = Eco.allQuestsClaimed(data);
-  openModal(`<h2>🎯 Günlük Görevler</h2><p>Her gün yenilenir. Ödülünü almayı unutma!</p>
+  openModal(`${weeklyHtml()}<h2>🎯 Günlük Görevler</h2><p>Her gün yenilenir. Ödülünü almayı unutma!</p>
     ${q.list.map((x, i) => `<div class="quest ${x.claimed ? 'claimed' : ''}"><div class="qi">${x.ic}</div><div class="qt">${x.text}<small>${x.have} / ${x.n}</small><div class="qbar"><i style="width:${(x.have / x.n) * 100}%"></i></div></div>
       ${x.claimed ? '<span class="qbtn dis">✔</span>' : `<button class="qbtn ${x.done ? '' : 'dis'}" ${x.done ? `data-act="claimq" data-i="${i}"` : ''}>${rewardHtml(x.r)}</button>`}</div>`).join('')}
     ${q.bonus ? '<div class="tip">🎁 Bugünün bonusu alındı. Yarın yeni görevler!</div>' : all ? `<button class="btn gold" data-act="claimbonus">🎁 Bonus: ${COIN} ${Eco.QUEST_BONUS}</button>` : `<div class="tip">Hepsini bitir: <b>+${Eco.QUEST_BONUS} altın bonus</b> 🎁</div>`}
@@ -345,6 +372,7 @@ function startLevel(id) {
 
 function enterLevel(lv) {
   game.level = lv;
+  track('level_start', { level: lv.daily ? 0 : lv.id, world: lv.world || 0, daily: lv.daily ? 1 : 0 });
   game.history = []; game.undos = UNDOS; game.lossPending = false; game.adContinueUsed = false;
   game.powerUsed = false; game.jumpArmed = false; game.shield = false; game.collapseOrder = [];
   const board = parseLevel(lv);
@@ -521,6 +549,7 @@ function onWin() {
   Eco.stat(data, 'wins');
   if (stars === 3) Eco.stat(data, 'stars3');
   if (lv.final) Eco.stat(data, 'bosses');
+  track('level_win', { level: id, world: Save.worldOf(id), stars, moves: s.moves, first: prev ? 0 : 1 });
   const chest = worldChest(Save.worldOf(id));
   save();
   sfx.win(); vibrate('heavy');
@@ -541,8 +570,10 @@ function onWin() {
     ${coins > 0 ? `<button class="btn gold" data-act="adDouble" data-c="${coins}">📺 Reklam izle: 2× altın (+${coins})</button>` : `<div class="tip">Tekrar oynamada altın sadece yeni yıldızlar için verilir.</div>`}
     ${nextOpen ? '<button class="btn primary" data-act="next">Sonraki Bölüm →</button>' : `<div class="tip">🔒 Dünya ${Save.worldOf(id + 1)} için ⭐ ${Eco.WORLD_STARS(Save.worldOf(id + 1))} gerekiyor. Yıldızları artırmak için bölümleri tekrar oyna!</div>`}
     <button class="btn" data-act="restart"><span class="i-restart"></span>Tekrar Oyna</button>
-    <button class="linkbtn" data-act="map">Haritaya dön</button>`);
+    <div class="row2"><button class="linkbtn" data-act="map">Haritaya dön</button><button class="linkbtn" data-act="share" data-t="${lv.final ? 'Boss yenildi!' : 'Bölüm ' + id + ' tamam!'}" data-s="Dünya ${Save.worldOf(id)} • ${s.moves} hamle" data-n="${stars}">📤 Paylaş</button></div>`);
   for (let i = 0; i < stars; i++) setTimeout(() => sfx.star(i), 250 + i * 250);
+  if (!maybeReview(data, { boss: lv.final, stars }) && data.stats.wins >= 3) askNotifyPermission(data).then(save);
+  else save();
 }
 
 /** Bir dünyanın bütün bölümleri ilk kez bitince: 200 altın + 1 rastgele güç (bir kez) */
@@ -564,7 +595,7 @@ function onDailyWin(stars) {
   if (d.lastDone !== key) {
     d.streak = d.lastDone === yesterdayKey() ? (d.streak || 0) + 1 : 1; d.lastDone = key; d.total = (d.total || 0) + 1; first = true;
     d.best = Math.max(d.best || 0, d.streak);
-    data.coins += 20; Eco.stat(data, 'daily');
+    data.coins += 20; Eco.stat(data, 'daily'); track('daily_win', { streak: d.streak });
   }
   d.stars = Math.max(d.date === key ? d.stars || 0 : 0, stars); d.date = key;
   data.daily = d; save();
@@ -577,13 +608,15 @@ function onDailyWin(stars) {
     ${first ? `<div class="energy-pill">${COIN} +20</div>` : ''}
     ${stars < 3 ? `<div class="tip">⭐⭐⭐ için kapıya girmeden önce <b>bütün kareleri</b> çökert!</div>` : ''}
     <button class="btn" data-act="restart"><span class="i-restart"></span>Tekrar Oyna</button>
-    <button class="btn primary" data-act="menu">Ana Menü</button>`);
+    <button class="btn primary" data-act="menu">Ana Menü</button>
+    <button class="linkbtn" data-act="share" data-t="Günün bulmacası çözüldü!" data-s="🔥 ${d.streak} günlük seri" data-n="${stars}">📤 Paylaş</button>`);
   for (let i = 0; i < stars; i++) setTimeout(() => sfx.star(i), 250 + i * 250);
 }
 
 const undoBtnHtml = () => (game.undos > 0 && game.history.length ? `<button class="btn gold" data-act="undo">↶ Geri Al (${game.undos}) — enerji gitmez</button>` : '');
 
 function onLose(kind) {
+  track('level_lose', { level: game.level.daily ? 0 : game.level.id, kind });
   sfx.lose(); vibrate('heavy');
   game.lossPending = true;
   save();
@@ -750,7 +783,7 @@ function renderShop() {
     const pro = Eco.isPro(data);
     h = `<div class="pro-card"><h3>👑 Kaptan Bolt PRO</h3>
       <ul><li>Geçiş reklamı yok</li><li>Sınırsız enerji</li><li>Her gün ${Eco.PRO_DAILY_COINS} altın hediye</li><li>Bölüm altınları 2 katı</li><li>Özel "Pro Kaptan" kostümü</li></ul>
-      ${pro ? `<div class="tip">✔ Pro üyesisin${data.pro.lifetime ? ' (ömür boyu)' : data.pro.until ? ` • ${new Date(data.pro.until).toLocaleDateString('tr-TR')} tarihine kadar` : ''}</div>` : `<div class="row2">
+      ${pro ? `<div class="tip">✔ Pro üyesisin${data.pro.lifetime ? ' (ömür boyu)' : data.pro.until ? ` • ${new Date(data.pro.until).toLocaleDateString(LANG === 'tr' ? 'tr-TR' : 'en-US')} tarihine kadar` : ''}</div>` : `<div class="row2">
         ${moneyBtn('proLifetime', `Ömür Boyu Pro<small>${proSale() ? `<s>${IAP.products.proLifetime.oldPrice}</s> ` : ''}${IAP.products.proLifetime.price} • tek ödeme</small>`, 'gold')}</div>
       ${proSale() ? `<div class="tip">🔥 %${IAP.products.proLifetime.salePct} indirim • 31 Ocak'a kadar</div>` : ''}`}
       </div><button class="btn small" data-act="restore" style="width:100%">Satın alımları geri yükle</button>
@@ -768,8 +801,10 @@ function grantPurchase(k, token) {
     if (p.pro && !(data.pro && data.pro.lifetime)) { data.pro = { ...(data.pro || {}), active: true, lifetime: true, until: 0 }; save(); }
     return 'dup';
   }
+  track('purchase_granted', { item: k });
   if (p.pro) {
     data.pro = { ...(data.pro || {}), active: true, lifetime: true, until: 0 };
+    if (token && !token.startsWith('test-')) try { localStorage.setItem('kaptanbolt.proLocal', token); } catch { /* yok */ }
     toast('👑 Pro aktif! Teşekkürler Kaptan!');
     proDaily();
   } else if (p.once && data.starterBought) {
@@ -790,6 +825,14 @@ function grantPurchase(k, token) {
   return true;
 }
 setPurchaseHandler((k, token) => grantPurchase(k, token));
+// İade kontrolü: Pro bu telefonda satın alındıysa ve Google Play artık sahip olunduğunu söylemiyorsa (iade) Pro kapanır
+setOwnedHandler((owned) => {
+  let local = null; try { local = localStorage.getItem('kaptanbolt.proLocal'); } catch { local = null; }
+  if (!local || owned.includes('proLifetime') || !(data.pro && data.pro.lifetime)) return;
+  data.pro = { active: false, lifetime: false, until: 0 };
+  try { localStorage.removeItem('kaptanbolt.proLocal'); } catch { /* yok */ }
+  save(); renderMenu(); toast('Pro satın alımı iade edildiği için Pro kapatıldı.');
+});
 async function doIap(k) {
   const r = await iapBuy(k);
   if (!r.ok) return r.cancelled ? null : toast(r.message || 'Satın alma tamamlanamadı.');
@@ -916,13 +959,14 @@ function settingsModal() {
     <h2>Ayarlar</h2>
     <div class="set-grid">
       ${tile('sound', '🔊', 'Ses')}${tile('music', '🎵', 'Müzik')}
-      ${tile('vibration', '📳', 'Titreşim')}
+      ${tile('vibration', '📳', 'Titreşim')}${tile('notify', '🔔', 'Bildirim')}
+      <div class="set-tile q"><span class="si">🌐</span>Dil<div class="seg"><button class="${LANG === 'tr' ? 'on' : ''}" data-lang="tr">Türkçe</button><button class="${LANG === 'en' ? 'on' : ''}" data-lang="en">English</button></div></div>
       <div class="set-tile q"><span class="si">✨</span>Grafik<div class="seg"><button class="${s.quality === 'high' ? 'on' : ''}" data-quality="high">Yüksek</button><button class="${s.quality !== 'high' ? 'on' : ''}" data-quality="low">Dengeli</button></div></div>
     </div>
     ${accountBlock()}
     <div class="set-row"><button class="btn small" data-act="howto">❔ Yardım</button><button class="btn small purple" data-act="resetask">♻ Sıfırla</button></div>
     <button class="btn primary" data-act="close">Kapat</button>
-    <div class="foot">Kaptan Bolt v1.0.2 • EA Vision Labs</div>`);
+    <div class="foot">Kaptan Bolt v1.0.3 • EA Vision Labs</div>`);
 }
 // ---------------- Google hesabı / bulut kayıt ----------------
 const esc = (t) => String(t || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -953,6 +997,7 @@ async function doSignIn() {
     <button class="btn primary" data-act="usecloud">Buluttakini yükle</button><button class="btn" data-act="uselocal">Bu telefondakini kullan</button>`);
 }
 async function useCloud() {
+  Cloud.release();
   if (!pendingCloud) return closeModal();
   const d = Cloud.mergePurchases(Eco.ensure({ ...Save.load(), ...pendingCloud }), data);
   data = d; Save.save(data); pendingCloud = null;
@@ -961,6 +1006,7 @@ async function useCloud() {
   setTimeout(() => location.reload(), 600);
 }
 async function useLocal() {
+  Cloud.release();
   if (pendingCloud) { Cloud.mergePurchases(data, pendingCloud); pendingCloud = null; }
   save(); await Cloud.pushNow();
   toast('✔ Bu telefondaki ilerleme buluta kaydedildi.');
@@ -1008,7 +1054,8 @@ document.addEventListener('click', (e) => {
     if (!Save.worldUnlocked(data, w)) { vibrate('light'); return toast(`Dünya ${w - 1}'in boss'unu yen ya da ⭐ ${Eco.WORLD_STARS(w)} topla.`); }
     currentWorld = w; return show('map');
   }
-  if (el.dataset.toggle) { const k = el.dataset.toggle; data.settings[k] = !data.settings[k]; save(); applySettings(); renderRes(); if ($('card').querySelector('.set-grid')) return settingsModal(); el.classList.toggle('on', data.settings[k]); return; }
+  if (el.dataset.lang) { if (el.dataset.lang !== LANG) { save(); setLang(el.dataset.lang); } return; }
+  if (el.dataset.toggle) { const k = el.dataset.toggle; data.settings[k] = !data.settings[k]; save(); if (k === 'notify' && data.settings.notify) { data.notifAsked = false; askNotifyPermission(data); } applySettings(); renderRes(); if ($('card').querySelector('.set-grid')) return settingsModal(); el.classList.toggle('on', data.settings[k]); return; }
   if (el.dataset.quality) { data.settings.quality = el.dataset.quality; save(); applySettings(); return settingsModal(); }
   switch (el.dataset.act) {
     case 'continue': { const n = Save.continueLevel(data, MAX); currentWorld = Save.worldOf(n); return startLevel(n); }
@@ -1042,6 +1089,12 @@ document.addEventListener('click', (e) => {
     case 'claimq': { const r = Eco.claimQuest(data, +el.dataset.i); if (r) { save(); sfx.coin(); toast('Ödül alındı: ' + Eco.rewardText(r)); renderRes(); renderMenu(); } return questsModal(); }
     case 'claimbonus': if (Eco.claimBonus(data)) { save(); sfx.win(); renderRes(); renderMenu(); } return questsModal();
     case 'claimach': { const c = Eco.claimAch(data, el.dataset.id); if (c) { save(); sfx.coin(); toast(`+${c} altın!`); renderRes(); } return renderAch(); }
+    case 'claimweekly': { const t = claimWeekly(data, RC.weekly_reward); if (!t) return; data.coins += t.coins; let extra = ''; if (t.power) { const pw = Eco.POWERS[Math.floor(Math.random() * Eco.POWERS.length)]; data.powers[pw.id] = (data.powers[pw.id] || 0) + 1; extra = ` + ${pw.ic} ${pw.name}`; } save(); sfx.coin(); vibrate('medium'); track('weekly_claim', { tier: t.i + 1 }); toast(`🎁 +${t.coins} altın${extra}`); renderRes(); renderMenu(); return questsModal(); }
+    case 'kb2': track('kb2_teaser'); return kb2Modal();
+    case 'kb2go': if (RC.kb2_url) window.open(RC.kb2_url, '_system'); return closeModal();
+    case 'share': { track('share', { from: el.dataset.t || '' }); const k = SKINS.find((x) => x.id === (data.skin || 'klasik')) || SKINS[0]; return shareCard({ title: el.dataset.t, sub: el.dataset.s, stars: +el.dataset.n || 0, heroSrc: skinImg(k, true) }).then((ok) => { if (!ok) toast('Paylaşım açılamadı.'); }); }
+    case 'getcoins': closeModal(); renderGarage(); shopTab = 'coins'; return show('shop');
+    case 'closepreview': closeModal(); return renderGarage();
     case 'buyskin': if (screen === 'shop') { const k = SKINS.find((x) => x.id === el.dataset.id); if (data.coins < Eco.SKIN_PRICES[k.id]) return toast('Yeterli altının yok.'); buySkin(k.id); return renderShop(); } return buySkin(el.dataset.id);
     case 'shop': return show('shop');
     case 'buypower': { const p = Eco.POWERS.find((x) => x.id === el.dataset.id); if (data.coins < p.price) return toast('Yeterli altının yok. Mağazadan altın alabilirsin.'); data.coins -= p.price; data.powers[p.id] = (data.powers[p.id] || 0) + 1; save(); sfx.coin(); if (el.dataset.use) { closeModal(); return usePower(p.id); } toast(`${p.ic} ${p.name} alındı`); return renderShop(); }
@@ -1109,7 +1162,10 @@ function back() {
   exitApp();
 }
 onBack(back);
-onPause(() => { stage.paused = true; suspend(); save(); }, () => { stage.paused = !(screen === 'menu' || screen === 'game'); resume(); renderRes(); });
+onPause(() => {
+  stage.paused = true; suspend(); save();
+  scheduleReminders({ enabled: data.settings.notify !== false, fullEnergyMs: Eco.isPro(data) ? 0 : Eco.fullEnergyIn(data), dailyDoneToday: !!(data.daily && data.daily.lastDone === dateKey()) });
+}, () => { stage.paused = !(screen === 'menu' || screen === 'game'); resume(); renderRes(); cancelReminders(); });
 
 // Kaydırma
 let sx = 0, sy = 0, tracking = false;
@@ -1134,9 +1190,25 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('resize', () => { if (screen === 'game') layoutGame(); else if (screen === 'menu') layoutMenu(); else if (screen === 'map') renderMap(); });
 
+initI18n();
+initCrashReports();
 initAds();
+initRemote(() => { if (screen === 'menu') renderMenu(); });
+setUserProps({ pro: Eco.isPro(data) ? 'yes' : 'no', progress: String(Object.keys(data.stars || {}).length) });
 initPurchases().then(() => { proDaily(); renderMenu(); });
-Cloud.init(() => data);
+let aheadPending = false;
+function promptAhead() {
+  if (!aheadPending || !pendingCloud || screen === 'game') return;
+  aheadPending = false;
+  const cloud = pendingCloud;
+  const a = Cloud.summary(data), b = Cloud.summary(cloud);
+  const row = (t, x) => `<div class="cmp"><b>${t}</b><span>⭐ ${x.stars}</span><span>🏁 ${x.levels} bölüm</span><span>🪙 ${fmtNum(x.coins)}</span>${x.pro ? '<span>👑 Pro</span>' : ''}</div>`;
+  openModal(`<div class="emoji">☁️</div><h2>Başka telefonda daha ilerisin</h2><p>Bulutta daha ileri bir kaydın var. Hangisi kalsın? Satın aldıkların her iki durumda da korunur.</p>
+    ${row('Bulut', b)}${row('Bu telefon', a)}
+    <button class="btn primary" data-act="usecloud">Buluttakini yükle</button><button class="btn" data-act="uselocal">Bu telefondakini kullan</button>`);
+}
+// başka telefonda daha ileri oynanmışsa sor (bölüm ortasındaysa menüye dönünce)
+Cloud.init(() => data, (cloud) => { pendingCloud = cloud; aheadPending = true; promptAhead(); });
 show('menu');
 openingAnim();
 if (document.fonts) document.fonts.ready.then(() => { if (screen === 'game') layoutGame(); if (screen === 'menu') layoutMenu(); });

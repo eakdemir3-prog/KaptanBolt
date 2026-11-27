@@ -1,3 +1,4 @@
+import { safeNow } from '../clock.js';
 // Günlük bulmaca: tarihten üretilen, internetsiz, her gün aynı bölüm
 import { parseLevel, newState } from './rules.js';
 import { shortest, fullCover } from './solver.js';
@@ -12,10 +13,10 @@ const THEMES = [
   { name: 'Cumartesi Labirenti', world: 10, o: { ice: 0.2, strong: 0.1 } },
 ];
 
-export function dateKey(d = new Date()) {
+export function dateKey(d = new Date(safeNow())) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-export function yesterdayKey(d = new Date()) { const y = new Date(d); y.setDate(y.getDate() - 1); return dateKey(y); }
+export function yesterdayKey(d = new Date(safeNow())) { const y = new Date(d); y.setDate(y.getDate() - 1); return dateKey(y); }
 
 function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 

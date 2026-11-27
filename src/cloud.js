@@ -8,19 +8,34 @@ let user = null;          // { uid, name, email }
 let getData = () => null; // oyunun güncel kaydı
 let timer = 0;
 let busy = false;
+let hold = false;          // bulutta daha ileri kayıt bulundu, oyuncu karar verene kadar yazma
+let onAhead = null;       // (cloudData) => void
 
 export const available = () => native;
 export const signedIn = () => !!(user && user.uid);
 export const currentUser = () => user;
 
-export async function init(getter) {
-  getData = getter;
+export async function init(getter, aheadHandler) {
+  getData = getter; onAhead = aheadHandler || null;
   if (!native) return null;
   try { const u = await KbNative.user(); user = u && u.uid ? u : null; } catch { user = null; }
   App.addListener('pause', () => { pushNow(); });
-  if (user) pushSoon();
+  App.addListener('resume', () => { checkAhead(); });
+  if (user) checkAhead();
   return user;
 }
+
+/** Başka telefonda daha ileri oynanmışsa (bulutta daha çok yıldız) oyuncuya sor; sormadan üzerine yazma */
+export async function checkAhead() {
+  if (!native || !user) return;
+  let cloud = null;
+  try { cloud = await loadCloud(); } catch { return; }
+  const local = getData();
+  if (cloud && local && starsOf(cloud) > starsOf(local)) { hold = true; if (onAhead) onAhead(cloud); }
+  else { hold = false; pushSoon(); }
+}
+/** Oyuncu kararını verdi: tekrar yazmaya başla */
+export function release() { hold = false; }
 
 const starsOf = (d) => Object.values((d && d.stars) || {}).reduce((a, b) => a + b, 0);
 export const summary = (d) => ({ stars: starsOf(d), coins: (d && d.coins) || 0, levels: Object.keys((d && d.stars) || {}).length, pro: !!(d && d.pro && d.pro.lifetime) });
@@ -37,7 +52,7 @@ export function mergePurchases(into, other) {
 
 export async function pushNow() {
   clearTimeout(timer); timer = 0;
-  if (!native || !user || busy) return false;
+  if (!native || !user || busy || hold) return false;
   const d = getData(); if (!d) return false;
   busy = true;
   try { await KbNative.cloudSave({ data: JSON.stringify(d), stars: starsOf(d) }); return true; } catch { return false; } finally { busy = false; }

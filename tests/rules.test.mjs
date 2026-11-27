@@ -86,7 +86,7 @@ test('çözücü: en kısa çözüm ve 3 yıldız çözümü bulur, çıkmazı t
 test('ilerleme kaydı: kazanınca yıldız, kilit açılır, ipucu ödülü', () => {
   const mem = {}; Save._setStorage({ getItem: (k) => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } });
   const d = Save.load();
-  assert.equal(d.settings.unlockAll, Save.TEST_BUILD);  // test sürümünde açık, yayında kapalı
+  assert.equal(d.settings.unlockAll, false);  // yayında her zaman kapalı
   d.settings.unlockAll = false;
   assert.equal(Save.isUnlocked(d, 2), false);
   Save.recordWin(d, 1, 3, 10, 60);
@@ -333,4 +333,22 @@ test('zamanlı taş süresi dolunca çöker, üstündeysen düşersin', () => {
 test('kilitli kapı yeterli taş çökünce açılır', () => {
   const s = newState(parseLevel({ id: 1, lock: 3, grid: ['S..', '...', '..D'] }));
   assert.equal(canMove(s, 'down'), true); move(s, 'right'); move(s, 'right'); assert.equal(doorOpen(s), false); move(s, 'down'); assert.equal(doorOpen(s), true);
+});
+
+// ---- 1.0.3: haftalık etkinlik ----
+import { weekKey, weekly, claimWeekly } from '../src/weekly.js';
+test('haftalık: pazartesi başlar, kademe alınır, hafta değişince sıfırlanır', () => {
+  const mon = new Date(2026, 10, 23, 10).getTime(), sun = new Date(2026, 10, 29, 22).getTime(), nextMon = new Date(2026, 10, 30, 1).getTime();
+  assert.equal(weekKey(mon), weekKey(sun));
+  assert.notEqual(weekKey(sun), weekKey(nextMon));
+  const d = { stats: { wins: 10, stars3: 3, daily: 1, bosses: 0 } };
+  const w = weekly(d, 300, mon);
+  assert.equal(w.have, 0);
+  assert.equal(claimWeekly(d, 300, mon), null);
+  d.stats[w.ev.id] += w.tiers[0].n;
+  const t = claimWeekly(d, 300, sun);
+  assert.equal(t.coins, 75);
+  assert.equal(claimWeekly(d, 300, sun), null);
+  const w2 = weekly(d, 300, nextMon);
+  assert.equal(w2.have, 0); assert.equal(d.weekly.claimed, 0);
 });

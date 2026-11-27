@@ -1,6 +1,15 @@
 package com.eavisionlabs.kaptanbolt;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.CancellationSignal;
+import android.util.Base64;
+import androidx.core.content.FileProvider;
+import com.google.android.play.core.review.ReviewInfo;
+import com.google.android.play.core.review.ReviewManager;
+import com.google.android.play.core.review.ReviewManagerFactory;
+import java.io.File;
+import java.io.FileOutputStream;
 import androidx.credentials.ClearCredentialStateRequest;
 import androidx.credentials.Credential;
 import androidx.credentials.CredentialManager;
@@ -38,6 +47,13 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.SetOptions;
+import android.os.Bundle;
+import com.google.firebase.analytics.FirebaseAnalytics;
+import com.google.firebase.crashlytics.FirebaseCrashlytics;
+import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
+import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
+import com.google.firebase.remoteconfig.FirebaseRemoteConfigValue;
+import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -316,6 +332,102 @@ public class KbNativePlugin extends Plugin {
                 FirebaseAuth.getInstance().signOut();
                 if (t2.isSuccessful()) call.resolve(); else call.reject("relogin");
             }));
+    }
+
+    // ---------------- Puan isteme (Google Play'in kendi penceresi) ----------------
+    @PluginMethod
+    public void requestReview(PluginCall call) {
+        ReviewManager rm = ReviewManagerFactory.create(getContext());
+        rm.requestReviewFlow().addOnCompleteListener(t -> {
+            if (!t.isSuccessful()) { call.resolve(); return; }
+            ReviewInfo info = t.getResult();
+            rm.launchReviewFlow(getActivity(), info).addOnCompleteListener(x -> call.resolve());
+        });
+    }
+
+    // ---------------- Paylaşım (resim + yazı) ----------------
+    @PluginMethod
+    public void shareImage(PluginCall call) {
+        try {
+            String b64 = call.getString("png", "");
+            String text = call.getString("text", "");
+            int comma = b64.indexOf(',');
+            byte[] bytes = Base64.decode(comma >= 0 ? b64.substring(comma + 1) : b64, Base64.DEFAULT);
+            File dir = new File(getContext().getCacheDir(), "share"); dir.mkdirs();
+            File f = new File(dir, "kaptan-bolt.png");
+            try (FileOutputStream o = new FileOutputStream(f)) { o.write(bytes); }
+            Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", f);
+            Intent i = new Intent(Intent.ACTION_SEND);
+            i.setType("image/png");
+            i.putExtra(Intent.EXTRA_STREAM, uri);
+            i.putExtra(Intent.EXTRA_TEXT, text);
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            getActivity().startActivity(Intent.createChooser(i, "Paylaş"));
+            call.resolve();
+        } catch (Exception e) { call.reject("share"); }
+    }
+
+    // ---------------- Ölçüm: Analytics + Crashlytics + Remote Config ----------------
+    FirebaseAnalytics fa() { return FirebaseAnalytics.getInstance(getContext()); }
+
+    /** logEvent({name, params:{k:v}}) — params sayı ya da metin */
+    @PluginMethod
+    public void logEvent(PluginCall call) {
+        try {
+            String name = call.getString("name");
+            if (name == null) { call.resolve(); return; }
+            Bundle b = new Bundle();
+            JSObject p = call.getObject("params", new JSObject());
+            Iterator<String> it = p.keys();
+            while (it.hasNext()) {
+                String k = it.next(); Object v = p.opt(k);
+                if (v instanceof Integer || v instanceof Long) b.putLong(k, ((Number) v).longValue());
+                else if (v instanceof Number) b.putDouble(k, ((Number) v).doubleValue());
+                else if (v != null) b.putString(k, String.valueOf(v));
+            }
+            fa().logEvent(name, b);
+        } catch (Exception ignored) {}
+        call.resolve();
+    }
+
+    /** setUser({props:{k:v}}) — kullanıcı özellikleri (ör. pro, dünya) */
+    @PluginMethod
+    public void setUser(PluginCall call) {
+        try {
+            JSObject p = call.getObject("props", new JSObject());
+            Iterator<String> it = p.keys();
+            while (it.hasNext()) { String k = it.next(); fa().setUserProperty(k, p.optString(k)); FirebaseCrashlytics.getInstance().setCustomKey(k, p.optString(k)); }
+        } catch (Exception ignored) {}
+        call.resolve();
+    }
+
+    /** JS hatalarını Crashlytics'e "non-fatal" olarak gönderir */
+    @PluginMethod
+    public void logError(PluginCall call) {
+        try {
+            String msg = call.getString("message", "js error");
+            String stack = call.getString("stack", "");
+            FirebaseCrashlytics.getInstance().log(stack.length() > 3000 ? stack.substring(0, 3000) : stack);
+            FirebaseCrashlytics.getInstance().recordException(new RuntimeException("JS: " + msg));
+        } catch (Exception ignored) {}
+        call.resolve();
+    }
+
+    /** Remote Config: getir + etkinleştir, tüm değerleri metin olarak döndür */
+    @PluginMethod
+    public void remoteConfig(PluginCall call) {
+        try {
+            FirebaseRemoteConfig rc = FirebaseRemoteConfig.getInstance();
+            rc.setConfigSettingsAsync(new FirebaseRemoteConfigSettings.Builder().setMinimumFetchIntervalInSeconds(3600).build());
+            rc.fetchAndActivate().addOnCompleteListener(t -> {
+                JSObject o = new JSObject();
+                try {
+                    for (Map.Entry<String, FirebaseRemoteConfigValue> e : rc.getAll().entrySet()) o.put(e.getKey(), e.getValue().asString());
+                } catch (Exception ignored) {}
+                JSObject r = new JSObject(); r.put("values", o); r.put("fresh", t.isSuccessful());
+                call.resolve(r);
+            });
+        } catch (Exception e) { JSObject r = new JSObject(); r.put("values", new JSObject()); call.resolve(r); }
     }
 
     @Override

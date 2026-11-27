@@ -453,3 +453,25 @@ body.opening.ui-only #c { animation: none; }
 .acct .linkbtn { display: block; width: 100%; margin-top: 8px; font-size: 12px; background: none; border: 0; color: inherit; }
 .cmp { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; background: rgba(255,255,255,.06); border-radius: 12px; padding: 10px 12px; margin: 8px 0; font-size: 14px; }
 .cmp b { width: 100%; font-size: 13px; opacity: .8; }
+
+/* 1.0.3: kostüm önizleme, paylaş satırı */
+.skin-preview { height: 200px; max-width: 80%; object-fit: contain; filter: drop-shadow(0 10px 24px rgba(90,230,255,.45)); animation: pop .4s ease; }
+.row2 { display: flex; justify-content: space-between; gap: 8px; }
+.row2 .linkbtn { flex: 1; }
+.weekly { background: linear-gradient(135deg, rgba(255,210,58,.14), rgba(140,90,255,.16)); border: 1px solid rgba(255,210,58,.35); border-radius: 16px; padding: 10px 12px; margin-bottom: 12px; text-align: left; }
+.wk-head { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+.wk-head .wk-ic { font-size: 28px; }
+.wk-head b { display: block; font-size: 15px; }
+.wk-head small { opacity: .75; font-size: 12px; }
+.wk-tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+.wk-t { background: rgba(0,0,0,.25); border-radius: 10px; padding: 6px; font-size: 11px; display: flex; flex-direction: column; gap: 3px; }
+.wk-t b { font-size: 12px; color: #ffd23a; }
+.wk-t.done { outline: 2px solid #ffd23a; }
+.wk-t.claimed { opacity: .5; }
+.kb2-card { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 8px; padding: 8px 12px; border-radius: 14px; border: 1px solid rgba(90,230,255,.45); background: linear-gradient(90deg, rgba(40,160,90,.35), rgba(90,230,255,.18)); color: #fff; font: inherit; text-align: left; }
+.kb2-card span { font-size: 22px; }
+.kb2-card b { font-size: 14px; }
+.kb2-card small { opacity: .8; font-size: 11px; flex: 1; }
+.kb2-card i { font-style: normal; font-size: 20px; opacity: .7; }
+.menu-notice { font-size: 12px; text-align: center; padding: 6px 10px; margin: 4px 0; border-radius: 10px; background: rgba(255,210,58,.15); color: #ffe7a0; }
+.kb2-list { text-align: left; list-style: none; padding: 0; margin: 8px 0; line-height: 1.7; }

@@ -1,3 +1,4 @@
+import { safeNow } from './clock.js';
 // Altın, enerji, günlük görevler, başarımlar ve istatistikler (tamamen cihazda, çevrimdışı)
 export const ENERGY_MAX = 5;
 export const ENERGY_MS = 25 * 60 * 1000;      // 25 dakikada 1 enerji
@@ -36,7 +37,7 @@ export function ensure(d) {
 
 // ---------------- Enerji ----------------
 /** Zamanla dolan enerjiyi hesaplar ve günceller. */
-export function tickEnergy(d, now = Date.now()) {
+export function tickEnergy(d, now = safeNow()) {
   ensure(d);
   if (d.energy > ENERGY_MAX) d.energy = ENERGY_MAX; // eski sürümden kalan fazlalık
   if (d.energy >= ENERGY_MAX) { d.energyAt = now; return d.energy; }
@@ -47,16 +48,16 @@ export function tickEnergy(d, now = Date.now()) {
   }
   return d.energy;
 }
-export function nextEnergyIn(d, now = Date.now()) {
+export function nextEnergyIn(d, now = safeNow()) {
   tickEnergy(d, now);
   if (d.energy >= ENERGY_MAX) return 0;
   return ENERGY_MS - (now - d.energyAt);
 }
-export function fullEnergyIn(d, now = Date.now()) {
+export function fullEnergyIn(d, now = safeNow()) {
   const n = nextEnergyIn(d, now);
   return n ? n + (ENERGY_MAX - d.energy - 1) * ENERGY_MS : 0;
 }
-export function spendEnergy(d, now = Date.now()) {
+export function spendEnergy(d, now = safeNow()) {
   tickEnergy(d, now);
   if ((d.settings && d.settings.infiniteEnergy) || isPro(d)) return true;
   if (d.energy <= 0) return false;

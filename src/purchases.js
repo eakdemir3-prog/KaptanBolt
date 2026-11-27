@@ -26,6 +26,8 @@ let ready = false;
 let onPurchase = null;     // (key, token, info) => true | 'dup' | false
 let pendingBuy = null;     // { key, resolve }
 
+let onOwned = null;          // (ownedKeys) => void  — açılışta Play'den gelen sahip olunan ürünler
+export function setOwnedHandler(fn) { onOwned = fn; }
 /** Oyun tarafı: satın alma geldiğinde çağrılacak işleyici */
 export function setPurchaseHandler(fn) { onPurchase = fn; }
 
@@ -60,8 +62,8 @@ export async function initPurchases() {
       if (p.pro) { p.oldPrice = s.sale ? s.full : ''; if (!s.sale) p.saleEnd = '2000-01-01T00:00:00Z'; }
     }
     ready = !!r.ready;
-    // Bekleyen / daha önce alınmış ürünleri getir (yarım kalan ödemeler, Pro)
-    KbNative.restore().catch(() => {});
+    // Bekleyen / daha önce alınmış ürünleri getir (yarım kalan ödemeler, Pro); iade kontrolü için listeyi oyuna ver
+    KbNative.restore().then((r) => { if (r && r.ok && onOwned) onOwned((r.owned || []).map(keyOf).filter(Boolean)); }).catch(() => {});
   } catch { ready = false; }
   return ready;
 }
