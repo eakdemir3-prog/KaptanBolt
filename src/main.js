@@ -5,7 +5,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { loadRobotModel } from './game/robotModel.js';
 import { makeRobot, SKINS } from './game/robot.js';
 import { buildLevel } from './level.js';
-import { buildWorld, backdrop, makeCoin, makeCage, CAGE_W, CAGE_H, makeSpring, makeFlag, waveFlag } from './world.js';
+import { buildWorld, backdrop, makeCoin, makeSpring, makeFlag, waveFlag } from './world.js';
 import { sfx, unlockAudio } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -38,12 +38,15 @@ window.addEventListener('resize', resize); resize();
 const gl = new GLTFLoader(); gl.setMeshoptDecoder(MeshoptDecoder);
 const MODELS = {};
 // fit: hedef boy (y) ya da genişlik; yaw: modelin önünü +X'e (sağa) çevirmek için
+const CAGE_FLOOR = 0.3;
+const CAGE_YAW = 0; // kilit önde
 const SPEC = {
   bocek: { size: 1.25, fit: 'w', yaw: Math.PI / 2 },
   kirpi: { size: 1.3, fit: 'w', yaw: Math.PI / 2 },
   kus: { size: 0.9, fit: 'h', yaw: 0.35 },
   tilki: { size: 0.95, fit: 'h', yaw: 0.35 + Math.PI / 4 },
   maymun: { size: 1.0, fit: 'h', yaw: 0.35 },
+  cage: { size: 2.2, fit: 'w', yaw: CAGE_YAW },
 };
 function loadModel(n) {
   return new Promise((ok) => gl.load(`models/${n}.glb`, (g) => {
@@ -87,8 +90,8 @@ function setupLevel() {
     ents.enemies.push({ type: e.type, x: e.x, y: gy, vx: e.type === 'kirpi' ? -1.1 : -1.5, w: e.type === 'kirpi' ? 1.1 : 1.05, h: e.type === 'kirpi' ? 0.95 : 0.8, m: holder, alive: true, squash: 0, ph: Math.random() * 6 });
   }
   for (const c of L.cages) {
-    const g = makeCage(); g.position.set(c.x, c.y, 0); scene.add(g);
-    const a = cloneM(c.animal); a.position.set(0, 0.5, 0.05); a.scale.multiplyScalar(1.15); g.add(a);
+    const g = new THREE.Group(); const cm = cloneM('cage'); g.add(cm); g.userData.cage = cm; g.position.set(c.x, c.y - 0.05, 0); scene.add(g);
+    const a = cloneM(c.animal); a.position.set(0, CAGE_FLOOR, 0); a.scale.multiplyScalar(0.95); g.add(a);
     ents.cages.push({ x: c.x, y: c.y, animalKind: c.animal, m: g, animal: a, open: false, t: 0 });
   }
   for (const s of L.springs) { const m = makeSpring(); m.position.set(s.x, s.y, 0); scene.add(m); ents.springs.push({ ...s, m, t: 1 }); }
@@ -213,16 +216,15 @@ function updateItems(dt) {
   }
   for (const c of ents.cages) {
     if (!c.open) {
-      c.animal.rotation.y = Math.sin(G.t * 2 + c.x) * 0.4; c.animal.position.y = 0.5 + Math.abs(Math.sin(G.t * 4 + c.x)) * 0.05;
+      c.animal.rotation.y = Math.sin(G.t * 2 + c.x) * 0.4; c.animal.position.y = CAGE_FLOOR + Math.abs(Math.sin(G.t * 4 + c.x)) * 0.05;
       if (Math.abs(p.x - c.x) < 1.0 && p.y > c.y - 1.2 && p.y < c.y + 3.2) openCage(c);
     } else {
       c.t += dt;
-      for (const b of c.pieces) { b.position.addScaledVector(b.userData.v, dt); b.userData.v.y -= 14 * dt; b.rotation.z += b.userData.spin * dt; b.material.opacity = Math.max(0, 1 - c.t * 0.7); }
+      const cg = c.m.userData.cage; if (cg.visible) { cg.position.y = c.t * 5 - c.t * c.t * 6; cg.position.z = c.t * 2; cg.rotation.z = c.t * 4; cg.rotation.x = c.t * 2; cg.scale.setScalar(Math.max(0.01, 1 - c.t * 0.9)); if (c.t > 1.1) cg.visible = false; }
       // hayvan sevinçle zıplar, sonra uçarak / koşarak gider
       const a = c.animal;
-      if (c.t < 1.2) { a.position.y = 0.5 + Math.abs(Math.sin(c.t * 9)) * 0.6; a.rotation.y = c.t * 6; }
+      if (c.t < 1.2) { a.position.y = CAGE_FLOOR + Math.abs(Math.sin(c.t * 9)) * 0.6; a.rotation.y = c.t * 6; }
       else { a.position.y += dt * (c.animalKind === 'kus' ? 3 : 0.3); a.position.x += dt * 3; a.rotation.y = 0.35; a.scale.multiplyScalar(1 - dt * 0.6); if (c.t > 3.5) a.visible = false; }
-      if (c.t > 1.6) for (const b of c.pieces) b.visible = false;
     }
   }
   for (const f of ents.flags) {
@@ -238,18 +240,8 @@ function updateItems(dt) {
 function openCage(c) {
   c.open = true; c.t = 0;
   G.cages++; updateHud(); sfx.cage(); vibrate(50);
-  // kafes resmi 4x4 parçaya bölünüp dağılır
-  for (const sp of c.m.userData.sprites) sp.visible = false; c.pieces = [];
-  const N = 4, pw = CAGE_W / N, ph = CAGE_H / N;
-  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-    const geo = new THREE.PlaneGeometry(pw, ph); const uv = geo.attributes.uv;
-    for (let k = 0; k < uv.count; k++) uv.setXY(k, (i + uv.getX(k)) / N, (j + uv.getY(k)) / N);
-    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: c.m.userData.tex, transparent: true, alphaTest: 0.2, toneMapped: false, side: THREE.DoubleSide }));
-    m.position.set(-CAGE_W / 2 + (i + 0.5) * pw, -0.12 + (j + 0.5) * ph, 0.55);
-    m.userData.v = new THREE.Vector3((i - 1.5) * 1.6 + (Math.random() - 0.5) * 2, 3 + j * 1.2 + Math.random() * 3, 1.5 + Math.random() * 2);
-    m.userData.spin = (Math.random() - 0.5) * 10;
-    c.m.add(m); c.pieces.push(m);
-  }
+  // kafes havaya fırlar, döner ve küçülerek kaybolur; tahta kıymıkları saçılır
+  c.pieces = []; burst(c.x, c.y + 1, 0x9a5a2a, 16); burst(c.x, c.y + 1.4, 0xd8b070, 10);
   burst(c.x, c.y + 0.8, 0xffe070, 18);
   const names = { kus: 'Mavi Kuş', tilki: 'Tilki', maymun: 'Maymun' };
   toast(`🐾 ${names[c.animalKind] || 'Dostun'} kurtarıldı! ${G.cages}/${ents.cages.length}`);

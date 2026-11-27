@@ -225,18 +225,6 @@ export function makeCoin() {
   return g;
 }
 
-/** Kafes: boyalı resim (önde), hayvan arkasında parmaklık aralarından görünür. Açılınca parçalara ayrılır. */
-export const CAGE_W = 2.3, CAGE_H = 2.3 * 633 / 640;
-export function makeCage() {
-  mats();
-  const g = new THREE.Group();
-  // arka: kafesin tamamı; ön: sadece öndeki parmaklıklar ve kilit — hayvan ikisinin arasında durur
-  const back = sprite('cage', CAGE_H, 640 / 633); back.position.set(0, -0.12, -0.45); g.add(back);
-  const front = sprite('cage_front', CAGE_H, 640 / 633); front.position.set(0, -0.12, 0.6); front.renderOrder = 2; g.add(front);
-  g.userData.sprites = [back, front]; g.userData.tex = tex('cage');
-  return g;
-}
-
 /** Zıplatan mantar: pembe benekli şapka, yaylı sap */
 export function makeSpring() {
   mats();
