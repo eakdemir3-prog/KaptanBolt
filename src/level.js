@@ -31,7 +31,7 @@ export function buildLevel(n) {
       return b;
     },
     col(dx, t0, n) { const y0 = VF(t0); for (let i = 0; i < n; i++) L.coins.push({ x: b.at + dx + 0.5, y: y0 + 0.75 + i * 0.85 }); return b; },
-    e(type, dx, t = null) { L.enemies.push({ type, x: b.at + dx + 0.5, t: t == null ? b.h : V(t) }); return b; },
+    e(type, dx, t = null, range = null) { L.enemies.push({ type, x: b.at + dx + 0.5, t: t == null ? b.h : V(t), range: range && [b.at + range[0], b.at + range[1]] }); return b; },
     cage(dx, t = null, animal = null) { L.cages.push({ x: b.at + dx + 0.5, y: t == null ? b.h : V(t), animal }); return b; },
     spring(dx, t = null) { L.springs.push({ x: b.at + dx + 0.5, y: t == null ? b.h : V(t) }); return b; },
     crate(dx, t = null) { const y = t == null ? b.h : V(t); L.crates.set(`${b.at + dx},${y}`, { x: b.at + dx, y }); return b; },
@@ -46,20 +46,25 @@ export function buildLevel(n) {
   };
   def.build(b);
   L.w = b.x;
-  fillCoins(L, def.coins || 50);
+
   const cols = L.cols;
   L.solid = (x, y) => {
     if (x < 0 || x >= L.w) return y < 40; // kenar duvarları
     if (y < 0) return false;
     if (y < cols[x]) return true;
     if (L.crates.has(`${x},${y}`)) return true;
-    for (const p of L.plats) if (y === p.y && x >= p.x && x < p.x + p.w) return true;
     return false;
   };
   // tek yönlü yüzeyler: köprüler sabit, sallar her karede güncellenir
-  L.oneway = L.bridges.map((s) => ({ ...s }));
+  // yüzen kayalar tek yönlü: alttan geçilir, üstüne basılır
+  L.oneway = [...L.bridges.map((s) => ({ ...s })), ...L.plats.map((p) => ({ x0: p.x - 0.05, x1: p.x + p.w + 0.05, y: p.y + 1, plat: true }))];
   for (const r of L.rafts) { r.s = { x0: r.x, x1: r.x + r.w, y: r.t, dx: 0 }; r.ph = 0; L.oneway.push(r.s); }
   L.groundAt = (x) => cols[Math.floor(x)] || 0;
+  // altın blok içinde ya da diken üstünde kalmasın
+  const badCoin = (c) => L.solid(Math.floor(c.x), Math.floor(c.y)) || L.thorns.some((t) => c.x > t.x0 && c.x < t.x1 && c.y < t.y + 1.2);
+  L.coins = L.coins.filter((c) => !badCoin(c));
+  fillCoins(L, def.coins || 50);
+  patrols(L);
   return L;
 }
 
@@ -89,5 +94,27 @@ function fillCoins(L, target) {
     if (busy(x + 1.5, h)) continue;
     for (let i = 0; i < 3; i++) L.coins.push({ x: x + i + 0.5, y: h + 0.75 });
     x += 5;
+  }
+}
+
+/** Her düşmana devriye aralığı: bastığı yüzeyde, başlangıcın ±3 karesi; kafes, kayıt noktası, mantar ve
+ *  bitişe 1,6 kareden fazla yaklaşmaz; aynı yüzeydeki düşmanların aralıkları çakışmaz (arada ≥1,5 kare boşluk). */
+function patrols(L) {
+  const HW = { bocek: 0.53, kirpi: 0.55 };
+  for (const e of L.enemies) {
+    const hw = HW[e.type] || 0.55, y = e.t, fx = Math.floor(e.x);
+    let a, b;
+    const plat = L.oneway.find((s) => e.x >= s.x0 && e.x <= s.x1 && Math.abs(s.y - y) < 0.05);
+    if (plat) { a = plat.x0; b = plat.x1; }
+    else { a = fx; while (a - 1 >= 0 && L.cols[a - 1] === y && !L.solid(a - 1, y)) a--; b = fx + 1; while (b < L.w && L.cols[b] === y && !L.solid(b, y)) b++; }
+    if (e.range) { a = Math.max(a, e.range[0]); b = Math.min(b, e.range[1]); }
+    else { a = Math.max(a, e.x - 3); b = Math.min(b, e.x + 3); }
+    const avoid = [...L.cages.map((c) => c.x), ...L.checkpoints.map((c) => c.x), ...L.springs.map((c) => c.x), ...(L.end ? [L.end.x] : [])];
+    for (const ox of avoid) { if (ox > e.x && ox - 1.6 < b) b = ox - 1.6; if (ox < e.x && ox + 1.6 > a) a = ox + 1.6; }
+    e.x0 = a + hw; e.x1 = Math.max(a + hw, b - hw); e.x = Math.min(e.x1, Math.max(e.x0, e.x));
+  }
+  for (const e of L.enemies) for (const f of L.enemies) {
+    if (e === f || e.t !== f.t || f.x <= e.x || e.x1 + 1.5 <= f.x0) continue;
+    const mid = (e.x + f.x) / 2; e.x1 = Math.max(e.x0, Math.min(e.x1, mid - 0.75 - 0.53)); f.x0 = Math.min(f.x1, Math.max(f.x0, mid + 0.75 + 0.53));
   }
 }

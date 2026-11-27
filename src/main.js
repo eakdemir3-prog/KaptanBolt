@@ -7,7 +7,7 @@ import { makeRobot, SKINS } from './game/robot.js';
 import { buildLevel, updateRafts } from './level.js';
 import { LEVELS } from './levels.js';
 import { P, stepPlayer, moveX, newPlayer } from './physics.js';
-import { buildWorld, backdrop, seed, makeCoin, makeSpring, makePost, setPost, makeBeam, makePortal, makeSprite, ASPECT, makeBridge, makeRaft, makeThorns } from './world.js';
+import { buildWorld, backdrop, seed, makeCoin, makeSpring, makePost, setPost, makeBeam, makePortal, makeCage2D, makeSprite, ASPECT, makeBridge, makeRaft, makeThorns } from './world.js';
 import { sfx, unlockAudio } from './audio.js';
 import { clone as skClone } from 'three/addons/utils/SkeletonUtils.js';
 import { makeWalker } from './rigwalk.js';
@@ -97,12 +97,13 @@ function loadLevel(n) {
   G.coinsTotal = L.coins.length + L.crates.size * 3;
   for (const e of L.enemies) {
     const holder = add(new THREE.Group()); const em = cloneM(e.type); holder.add(em); toActor(holder);
-    ents.enemies.push({ walker: makeWalker(em, e.type), type: e.type, x: e.x, y: e.t, vx: e.type === 'kirpi' ? -0.75 : -1.05, w: e.type === 'kirpi' ? 1.1 : 1.05, h: e.type === 'kirpi' ? 0.95 : 0.8, m: holder, alive: true, squash: 0, ph: Math.random() * 6 });
+    let ball = null; if (e.type === 'kirpi') { ball = new THREE.Mesh(new THREE.SphereGeometry(0.62, 20, 14), new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.7 })); ball.position.y = 0.55; ball.scale.set(1.15, 0.95, 1); ball.visible = false; ball.castShadow = true; holder.add(ball); toActor(ball); }
+    ents.enemies.push({ ball, walker: makeWalker(em, e.type), type: e.type, x0: e.x0, x1: e.x1, x: e.x, y: e.t, vx: e.type === 'kirpi' ? -0.75 : -1.05, w: e.type === 'kirpi' ? 1.1 : 1.05, h: e.type === 'kirpi' ? 0.95 : 0.8, m: holder, alive: true, squash: 0, ph: Math.random() * 6 });
   }
   for (const c of L.cages) {
-    const g = add(new THREE.Group()); const cm = cloneM('cage'); g.add(cm); g.position.set(c.x, c.y - 0.05, 0);
+    const g = add(makeCage2D()); g.position.set(c.x, c.y, 0);
     const a = cloneM(c.animal); a.position.set(0, 0.3, 0); a.scale.multiplyScalar(0.95); g.add(a);
-    ents.cages.push({ x: c.x, y: c.y, kind: c.animal, m: g, cage: cm, animal: a, open: false, t: 0 });
+    ents.cages.push({ x: c.x, y: c.y, kind: c.animal, m: g, animal: a, open: false, t: 0 });
   }
   for (const s of L.springs) { const m = add(makeSpring()); m.position.set(s.x, s.y - 0.05, 0); ents.springs.push({ ...s, m, t: 1 }); }
   for (const c of L.checkpoints) { const m = add(makePost(false)); m.position.set(c.x, c.y, 0); ents.posts.push({ ...c, m, on: false }); }
@@ -210,12 +211,13 @@ function updateEnemies(dt) {
     if (!e.alive) { e.squash += dt; e.m.scale.y = Math.max(0.05, 1 - e.squash * 6); e.m.position.y -= dt * (e.squash > 0.3 ? 4 : 0); if (e.squash > 1) e.m.visible = false; continue; }
     const nx = e.x + e.vx * dt, front = nx + Math.sign(e.vx) * e.w / 2;
     let moving = 0;
-    if (e.curled > 0) { e.curled -= dt; e.m.scale.set(1.1, 0.72, 1.1); if (e.curled <= 0) e.m.scale.set(1, 1, 1); }
+    if (e.curled > 0) { e.curled -= dt; e.m.scale.set(0.82, 0.62, 0.82); e.m.rotation.z = Math.sin(G.t * 20) * 0.04; if (e.ball) e.ball.visible = true; if (e.curled <= 0) { e.m.scale.set(1, 1, 1); e.m.rotation.z = 0; if (e.ball) e.ball.visible = false; } }
     else if (e.wait > 0) { e.wait -= dt; if (e.wait <= 0) e.vx = -e.vx; } // kenarda kısa durup döner
-    else if (L.solid(Math.floor(front), Math.floor(e.y + 0.3)) || !groundUnder(front, e.y)) e.wait = 0.35;
+    else if ((e.vx < 0 && nx <= e.x0) || (e.vx > 0 && nx >= e.x1) || L.solid(Math.floor(front), Math.floor(e.y + 0.3)) || !groundUnder(front, e.y)) e.wait = 0.35;
     else { e.x = nx; moving = e.vx; }
     e.m.position.set(e.x, e.y, 0);
-    if (!(e.wait > 0)) e.m.rotation.y += ((e.vx > 0 ? 0 : Math.PI) - e.m.rotation.y) * Math.min(1, dt * 10);
+    // kenarda beklerken yavaşça yeni yöne döner (görünür dönüş)
+    const dirN = e.wait > 0 ? -e.vx : e.vx; e.m.rotation.y += ((dirN > 0 ? 0 : Math.PI) - e.m.rotation.y) * Math.min(1, dt * (e.wait > 0 ? 7 : 12));
     if (e.walker) e.walker.update(dt, moving, G.t);
     const p = player;
     if (G.state !== 'play' || Math.abs(p.x - e.x) > (P.PW + e.w) / 2 - 0.08 || p.y > e.y + e.h || p.y + P.PH < e.y + 0.1) continue;
@@ -260,7 +262,7 @@ function updateGun(dt) {
       G.cd = 0.3; punch(); sfx.empty(); for (let i = 0; i < 3; i++) spark(p.x + p.face * 0.7, p.y + 0.8, 0.2);
     } else if (G.state === 'play' && G.ch >= 1 && G.cd <= 0) {
       G.ch -= 1; G.cd = 0.3; punch(true);
-      const m = add(new THREE.Mesh(shotGeo, shotMat)); const glow = makeSprite('star', 0.55, ASPECT.star); glow.material = glow.material.clone(); glow.material.color.set(0x66ddff); glow.position.set(0, -0.27, 0.05); m.add(glow);
+      const m = add(new THREE.Group()); const fb = makeSprite('fireball', 0.62, 512 / 173); fb.geometry = fb.geometry.clone(); fb.geometry.translate(-0.62 * 512 / 173 * 0.36, -0.31, 0); fb.material = fb.material.clone(); fb.material.alphaTest = 0.08; fb.material.depthWrite = false; m.add(fb); m.scale.x = p.face; m.userData.fb = fb; toActor(m);
       m.position.set(p.x + p.face * 0.78, p.y + 0.82, 0.35);
       ents.shots.push({ m, x: m.position.x, y: m.position.y, vx: p.face * 11, t: 0 });
       sfx.shot(); vibrate(20); shake = Math.max(shake, 0.12); for (let i = 0; i < 8; i++) spark(m.position.x, m.position.y, 0.7);
@@ -269,8 +271,8 @@ function updateGun(dt) {
   }
   if (Math.floor(G.ch) !== before) updateCharges();
   for (let i = ents.shots.length - 1; i >= 0; i--) {
-    const s = ents.shots[i]; s.t += dt; s.x += s.vx * dt; s.m.position.x = s.x; s.m.rotation.z += dt * 12;
-    if (Math.random() < 0.6) spark(s.x - Math.sign(s.vx) * 0.2, s.y + (Math.random() - 0.5) * 0.15, 0.3);
+    const s = ents.shots[i]; s.t += dt; s.x += s.vx * dt; s.m.position.x = s.x; const fl = 1 + Math.sin(s.t * 40) * 0.08; s.m.userData.fb.scale.set(fl, 1 + Math.sin(s.t * 33) * 0.06, 1); s.m.position.y = s.y + Math.sin(s.t * 25) * 0.03;
+    if (Math.random() < 0.5) spark(s.x - Math.sign(s.vx) * 0.9, s.y + (Math.random() - 0.5) * 0.3, 0.25);
     let hit = s.t > 1.3 || L.solid(Math.floor(s.x), Math.floor(s.y));
     if (!hit) for (const e of ents.enemies) {
       if (!e.alive || Math.abs(e.x - s.x) > e.w / 2 + 0.15 || s.y < e.y - 0.1 || s.y > e.y + e.h + 0.35) continue;
@@ -281,7 +283,7 @@ function updateGun(dt) {
     }
     const b = ents.boss;
     if (!hit && b && !b.dead && b.st !== 'wait' && Math.abs(b.x - s.x) < b.w / 2 && s.y > b.y && s.y < b.y + b.h) { hit = true; if (!G.bossTip) { G.bossTip = true; toast('Şimşek işlemiyor! Duvara çarptırıp üstüne zıpla'); } }
-    if (hit) { for (let k = 0; k < 8; k++) spark(s.x, s.y, 0.9); levelRoot.remove(s.m); ents.shots.splice(i, 1); }
+    if (hit) { for (let k = 0; k < 14; k++) spark(s.x, s.y, 1.1); burst(s.x, s.y, 0x7ae8ff, 8); levelRoot.remove(s.m); ents.shots.splice(i, 1); }
   }
 }
 
@@ -383,11 +385,15 @@ function updateItems(dt) {
       c.animal.rotation.y = Math.sin(G.t * 2 + c.x) * 0.4; c.animal.position.y = 0.3 + Math.abs(Math.sin(G.t * 4 + c.x)) * 0.05;
       if (Math.abs(p.x - c.x) < 1.0 && p.y > c.y - 1.2 && p.y < c.y + 3.2) openCage(c);
     } else {
-      c.t += dt; const cg = c.cage;
-      if (cg.visible) { cg.position.y = c.t * 5 - c.t * c.t * 6; cg.position.z = c.t * 2; cg.rotation.z = c.t * 4; cg.rotation.x = c.t * 2; cg.scale.setScalar(Math.max(0.01, 1 - c.t * 0.9)); if (c.t > 1.1) cg.visible = false; }
+      c.t += dt; const U = c.m.userData, t = c.t;
+      // 0–0,3 kilit titrer; sonra düşer ve döner; 0,3–0,75 kapı menteşeden açılır; 0,8+ hayvan zıplayıp dışarı çıkar
+      if (t < 0.3) { U.lock.rotation.z = Math.sin(t * 60) * 0.25; }
+      else if (U.lock.visible) { const q = t - 0.3; U.lock.position.set(U.lock0.x + q * 1.2, U.lock0.y + q * 2.5 - q * q * 14, U.lock0.z + q * 0.5); U.lock.rotation.z = -q * 9; if (U.lock.position.y < -1.5) U.lock.visible = false; }
+      const dq = Math.min(1, Math.max(0, (t - 0.3) / 0.45)); U.hinge.rotation.y = -(1 - Math.pow(1 - dq, 3)) * 1.95 + (dq >= 1 ? Math.sin((t - 0.75) * 14) * 0.06 * Math.max(0, 1 - (t - 0.75) * 3) : 0);
       const a = c.animal;
-      if (c.t < 1.2) { a.position.y = 0.3 + Math.abs(Math.sin(c.t * 9)) * 0.6; a.rotation.y = c.t * 6; }
-      else { a.position.y += dt * (c.kind === 'kus' ? 3 : 0.3); a.position.x += dt * 3; a.rotation.y = 0.35; a.scale.multiplyScalar(1 - dt * 0.6); if (c.t > 3.5) a.visible = false; }
+      if (t < 0.8) { a.position.y = 0.3 + Math.abs(Math.sin(t * 12)) * 0.12; }
+      else if (t < 1.6) { const q = (t - 0.8) / 0.8; a.position.set(q * 0.4, 0.3 + Math.abs(Math.sin(q * Math.PI * 2)) * 0.7, q * 1.4); a.rotation.y = 0.2; }
+      else { a.position.y += dt * (c.kind === 'kus' ? 3.5 : 0); if (c.kind !== 'kus') a.position.y = 0.3 + Math.abs(Math.sin(t * 9)) * 0.35; a.position.x += dt * 3.5; a.position.z = 1.4; a.rotation.y = Math.PI / 2 - 0.4; if (t > 3.6) { a.scale.multiplyScalar(1 - dt * 3); } if (t > 4.4) a.visible = false; }
     }
   }
   for (const s of ents.posts) {
@@ -406,7 +412,7 @@ function updateItems(dt) {
 function openCage(c) {
   c.open = true; c.t = 0;
   G.cages++; updateHud(); sfx.cage(); vibrate(50);
-  burst(c.x, c.y + 1, 0x9a5a2a, 16); burst(c.x, c.y + 1.4, 0xd8b070, 10);
+  burst(c.x + 0.6, c.y + 0.9, 0xffd23a, 10);
   const names = { kus: 'Mavi Kuş', tilki: 'Tilki', maymun: 'Maymun' };
   toast(`🐾 ${names[c.kind] || 'Dostun'} kurtarıldı! ${G.cages}/${ents.cages.length}`);
 }
@@ -490,7 +496,7 @@ function win() {
     const last = G.n === 20;
     $('endTitle').textContent = last ? 'Yeşil Vadi Kurtarıldı!' : 'Bölüm Tamam!';
     $('endStars').innerHTML = [1, 2, 3].map((i) => `<span class="${i <= s ? 'on' : ''}">★</span>`).join('');
-    $('endInfo').innerHTML = `<img class="ci" src="props/coin_ui.webp" alt=""> ${G.coins}/${G.coinsTotal} &nbsp; 🐾 ${G.cages}/${ents.cages.length} &nbsp; <img class="ci ${G.star ? '' : 'dim'}" src="props/star.webp" alt=""><small>⭐ Bitir • ⭐ Bütün hayvanları kurtar • ⭐ Altınların %80'ini topla</small>${last ? '<small>🚀 Sıradaki dünya: Mantar Ormanı — yakında!</small>' : ''}`;
+    $('endInfo').innerHTML = `<img class="ci" src="props/coin_ui.webp" alt=""> ${G.coins}/${G.coinsTotal} &nbsp; 🐾 ${G.cages}/${ents.cages.length} &nbsp; <img class="ci ${G.star ? '' : 'dim'}" src="props/star.webp" alt=""><small>⭐ Bitir ✔ • ⭐ Bütün hayvanlar ${G.cages >= ents.cages.length ? '✔' : '✘'} • ⭐ Altın: ${G.coins}/${Math.ceil(G.coinsTotal * 0.8)} gerekli ${G.coins >= Math.ceil(G.coinsTotal * 0.8) ? '✔' : '✘'}</small><small>(${G.coinsTotal} altının ${ents.crates.length * 3} tanesi sandıklardan çıkar)</small>${last ? '<small>🚀 Sıradaki dünya: Mantar Ormanı — yakında!</small>' : ''}`;
     $('next').classList.toggle('hidden', last);
     showScreen('end');
   }, G.n === 20 ? 4200 : 1900);
@@ -560,6 +566,29 @@ function bindControls() {
   document.addEventListener('visibilitychange', () => { if (document.hidden && G.state === 'play') { G.state = 'pause'; showScreen('paused'); } });
 }
 
+// ---------- Geliştirici modu (#dev): çarpışma kutuları, devriyeler, altın alanları, zıplama rotası ----------
+const DEV = { on: /dev/.test(location.hash), g: null };
+const devMat = (c) => new THREE.LineBasicMaterial({ color: c, depthTest: false, transparent: true });
+function devBox(g, x0, y0, x1, y1, c) { const p = [x0, y0, 0.9, x1, y0, 0.9, x1, y0, 0.9, x1, y1, 0.9, x1, y1, 0.9, x0, y1, 0.9, x0, y1, 0.9, x0, y0, 0.9]; const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); const l = new THREE.LineSegments(geo, devMat(c)); l.renderOrder = 99; g.add(l); }
+function devLine(g, pts, c) { const geo = new THREE.BufferGeometry().setFromPoints(pts.map(([x, y]) => new THREE.Vector3(x, y, 0.9))); const l = new THREE.Line(geo, devMat(c)); l.renderOrder = 99; g.add(l); }
+function updateDev() {
+  if (DEV.g) { scene.remove(DEV.g); DEV.g.traverse((o) => o.geometry?.dispose()); DEV.g = null; }
+  if (!DEV.on || !L || !player) return;
+  const g = DEV.g = new THREE.Group(); toActor(g); scene.add(g); const p = player;
+  devBox(g, p.x - P.PW / 2, p.y, p.x + P.PW / 2, p.y + P.PH, 0x00ff66);
+  for (const e of ents.enemies) if (e.alive) { devBox(g, e.x - e.w / 2, e.y, e.x + e.w / 2, e.y + e.h, 0xff3333); devLine(g, [[e.x0, e.y + 0.05], [e.x1, e.y + 0.05]], 0xffaa00); }
+  for (const c of ents.coins) if (!c.taken && Math.abs(c.x - p.x) < 12) devBox(g, c.x - 0.38, c.y - PH_C, c.x + 0.38, c.y + 0.4, 0xffee00);
+  for (const t of L.thorns) devBox(g, t.x0 + 0.15, t.y, t.x1 - 0.15, t.y + 0.55, 0xff00ff);
+  // zıplama rotası: kısa ve uzun zıplama (şu anki konum ve yönden)
+  for (const [hold, col] of [[0.05, 0x66ccff], [9, 0x0066ff]]) {
+    const q = { ...p, ground: true, coyote: 0.1, buffer: 0, vx: p.face * P.RUN, vy: 0 }; const inp = { left: p.face < 0, right: p.face > 0, jump: true, jumpPressed: true }; const pts = [[q.x, q.y]];
+    for (let t = 0; t < 2; t += 1 / 60) { inp.jump = t < hold; stepPlayer(L, q, inp, 1 / 60); pts.push([q.x, q.y]); if (t > 0.1 && q.ground) break; }
+    devLine(g, pts, col);
+  }
+}
+const PH_C = P.PH + 0.4;
+if (DEV.on) { const b = document.createElement('button'); b.textContent = 'DEV'; b.style.cssText = 'position:fixed;top:60px;right:14px;z-index:9;padding:6px 10px;border-radius:10px;border:0;background:#ff0;font-weight:800'; b.onclick = () => { DEV.show = !DEV.show; }; DEV.show = true; document.body.appendChild(b); }
+
 // ---------- Döngü ----------
 const clock = new THREE.Clock();
 function frame() {
@@ -570,6 +599,7 @@ function frame() {
     if (AUTO) autopilot();
     if (G.state === 'play') updatePlayer(dt);
     else if (G.state === 'win') G.end += dt;
+    if (DEV.on) { const sh = DEV.show; DEV.on = sh; updateDev(); DEV.on = true; if (!sh && DEV.g) { scene.remove(DEV.g); DEV.g = null; } }
     updateGun(dt); updateEnemies(dt); updateBoss(dt); updateShip(dt); updateItems(dt); updateParts(dt); updateCamera(dt);
     anim.update(dt);
   } else if (G.state === 'menu') { menuCam(dt); }

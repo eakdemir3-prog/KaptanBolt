@@ -7,18 +7,18 @@ const A = ['kus', 'tilki', 'maymun'];
 export const LEVELS = [
   // ---------------- 1–5: öğretici ----------------
   { name: 'Vadi Girişi', build(b) {
-    b.ground(18, 2).sign(3, 'move').row(6, 2, 5).deco('stump', 14);
+    b.ground(18, 2).sign(3, 'move').row(6, 2, 5).sign(11, 'jump');
     b.cage(15, 2, 'kus');
+    b.gap(1);
+    b.ground(14, 2).row(4, 2, 4).arc(11.6, 2, 4);
     b.gap(2);
-    b.ground(14, 2).sign(1, 'jump').row(4, 2, 4).arc(11.5, 2, 4);
-    b.gap(2);
-    b.ground(6, 3).row(1, 3, 3);
-    b.ground(12, 2).e('bocek', 6).arc(2.5, 2, 4).row(9, 2, 3);
+    b.ground(6, 2).row(1, 2, 3);
+    b.ground(12, 2).sign(1, 'stomp').e('bocek', 6, null, [5, 9]).row(9, 2, 3);
     b.ground(5, 3).plat(3, 6, 3).star(4, 6).row(0, 3, 2);
     b.ground(14, 2).cage(6, 2, 'tilki').row(9, 2, 4).cp(1);
-    b.gap(3);
-    b.ground(10, 2).arc(-3.2, 2, 5).plat(4, 5, 3).row(4, 5, 3);
-    b.ground(16, 2).e('bocek', 8).cage(13, 2, 'maymun').row(2, 2, 4);
+    b.gap(2);
+    b.ground(10, 2).arc(-2.9, 2, 5).plat(4, 5, 3).row(4, 5, 3);
+    b.ground(16, 2).e('bocek', 6, null, [3, 10]).cage(13, 2, 'maymun').row(2, 2, 4);
     b.ground(12, 2).row(1, 2, 3).end(6);
   } },
   { name: 'Böcek Çayırı', build(b) {
@@ -29,9 +29,9 @@ export const LEVELS = [
     b.ground(10, 2).cage(6, 2, 'kus').plat(2, 5, 2).row(2, 5, 2);
     b.gap(3);
     b.ground(14, 2).arc(-3.2, 2, 5).e('bocek', 9).cp(2).row(5, 2, 3);
-    b.ground(4, 3).ground(4, 4).ground(6, 5).row(1, 5, 4).crate(4, 8).star(4, 9);
-    b.ground(6, 3).plat(0, 7, 3).row(0, 7, 3);
-    b.ground(14, 2).e('bocek', 4).e('bocek', 10).cage(12, 2, 'tilki').row(5, 2, 4);
+    b.ground(4, 3).ground(4, 4).ground(6, 5).row(1, 5, 4).crate(4, 8);
+    b.ground(6, 3).plat(0, 7, 3).star(1, 7).row(0, 7, 1).row(2, 7, 1);
+    b.ground(14, 2).e('bocek', 4, null, [1, 7]).e('bocek', 8, null, [7.5, 10]).cage(12, 2, 'tilki').row(5, 2, 4);
     b.gap(2);
     b.ground(12, 2).plat(3, 5, 4).cage(5, 5, 'maymun').row(8, 2, 3);
     b.ground(12, 2).row(1, 2, 4).end(7);
@@ -42,9 +42,9 @@ export const LEVELS = [
     b.gap(2);
     b.ground(16, 2).e('kirpi', 6).e('bocek', 12).arc(3.5, 2, 5).cage(14, 2, 'kus');
     b.ground(6, 3).crate(2, 3).row(2, 5, 2);
-    b.ground(14, 2).plat(3, 5, 3).plat(8, 7, 3).row(8, 7, 3).cage(9, 7, 'tilki').cp(1);
+    b.ground(14, 2).plat(3, 5, 3).plat(8, 6, 3).row(8, 6, 1).row(10, 6, 1).cage(9, 6, 'tilki').cp(1);
     b.gap(3);
-    b.ground(16, 2).arc(-3.2, 2, 5).e('kirpi', 7).e('kirpi', 12).row(1, 2, 3);
+    b.ground(16, 2).arc(-3.2, 2, 5).e('kirpi', 6, null, [5, 8]).e('kirpi', 13, null, [12, 15]).row(1, 2, 3);
     b.ground(8, 4).row(1, 4, 4).star(6, 4);
     b.ground(14, 2).e('bocek', 6).cage(11, 2, 'maymun').row(2, 2, 3);
     b.ground(12, 2).row(1, 2, 4).end(7);
@@ -53,7 +53,7 @@ export const LEVELS = [
     b.ground(14, 2).sign(3, 'spring').spring(8).col(8, 4.5, 4).plat(10, 8, 4).row(10, 8, 4);
     b.ground(10, 2).cage(3, 2, 'kus').spring(8).col(8, 4.5, 3);
     b.ground(4, 6).row(0, 6, 4);
-    b.ground(10, 2).spring(6).plat(3, 9, 3).cage(4, 9, 'tilki');
+    b.ground(10, 2).spring(5).col(5, 4, 3).plat(7, 9, 3).cage(8, 9, 'tilki').row(7, 9, 1);
     b.gap(3);
     b.ground(12, 2).arc(-3.2, 2, 5).e('bocek', 7).cp(1).row(4, 2, 3);
     b.ground(14, 2).spring(3).plat(6, 8, 3).plat(11, 8, 3).row(6, 8, 3).row(11, 8, 3).star(12, 8).e('kirpi', 9);
@@ -69,7 +69,7 @@ export const LEVELS = [
     b.ground(6, 3).plat(1, 6, 3).cage(2, 6, 'tilki').row(4, 3, 2);
     b.ground(16, 2).cp(1).e('bocek', 6).thorns(10, 3).arc(8.4, 2, 5);
     b.gap(3);
-    b.ground(16, 2).arc(-3.2, 2, 5).spring(3).plat(6, 8, 3).star(7, 8).thorns(8, 4).e('kirpi', 14);
+    b.ground(18, 2).arc(-3.2, 2, 5).spring(3).plat(5, 8, 3).star(6, 8).thorns(11, 2).arc(9.6, 2, 4).e('kirpi', 15, null, [14, 18]);
     b.ground(14, 2).cage(6, 2, 'maymun').row(1, 2, 4).e('bocek', 10);
     b.ground(10, 2).row(1, 2, 3).end(6);
   } },
@@ -213,7 +213,7 @@ export const LEVELS = [
     b.ground(12, 2).cp(1).e('bocek', 6).row(2, 2, 4);
     b.ground(6, 3).ground(6, 4).ground(10, 5).thorns(3, 2).arc(1.6, 5, 4).plat(5, 7, 2).star(5, 7);
     b.gap(4);
-    b.ground(14, 2).arc(-4.2, 5, 4).cage(10, 2, 'maymun').e('bocek', 6).e('bocek', 8);
+    b.ground(14, 2).arc(-4.2, 5, 4).cage(10, 2, 'maymun').e('bocek', 3, null, [1, 5]).e('bocek', 7, null, [6.5, 9]);
     b.ground(12, 2).row(1, 2, 4).end(7);
   } },
   { name: 'Paslı İzler', build(b) {

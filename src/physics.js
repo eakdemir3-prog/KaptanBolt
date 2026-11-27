@@ -1,7 +1,7 @@
 // Oyuncu fiziği — oyun ve erişilebilirlik testi aynı kodu kullanır.
 // Birim = 1 kare. y yukarı. Oyuncunun konumu ayaklarının ortası.
 export const P = {
-  RUN: 5.2, ACC: 17, AIR_ACC: 15, FRICT: 20, TURN: 2.6,
+  RUN: 5.2, ACC: 22, AIR_ACC: 24, FRICT: 58, TURN: 2.8,
   G_UP: 38, G_DOWN: 60, G_APEX: 0.6, MAXFALL: 18,
   JUMP_H: 2.5, SPRING_H: 5.4, STOMP_H: 1.6, STOMP_HOLD_H: 2.8,
   PW: 0.62, PH: 1.22,
@@ -50,7 +50,7 @@ export function stepPlayer(L, p, inp, dt, ev = []) {
   p.coyote = p.ground ? P.COYOTE : p.coyote - dt;
   p.buffer = inp.jumpPressed ? P.BUFFER : p.buffer - dt; inp.jumpPressed = false;
   if (p.buffer > 0 && p.coyote > 0) { p.vy = P.JUMP; p.ground = false; p.surf = null; p.coyote = 0; p.buffer = 0; p.cut = false; ev.push('jump'); }
-  if (!inp.jump && !p.noCut && !p.cut && p.vy > 0) { p.vy *= 0.5; p.cut = true; }
+  if (!inp.jump && !p.noCut && !p.cut && p.vy > 0) { p.vy *= 0.38; p.cut = true; }
   if (p.vy <= 0) p.noCut = false;
   let g = p.vy > 0 ? P.G_UP : P.G_DOWN;
   if (Math.abs(p.vy) < 2 && inp.jump && !p.ground) g *= P.G_APEX;

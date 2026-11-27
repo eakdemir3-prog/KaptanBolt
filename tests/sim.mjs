@@ -8,7 +8,7 @@ function simLevel(n) {
   const L = buildLevel(n);
   L.crates.clear(); // sandıklar kırılabilir: engel sayılmaz
   // sallar: menzil boyunca 5 sabit konumdan örnek
-  const ow = L.bridges.map((s) => ({ ...s }));
+  const ow = L.oneway.filter((s) => !L.rafts.some((r) => r.s === s)).map((s) => ({ ...s }));
   for (const r of L.rafts) for (const k of [0, 0.25, 0.5, 0.75, 1]) {
     const x0 = r.axis === 'x' ? r.x + k * r.range : r.x, y = r.axis === 'y' ? r.t + k * r.range : r.t;
     ow.push({ x0, x1: x0 + r.w, y, raft: true });
@@ -73,6 +73,10 @@ for (const n of only) {
   if (L.star && !got.star) miss.push(`yıldız@${L.star.x},${L.star.y}`);
   if (!got.end) miss.push('BİTİŞ');
   const missC = L.coins.map((c, i) => (got.coins.has(i) ? null : `${c.x.toFixed(1)},${c.y.toFixed(1)}`)).filter(Boolean);
+  // altın katı blok içinde ya da diken üstünde mi? düşman devriyesi kafes/kayıt noktasına giriyor mu?
+  const L2 = buildLevel(n);
+  for (const c of L2.coins) { if (L2.solid(Math.floor(c.x), Math.floor(c.y))) miss.push(`blok-içi-altın@${c.x.toFixed(1)},${c.y.toFixed(1)}`); if (L2.thorns.some((t) => c.x > t.x0 && c.x < t.x1 && c.y < t.y + 1.2)) miss.push(`diken-altın@${c.x.toFixed(1)}`); }
+  for (const e of L2.enemies) { for (const c of [...L2.cages, ...L2.checkpoints]) if (c.x > e.x0 - 1.2 && c.x < e.x1 + 1.2 && Math.abs(c.y - e.t) < 0.5) miss.push(`devriye-çakışma ${e.type}@${e.x0.toFixed(1)}-${e.x1.toFixed(1)}`); if (e.x1 - e.x0 < 0.3) miss.push(`devriye-dar ${e.type}@${e.x.toFixed(1)}`); }
   if (miss.length) bad++;
   console.log(`${String(n).padStart(2)} ${LEVELS[n - 1].name.padEnd(20)} w=${L.w} altın=${L.coins.length} alınan=${got.coins.size} kafes=${L.cages.length} durum=${states} enUzak=${got.maxX} ${((Date.now() - t0) / 1000).toFixed(1)}sn ${miss.length ? 'EKSİK: ' + miss.join(' ') : 'TAMAM'}${missC.length ? ' | ulaşılamayan altın: ' + missC.join(' ') : ''}`);
 }
