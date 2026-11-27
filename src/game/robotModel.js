@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 export const STANCE = 0.22; // kalça açısı (radyan, ~9°)
 export const MODEL_HEIGHT = 1.1;    // robotun kendi boyu; robot kökü 1.2 ölçekli (oyunda ~1.32 birim)
@@ -23,7 +24,16 @@ export function loadRobotModel() {
       g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
       template = g;
       for (const c of gltf.animations) clips[c.name] = c;
-      resolve(true);
+      // yeni hareket seti (duruş, yürüme, koşu, zıplama, düşme): aynı iskelet, ayrı dosya
+      const al = new GLTFLoader(); al.setMeshoptDecoder(MeshoptDecoder);
+      al.load(new URL('models/bolt_anims.glb', document.baseURI).href, (a) => {
+        for (const c of a.animations) {
+          // kök hareketi: kalça ileri/yana kaymasın (yerinde koşu), yalnız yukarı-aşağı kalsın
+          for (const tr of c.tracks) if (/Hips\.position$/.test(tr.name)) { const v = tr.values; for (let i = 0; i < v.length; i += 3) { v[i] = v[0]; v[i + 2] = v[2]; } }
+          clips[c.name] = c;
+        }
+        resolve(true);
+      }, undefined, () => resolve(true));
     }, undefined, (e) => { console.warn('robot.glb yüklenemedi', e); resolve(false); });
   });
 }
@@ -161,5 +171,6 @@ export function makeAnimator(model) {
   };
   const update = (dt) => { mixer.update(dt); const tgt = STANCE + (WIDE[cur && cur.getClip().name] || 0); st.stance += (tgt - st.stance) * Math.min(1, dt * 6); spread(); tilt(); };
   play('idle', { fade: 0 }); update(0.4);
-  return { mixer, update, play, st, has: (n) => !!acts[n], current: () => (cur ? cur.getClip().name : null) };
+  const hold = (name, t) => { const a = acts[name]; if (a && cur === a && a.time >= t) a.timeScale = 0; };
+  return { mixer, update, play, hold, st, has: (n) => !!acts[n], current: () => (cur ? cur.getClip().name : null) };
 }
