@@ -136,11 +136,10 @@ function soilTextures() {
   if (SOIL) return;
   const c = document.createElement('canvas'); c.width = 1024; c.height = 452;
   const l = document.createElement('canvas'); l.width = 1024; l.height = 300;
-  SOIL = new THREE.CanvasTexture(c); SOIL.colorSpace = THREE.SRGBColorSpace; SOIL.wrapS = THREE.RepeatWrapping; SOIL.wrapT = THREE.MirroredRepeatWrapping; SOIL.anisotropy = 8;
+  SOIL = tex('soil', (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }); // dikişsiz derin toprak
   LIP = new THREE.CanvasTexture(l); LIP.colorSpace = THREE.SRGBColorSpace; LIP.wrapS = THREE.RepeatWrapping; LIP.anisotropy = 8;
   c.getContext('2d').fillStyle = '#9a4a1c'; c.getContext('2d').fillRect(0, 0, 1024, 452);
   new THREE.ImageLoader().load('props/ground.webp', (img) => {
-    c.getContext('2d').drawImage(img, 0, 230, 1024, 452, 0, 0, 1024, 452); SOIL.needsUpdate = true;
     const g = l.getContext('2d'); g.drawImage(img, 0, 0, 1024, 300, 0, 0, 1024, 300);
     const d = g.getImageData(0, 0, 1024, 300); // alt 80 piksel saydamlaşarak toprağa karışır
     for (let y = 220; y < 300; y++) { const a = Math.round(255 * (1 - (y - 220) / 80)); for (let x = 0; x < 1024; x++) d.data[(y * 1024 + x) * 4 + 3] = a; }
@@ -171,9 +170,10 @@ function terrainRegion(L, xs, xe) {
   const geo = new THREE.ExtrudeGeometry(s, { depth: D, bevelEnabled: true, bevelThickness: 0.14, bevelSize: 0.12, bevelSegments: 3, curveSegments: 10 });
   geo.translate(0, -0.13, -D / 2);
   const pos = geo.attributes.position, uv = geo.attributes.uv;
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / GROUND_TW, pos.getY(i) / SOIL_H);
+  const ST = 4.2; // bir toprak karosu 4,2 kare
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / ST, pos.getY(i) / ST);
   const side = geo.groups[1];
-  for (let i = side.start; i < side.start + side.count; i++) { const vi = geo.index ? geo.index.getX(i) : i; uv.setXY(vi, (pos.getX(vi) + pos.getZ(vi)) / GROUND_TW, pos.getY(vi) / SOIL_H); }
+  for (let i = side.start; i < side.start + side.count; i++) { const vi = geo.index ? geo.index.getX(i) : i; uv.setXY(vi, (pos.getX(vi) + pos.getZ(vi)) / ST, pos.getY(vi) / ST); }
   uv.needsUpdate = true;
   const soilM = M.soilM || (M.soilM = new THREE.MeshStandardMaterial({ map: SOIL, roughness: 0.95 }));
   const m = new THREE.Mesh(geo, [soilM, soilM]); m.receiveShadow = true; g.add(m);
@@ -354,12 +354,13 @@ export function makePortal() {
   mats();
   const g = new THREE.Group(), H = 3.1, W = H * 1309 / 1176, R = 0.2536 * W * 1.04, cy = (1 - 0.5621) * H;
   const frame = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: tex('portal_frame'), transparent: true, alphaTest: 0.25, toneMapped: false }));
-  frame.geometry.translate(0, H / 2 - 0.05, 0); frame.position.z = -0.6; g.add(frame);
+  const SINK = 0.27; // resmin altındaki boş pay: taş taban çimene otursun
+  frame.geometry.translate(0, H / 2 - SINK, 0); frame.position.z = -0.6; g.add(frame);
   const swirl = new THREE.Mesh(new THREE.CircleGeometry(R, 48), new THREE.MeshBasicMaterial({ map: tex('portal_swirl'), transparent: true, toneMapped: false, depthWrite: false }));
-  swirl.position.set(0, cy - 0.05, -0.65); g.add(swirl);
+  swirl.position.set(0, cy - SINK, -0.65); g.add(swirl);
   const glow = new THREE.Mesh(new THREE.CircleGeometry(R * 1.9, 32), new THREE.MeshBasicMaterial({ map: glowTex(), color: 0x7a6aff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
-  glow.position.set(0, cy - 0.05, -0.7); g.add(glow);
-  g.userData = { frame, swirl, glow, cy: cy - 0.05, R };
+  glow.position.set(0, cy - SINK, -0.7); g.add(glow);
+  g.userData = { frame, swirl, glow, cy: cy - SINK, R };
   return g;
 }
 export const makeSprite = (name, h, aspect) => { mats(); return sprite(name, h, aspect); };

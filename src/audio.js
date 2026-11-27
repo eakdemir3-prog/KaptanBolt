@@ -18,6 +18,8 @@ function noise(dur, vol = 0.4) {
   const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b; g.gain.value = vol; s.connect(g); g.connect(master); s.start();
 }
 export const sfx = {
+  shot: () => { tone(900, 220, 0.12, 'square', 0.22); tone(1800, 600, 0.08, 'sine', 0.18); noise(0.05, 0.12); },
+  empty: () => { tone(260, 180, 0.07, 'triangle', 0.22); tone(220, 150, 0.07, 'triangle', 0.18, 0.08); },
   jump: () => tone(320, 720, 0.16, 'square', 0.25),
   coin: () => { tone(988, 988, 0.06, 'square', 0.22); tone(1319, 1319, 0.18, 'square', 0.22, 0.06); },
   stomp: () => { tone(260, 90, 0.18, 'triangle', 0.6); noise(0.08, 0.25); },

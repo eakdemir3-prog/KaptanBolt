@@ -149,7 +149,7 @@ export function makeAnimator(model) {
   const legs = [[bone('LeftUpLeg'), bone('LeftFoot'), 1], [bone('RightUpLeg'), bone('RightFoot'), -1]].filter((l) => l[0] && l[1]);
   const qz = new THREE.Quaternion(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), Z = new THREE.Vector3(0, 0, 1), ax = new THREE.Vector3();
   // el sallama hareketinde ayaklar orijinalde bitişik: o sırada kalçalar daha çok açılır (yumuşak geçişle)
-  const st = { headUp: 0, stance: STANCE, spineBack: 0, armOut: 0, stanceK: 1, air: 0, fall: 0 };
+  const st = { headUp: 0, stance: STANCE, spineBack: 0, armOut: 0, stanceK: 1, air: 0, fall: 0, punch: 0, punchSide: 1 };
   const WIDE = { wave: 0.24, cheer: 0.1 };
   const spread = () => {
     for (const [up, foot, sx] of legs) {
@@ -163,7 +163,7 @@ export function makeAnimator(model) {
     }
   };
   // Kafa eğimi: üstten bakan oyun kamerasında yüz görünsün diye kafa hafifçe yukarı bakar
-  const head = bone('Head'), X = new THREE.Vector3(1, 0, 0);
+  const head = bone('Head'), X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
   const tilt = () => {
     if (!head || !st.headUp) return;
     model.getWorldQuaternion(qb); ax.copy(X).applyQuaternion(qb);
@@ -182,6 +182,13 @@ export function makeAnimator(model) {
     const a = st.air, f = st.fall;
     for (const [b, sx] of arms) rotModel(b, Z, sx * (st.armOut + a * (0.75 - f * 0.25)));
     for (const [b, sx] of fore) rotModel(b, Z, sx * a * (0.35 - f * 0.2));
+    // ateş: bir kol hızla ileri uzanır (punchSide: 1 sol, -1 sağ)
+    if (st.punch > 0.001) {
+      const arm = arms.find((x) => x[1] === st.punchSide), fa = fore.find((x) => x[1] === st.punchSide);
+      // dünya ekseninde: aşağı sarkan kol ekranda baktığı yöne doğru kalkar (yatay uzanır)
+      if (arm) { const b = arm[0]; ax.set(0, 0, 1); b.parent.getWorldQuaternion(qb); ax.applyQuaternion(qb.invert()).normalize(); qz.setFromAxisAngle(ax, (st.face || 1) * st.punch * 1.5); b.quaternion.premultiply(qz); }
+      for (const b of spines) rotModel(b, Y, st.punchSide * st.punch * 0.12);
+    }
     if (a > 0.001) {
       // çıkış: ön diz yukarı, arka bacak aşağı uzanır; düşüş: iki ayak aşağı, hafif açık (inişe hazır)
       rotModel(lUp, X, -a * (0.75 - f * 0.55)); rotModel(lKn, X, a * (0.9 - f * 0.6));

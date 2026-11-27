@@ -230,7 +230,18 @@ const shotGeo = new THREE.SphereGeometry(0.17, 16, 12); shotGeo.userData.shared 
 const shotMat = new THREE.MeshBasicMaterial({ color: 0xbdf6ff, toneMapped: false });
 function updateCharges() { const n = Math.floor(G.ch); $('fCh').querySelectorAll('i').forEach((i, k) => i.classList.toggle('on', k < n)); $('bF').classList.toggle('empty', n < 1); }
 function dropCoins(x, y, n) { for (let i = 0; i < n; i++) { const m = add(makeCoin()); m.position.set(x, y, 0.4); ents.flying.push({ m, v: new THREE.Vector3((i - (n - 1) / 2) * 2, 6 + Math.random() * 2, 0), t: -i * 0.06 }); } }
+let punchT = 0, punchSide = 1, eyeT = 0;
+function punch(real) { punchT = 0.28; punchSide = -punchSide; anim.st.face = player.face; anim.st.punchSide = player.face; if (real) { eyeT = 0.18; player.squash = 0.1; } }
+function updatePunch(dt) {
+  punchT = Math.max(0, punchT - dt); const S = anim.st;
+  const tgt = punchT > 0.18 ? 1 : punchT > 0 ? punchT / 0.18 : 0;
+  S.punch += (tgt - S.punch) * Math.min(1, dt * (tgt > S.punch ? 40 : 12));
+  eyeT = Math.max(0, eyeT - dt); const em = bolt.userData.mat;
+  if (em && em.emissiveIntensity !== undefined) { em.userData.e0 ??= em.emissiveIntensity; em.emissiveIntensity = em.userData.e0 * (1 + eyeT * 10); }
+  if (bolt.userData.fill) bolt.userData.fill.color.setHex(eyeT > 0 ? 0x9af0ff : 0xfff6ee);
+}
 function updateGun(dt) {
+  updatePunch(dt);
   const p = player;
   const gv = ents.glove;
   if (gv && !gv.taken) {
@@ -245,13 +256,16 @@ function updateGun(dt) {
   G.ch = Math.min(3, G.ch + dt * 0.5); G.cd = Math.max(0, G.cd - dt);
   if (input.fire) {
     input.fire = false;
-    if (G.state === 'play' && G.ch >= 1 && G.cd <= 0) {
-      G.ch -= 1; G.cd = 0.3;
+    if (G.state === 'play' && G.cd <= 0 && G.ch < 1) { // şarj yok: kol uzanır, sönük kıvılcım
+      G.cd = 0.3; punch(); sfx.empty(); for (let i = 0; i < 3; i++) spark(p.x + p.face * 0.7, p.y + 0.8, 0.2);
+    } else if (G.state === 'play' && G.ch >= 1 && G.cd <= 0) {
+      G.ch -= 1; G.cd = 0.3; punch(true);
       const m = add(new THREE.Mesh(shotGeo, shotMat)); const glow = makeSprite('star', 0.55, ASPECT.star); glow.material = glow.material.clone(); glow.material.color.set(0x66ddff); glow.position.set(0, -0.27, 0.05); m.add(glow);
-      m.position.set(p.x + p.face * 0.55, p.y + 0.72, 0.35);
+      m.position.set(p.x + p.face * 0.78, p.y + 0.82, 0.35);
       ents.shots.push({ m, x: m.position.x, y: m.position.y, vx: p.face * 11, t: 0 });
-      sfx.spring(); vibrate(15); for (let i = 0; i < 5; i++) spark(m.position.x, m.position.y, 0.6);
-    } else if (G.ch < 1) sfx.bump();
+      sfx.shot(); vibrate(20); shake = Math.max(shake, 0.12); for (let i = 0; i < 8; i++) spark(m.position.x, m.position.y, 0.7);
+      if (p.ground) p.vx -= p.face * 1.6; // geri tepme
+    }
   }
   if (Math.floor(G.ch) !== before) updateCharges();
   for (let i = ents.shots.length - 1; i >= 0; i--) {
