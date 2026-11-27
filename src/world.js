@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-export const DEPTH = 3.2; // zeminin derinliği (z yönünde)
+export const DEPTH = 2.4; // zeminin derinliği (z yönünde)
 let rnd = 12345; const R = () => ((rnd = (rnd * 16807) % 2147483647) / 2147483647);
 
 function canvasTex(w, h, draw, repeat = true) {
@@ -142,7 +142,7 @@ export function backdrop(scene, levelW) {
   };
   const sky = layer('bg/vadi-gok.webp', -120, 120, -20, { aspect: 1672 / 941 });
   const far = layer('bg/vadi-uzak.webp', -70, 46, -14, { alpha: true, aspect: 1532 / 941, order: 1, tint: 0xf4fbff, fill: 0x3f8f73 });
-  const mid = layer('bg/vadi-orta.webp', -26, 18, -4.5, { alpha: true, aspect: 1532 / 941, order: 2, tint: 0xe8f4e0, fill: 0x2c7a2c });
+  const mid = layer('bg/vadi-orta.webp', -26, 18, -4.5, { alpha: true, aspect: 1532 / 941, order: 2, tint: 0xe8f4e0, fill: 0x1f4a26 });
   return { sky, far, mid };
 }
 
@@ -164,6 +164,16 @@ export function buildWorld(scene, L) {
     x = e + 1;
   }
   for (const p of L.plats) root.add(floatRock(p.x, p.y, p.w));
+  // uçurumlar: boşluğun arkası derinlere doğru kararan bir yarık (düz yeşil zemin görünmesin)
+  const abyss = canvasTex(4, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#3d6b3a'); gr.addColorStop(0.25, '#23402a'); gr.addColorStop(1, '#0b1410'); g.fillStyle = gr; g.fillRect(0, 0, w, h); }, false);
+  const abyssMat = new THREE.MeshBasicMaterial({ map: abyss, fog: false });
+  for (let x = 1; x < L.w - 1; x++) {
+    if (L.cols[x] || !L.cols[x - 1]) continue;
+    let e = x; while (e + 1 < L.w && !L.cols[e + 1]) e++;
+    const top = Math.min(L.cols[x - 1], L.cols[e + 1] || L.cols[x - 1]) - 0.15, w = e - x + 1;
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.4, top + 10), abyssMat); back.position.set(x + w / 2, top - (top + 10) / 2, -DEPTH / 2 + 0.05); root.add(back);
+    x = e;
+  }
   // ön kenarda küçük çimen tutamları
   const blade = new THREE.ConeGeometry(0.05, 0.32, 3);
   const pts = []; for (let i = 0; i < L.w; i += 0.18) if (L.cols[Math.floor(i)] > 0) pts.push([i + R() * 0.1, L.cols[Math.floor(i)], 1.15 + R() * 0.45]);

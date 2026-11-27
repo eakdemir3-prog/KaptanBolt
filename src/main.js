@@ -65,9 +65,14 @@ let L, player, bolt, anim;
 const ents = { coins: [], enemies: [], cages: [], springs: [], flags: [], parts: [] };
 
 // Fizik sabitleri
-const GRAV = 34, RUN = 6.6, ACC = 42, AIR_ACC = 28, FRICT = 36, JUMP = 14.8, SPRING = 25.5, MAXFALL = 22;
+// Fizik (birim = kare). Hedef his: çevik koşu, hızlı çıkış, tepede kısa asılı kalma, hızlı düşüş.
+const RUN = 8.4, ACC = 75, AIR_ACC = 48, FRICT = 70, TURN = 2.2;           // TURN: ters yöne dönerken ekstra fren
+const G_UP = 50, G_DOWN = 82, G_APEX = 0.55, MAXFALL = 24;               // çıkış/düşüş yerçekimi, tepe yumuşatma
+const JUMP = Math.sqrt(2 * G_UP * 3.75);                                 // tuşu tutunca 3.75 kare
+const SPRING = Math.sqrt(2 * G_UP * 9.2), STOMP = Math.sqrt(2 * G_UP * 2.2), STOMP_HOLD = Math.sqrt(2 * G_UP * 4.2);
 const PW = 0.62, PH = 1.22; // oyuncu kutusu (yarı genişlik değil, tam)
 
+const BOLT_S = 1.12 * 1.2;
 const input = { left: false, right: false, jump: false, jumpPressed: false };
 
 function setupLevel() {
@@ -91,7 +96,7 @@ function setupLevel() {
   const ef = makeFlag(true); ef.position.set(L.end.x, L.cols[Math.floor(L.end.x)], -0.4); scene.add(ef); ents.flags.push({ x: L.end.x, m: ef, end: true });
 
   bolt = makeRobot(SKINS[1]); // kaptan şapkalı Bolt
-  bolt.scale.setScalar(1.12 * 1.2);
+  bolt.scale.setScalar(BOLT_S);
   bolt.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   if (bolt.userData.fill) bolt.userData.fill.intensity = 0.8;
   scene.add(bolt);
@@ -139,28 +144,36 @@ function updatePlayer(dt) {
   const p = player;
   const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
   const acc = p.ground ? ACC : AIR_ACC;
-  if (dir) { p.vx += dir * acc * dt; p.vx = Math.max(-RUN, Math.min(RUN, p.vx)); p.face = dir; }
-  else if (p.ground) { const f = FRICT * dt; p.vx = Math.abs(p.vx) <= f ? 0 : p.vx - Math.sign(p.vx) * f; }
-  // zıplama: yere değme toleransı + basılı tutulan tuş tamponu; erken bırakınca kısa zıplar
+  if (dir) {
+    const turning = p.vx * dir < 0;
+    p.vx += dir * acc * (turning ? TURN : 1) * dt; p.vx = Math.max(-RUN, Math.min(RUN, p.vx)); p.face = dir;
+  } else { const f = (p.ground ? FRICT : FRICT * 0.35) * dt; p.vx = Math.abs(p.vx) <= f ? 0 : p.vx - Math.sign(p.vx) * f; }
+  // zıplama: kenardan düştükten sonra 0,1 sn tolerans + erken basışı 0,13 sn hatırla
   p.coyote = p.ground ? 0.1 : p.coyote - dt;
-  p.buffer = input.jumpPressed ? 0.12 : p.buffer - dt; input.jumpPressed = false;
-  if (p.buffer > 0 && p.coyote > 0) { p.vy = JUMP; p.ground = false; p.coyote = 0; p.buffer = 0; sfx.jump(); }
+  p.buffer = input.jumpPressed ? 0.13 : p.buffer - dt; input.jumpPressed = false;
+  if (p.buffer > 0 && p.coyote > 0) { p.vy = JUMP; p.ground = false; p.coyote = 0; p.buffer = 0; p.cut = false; p.squash = -0.18; sfx.jump(); dust(p.x, p.y, 5); }
+  // tuş erken bırakılırsa kısa zıpla (bir kez, yumuşak)
+  if (!input.jump && !p.noCut && !p.cut && p.vy > 0) { p.vy *= 0.5; p.cut = true; }
   if (p.vy <= 0) p.noCut = false;
-  if (!input.jump && !p.noCut && p.vy > 5) p.vy -= GRAV * 1.6 * dt;
-  p.vy = Math.max(-MAXFALL, p.vy - GRAV * dt);
+  let g = p.vy > 0 ? G_UP : G_DOWN;
+  if (Math.abs(p.vy) < 2.2 && input.jump && !p.ground) g *= G_APEX; // tepede kısa asılı kalma
+  p.vy = Math.max(-MAXFALL, p.vy - g * dt);
   moveX(p, p.vx * dt, PW, PH) && (p.vx = 0);
+  const vyBefore = p.vy;
   const hit = moveY(p, p.vy * dt, PW, PH);
-  if (hit === 'down') { if (!p.ground && p.vy < -12) sfx.land(); p.ground = true; p.vy = 0; }
+  if (hit === 'down') { if (!p.ground) { if (vyBefore < -8) { sfx.land(); dust(p.x, p.y, 6); } p.squash = Math.min(0.28, -vyBefore / 70); } p.ground = true; p.vy = 0; }
   else { if (hit === 'up') { p.vy = Math.min(0, p.vy); sfx.bump(); } p.ground = false; }
   if (p.y < -4) fallDeath();
+  p.squash = (p.squash || 0) * Math.max(0, 1 - dt * 12);
 
   // görünüm
   bolt.position.set(p.x, p.y, 0);
+  const sq = p.squash || 0; bolt.scale.set(BOLT_S * (1 + sq * 0.6), BOLT_S * (1 - sq), BOLT_S * (1 + sq * 0.6));
   const targetRot = p.face > 0 ? Math.PI / 2 - 0.35 : -Math.PI / 2 + 0.35; // kameraya hafif dönük
   bolt.rotation.y += (targetRot - bolt.rotation.y) * Math.min(1, dt * 14);
   if (G.state === 'win') return;
   if (!p.ground) playAnim('jump', { once: true, fade: 0.08 });
-  else if (Math.abs(p.vx) > 0.4) { playAnim('walk', { fade: 0.15, speed: 1.6 }); anim.play('walk', { speed: 0.9 + Math.abs(p.vx) / RUN * 1.3 }); }
+  else if (Math.abs(p.vx) > 0.4) { playAnim('walk', { fade: 0.12, speed: 2 }); anim.play('walk', { speed: 1.1 + Math.abs(p.vx) / RUN * 1.6 }); }
   else playAnim('idle', { fade: 0.2 });
   bolt.visible = G.inv <= 0 || Math.floor(G.t * 16) % 2 === 0;
 }
@@ -179,24 +192,24 @@ function updateEnemies(dt) {
     const p = player;
     if (G.state !== 'play' || Math.abs(p.x - e.x) > (PW + e.w) / 2 - 0.08 || p.y > e.y + e.h || p.y + PH < e.y + 0.1) continue;
     const stomp = p.vy < -1 && p.y > e.y + e.h * 0.45;
-    if (stomp && e.type === 'bocek') { e.alive = false; p.vy = input.jump ? 15 : 10.5; p.noCut = true; sfx.stomp(); vibrate(30); burst(e.x, e.y + 0.5, 0xffa040, 10); }
-    else if (stomp && e.type === 'kirpi') { p.vy = 9; hurt(e.x); }
+    if (stomp && e.type === 'bocek') { e.alive = false; p.vy = input.jump ? STOMP_HOLD : STOMP; p.noCut = true; sfx.stomp(); vibrate(30); burst(e.x, e.y + 0.5, 0xffa040, 10); }
+    else if (stomp && e.type === 'kirpi') { p.vy = STOMP; hurt(e.x); }
     else hurt(e.x);
   }
 }
 
 // ---------- Para, kafes, mantar, bayrak ----------
 function updateItems(dt) {
-  const p = player, cx = p.x, cy = p.y + PH / 2;
+  const p = player;
   for (const c of ents.coins) {
     if (c.taken) { if (c.m.visible) { c.k += dt; c.m.position.y += dt * 5; c.m.scale.setScalar(Math.max(0, 1 - c.k * 3)); if (c.k > 0.35) c.m.visible = false; } continue; }
     c.m.rotation.y = G.t * 3 + c.ph; c.m.position.y = c.y + Math.sin(G.t * 3 + c.ph) * 0.05;
-    if (Math.abs(cx - c.x) < 0.62 && Math.abs(cy - c.y) < 0.85) { c.taken = true; c.k = 0; G.coins++; sfx.coin(); updateHud(); }
+    if (Math.abs(p.x - c.x) < PW / 2 + 0.38 && c.y > p.y - 0.4 && c.y < p.y + PH + 0.4) { c.taken = true; c.k = 0; G.coins++; sfx.coin(); updateHud(); }
   }
   for (const s of ents.springs) {
     s.t = Math.min(1, s.t + dt * 4);
     const k = 1 - Math.sin(s.t * Math.PI) * 0.35; s.m.userData.cap.position.y = 0.5 * k; s.m.userData.coil.scale.y = k;
-    if (p.vy <= 0 && Math.abs(p.x - s.x) < 0.75 && p.y >= s.y && p.y < s.y + 0.75) { p.vy = SPRING; p.noCut = true; p.ground = false; s.t = 0; sfx.spring(); vibrate(20); }
+    if (p.vy <= 0 && Math.abs(p.x - s.x) < 0.75 && p.y >= s.y - 0.05 && p.y < s.y + 0.9) { p.vy = SPRING; p.noCut = true; p.ground = false; s.t = 0; sfx.spring(); vibrate(20); }
   }
   for (const c of ents.cages) {
     if (!c.open) {
@@ -237,9 +250,13 @@ function burst(x, y, color, n) {
   const mat = new THREE.MeshBasicMaterial({ color });
   for (let i = 0; i < n; i++) { const m = new THREE.Mesh(partGeo, mat); m.position.set(x, y, 0.3); scene.add(m); ents.parts.push({ m, v: new THREE.Vector3((Math.random() - 0.5) * 6, 2 + Math.random() * 5, (Math.random() - 0.5) * 3), t: 0 }); }
 }
+const dustGeo = new THREE.SphereGeometry(0.12, 8, 6), dustMat = new THREE.MeshBasicMaterial({ color: 0xf3ead2, transparent: true, opacity: 0.8 });
+function dust(x, y, n) {
+  for (let i = 0; i < n; i++) { const m = new THREE.Mesh(dustGeo, dustMat); m.position.set(x + (Math.random() - 0.5) * 0.5, y + 0.08, 0.4 + Math.random() * 0.3); scene.add(m); ents.parts.push({ m, v: new THREE.Vector3((Math.random() - 0.5) * 3.5, 0.6 + Math.random() * 1.2, 0), t: 0, dust: true }); }
+}
 function updateParts(dt) {
   for (let i = ents.parts.length - 1; i >= 0; i--) {
-    const q = ents.parts[i]; q.t += dt; q.v.y -= 14 * dt; q.m.position.addScaledVector(q.v, dt); q.m.scale.setScalar(Math.max(0, 1 - q.t * 1.4));
+    const q = ents.parts[i]; q.t += dt; q.v.y -= (q.dust ? 1 : 14) * dt; if (q.dust) q.v.x *= 1 - dt * 3; q.m.position.addScaledVector(q.v, dt); q.m.scale.setScalar(Math.max(0, 1 - q.t * 1.4));
     if (q.t > 0.7) { scene.remove(q.m); ents.parts.splice(i, 1); }
   }
 }
@@ -247,14 +264,14 @@ function updateParts(dt) {
 // ---------- Kamera ----------
 const cam = { x: 0, y: 0 }; let camSnap = true, camBase = 2;
 function updateCamera(dt) {
-  const lookAhead = player.face * 1.6;
+  const lookAhead = player.face * 2.2 + player.vx * 0.12;
   const tx = Math.max(6, Math.min(L.w - 6, player.x + lookAhead));
   // dikey: yerdeyken oyuncunun yüksekliğine otur, havadayken sadece çok yükselince/düşünce takip et
   if (player.ground || player.y < camBase - 1.5 || player.y > camBase + 3.2) camBase += (player.y - camBase) * Math.min(1, dt * (player.ground ? 4 : 6));
-  const ty = camBase + 2.2;
-  if (camSnap) { camBase = player.y; cam.x = tx; cam.y = camBase + 2.2; camSnap = false; }
-  cam.x += (tx - cam.x) * Math.min(1, dt * 3.2); cam.y += (ty - cam.y) * Math.min(1, dt * 2.4);
-  camera.position.set(cam.x, cam.y + 0.7, 12.5); camera.lookAt(cam.x, cam.y - 0.4, 0);
+  const ty = camBase + 1.7;
+  if (camSnap) { camBase = player.y; cam.x = tx; cam.y = camBase + 1.7; camSnap = false; }
+  cam.x += (tx - cam.x) * Math.min(1, dt * 4.5); cam.y += (ty - cam.y) * Math.min(1, dt * 2.4);
+  camera.position.set(cam.x, cam.y + 0.35, 10.4); camera.lookAt(cam.x, cam.y - 0.15, 0);
   sun.position.set(cam.x + 7, 17, 10); sun.target.position.set(cam.x, 0, 0);
 }
 
