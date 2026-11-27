@@ -206,7 +206,7 @@ function updateItems(dt) {
   const p = player;
   for (const c of ents.coins) {
     if (c.taken) { if (c.m.visible) { c.k += dt; c.m.position.y += dt * 5; c.m.scale.setScalar(Math.max(0, 1 - c.k * 3)); if (c.k > 0.35) c.m.visible = false; } continue; }
-    c.m.rotation.y = G.t * 3 + c.ph; c.m.position.y = c.y + Math.sin(G.t * 3 + c.ph) * 0.05;
+    c.m.userData.face.scale.x = Math.max(0.1, Math.abs(Math.cos(G.t * 2.6 + c.ph))); c.m.position.y = c.y + Math.sin(G.t * 3 + c.ph) * 0.05;
     if (Math.abs(p.x - c.x) < PW / 2 + 0.38 && c.y > p.y - 0.4 && c.y < p.y + PH + 0.4) { c.taken = true; c.k = 0; G.coins++; sfx.coin(); updateHud(); }
   }
   for (const s of ents.springs) {

@@ -220,8 +220,9 @@ export function buildWorld(scene, L) {
 export function makeCoin() {
   mats();
   const g = new THREE.Group();
-  const c = mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.08, 28), M.gold); c.rotation.x = Math.PI / 2; g.add(c);
-  const s = mesh(new THREE.TorusGeometry(0.2, 0.03, 8, 24), M.gold, 0, 0, 0.045, false); g.add(s);
+  const geo = new THREE.PlaneGeometry(0.74, 0.74 * 1080 / 1052);
+  const c = new THREE.Mesh(geo, SPR.coin || (SPR.coin = new THREE.MeshBasicMaterial({ map: tex('coin'), transparent: true, alphaTest: 0.3, toneMapped: false, side: THREE.DoubleSide })));
+  c.position.z = 0.2; g.add(c); g.userData.face = c;
   return g;
 }
 
