@@ -32,7 +32,7 @@ export function loadRobotModel() {
           for (const tr of c.tracks) if (/Hips\.position$/.test(tr.name)) { const v = tr.values; for (let i = 0; i < v.length; i += 3) { v[i] = v[0]; v[i + 2] = v[2]; } }
           clips[c.name] = c;
         }
-        if (clips.jump) { clips.jumpUp = clips.jump.clone(); clips.jumpUp.name = 'jumpUp'; clips.jumpDown = clips.jump.clone(); clips.jumpDown.name = 'jumpDown'; }
+        if (clips.jump) { clips.jumpUp = clips.jump.clone(); clips.jumpUp.name = 'jumpUp'; clips.jumpDown = (clips.run || clips.jump).clone(); clips.jumpDown.name = 'jumpDown'; }
         resolve(true);
       }, undefined, () => resolve(true));
     }, undefined, (e) => { console.warn('robot.glb yüklenemedi', e); resolve(false); });
@@ -149,7 +149,7 @@ export function makeAnimator(model) {
   const legs = [[bone('LeftUpLeg'), bone('LeftFoot'), 1], [bone('RightUpLeg'), bone('RightFoot'), -1]].filter((l) => l[0] && l[1]);
   const qz = new THREE.Quaternion(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), Z = new THREE.Vector3(0, 0, 1), ax = new THREE.Vector3();
   // el sallama hareketinde ayaklar orijinalde bitişik: o sırada kalçalar daha çok açılır (yumuşak geçişle)
-  const st = { headUp: 0, stance: STANCE };
+  const st = { headUp: 0, stance: STANCE, spineBack: 0, armOut: 0, stanceK: 1 };
   const WIDE = { wave: 0.24, cheer: 0.1 };
   const spread = () => {
     for (const [up, foot, sx] of legs) {
@@ -170,7 +170,15 @@ export function makeAnimator(model) {
     head.parent.getWorldQuaternion(qb); ax.applyQuaternion(qb.invert()).normalize();
     qz.setFromAxisAngle(ax, -st.headUp); head.quaternion.premultiply(qz);
   };
-  const update = (dt) => { mixer.update(dt); const tgt = STANCE + (WIDE[cur && cur.getClip().name] || 0); st.stance += (tgt - st.stance) * Math.min(1, dt * 6); spread(); tilt(); };
+  // Duruş düzeltmesi: belkemiği geriye (göğüs öne), omuzlar hafif dışa — "sarkık" görünmesin
+  const spines = ['Spine', 'Spine1'].map(bone).filter(Boolean);
+  const arms = [[bone('LeftArm'), 1], [bone('RightArm'), -1]].filter((a) => a[0]);
+  const rotModel = (b, axis, ang) => { if (!b || !ang) return; model.getWorldQuaternion(qb); ax.copy(axis).applyQuaternion(qb); b.parent.getWorldQuaternion(qb); ax.applyQuaternion(qb.invert()).normalize(); qz.setFromAxisAngle(ax, ang); b.quaternion.premultiply(qz); };
+  const posture = () => {
+    for (const b of spines) rotModel(b, X, -st.spineBack / spines.length);
+    for (const [b, sx] of arms) rotModel(b, Z, sx * st.armOut);
+  };
+  const update = (dt) => { mixer.update(dt); const tgt = (STANCE + (WIDE[cur && cur.getClip().name] || 0)) * st.stanceK; st.stance += (tgt - st.stance) * Math.min(1, dt * 6); posture(); spread(); tilt(); };
   play('idle', { fade: 0 }); update(0.4);
   /** donmuş poz: klibin t anında durur (zıplama: çıkış ve düşüş pozları) */
   const pose = (name, t, fade = 0.12) => { const a = acts[name]; if (!a) return; if (cur !== a) { play(name, { once: true, fade }); } a.time = t; a.timeScale = 0; };

@@ -172,13 +172,18 @@ function updatePlayer(dt) {
   bolt.rotation.y += (targetRot - bolt.rotation.y) * Math.min(1, dt * 7); // dönüş ~0,3 sn, önce kameraya bakarak
   if (!p.ground) {
     if (p.vy > 1.5) { if (player.lastAnim !== 'jumpUp') { player.lastAnim = 'jumpUp'; anim.pose('jumpUp', 0.03, 0.08); } }
-    else if (player.lastAnim !== 'jumpDown') { player.lastAnim = 'jumpDown'; anim.pose('jumpDown', 0.55, 0.22); }
+    else if (player.lastAnim !== 'jumpDown') { player.lastAnim = 'jumpDown'; anim.pose('jumpDown', 0.16, 0.2); }
   }
   else if (sp > P.RUN * 0.6) { playAnim('run', { fade: 0.12 }); anim.play('run', { speed: 0.75 + sp / P.RUN * 0.35 }); }
   else if (sp > 0.4) { playAnim('walk', { fade: 0.15 }); anim.play('walk', { speed: 0.9 + sp / P.RUN * 1.2 }); }
   else playAnim('idle', { fade: 0.25 });
   bolt.visible = G.inv <= 0 || Math.floor(G.t * 16) % 2 === 0;
+  // duruş: dururken dik ve göğüs önde, yürürken biraz, koşarken ve havada doğal
+  const T = !p.ground ? [0.04, 0.12, 0.06, 1] : sp > P.RUN * 0.6 ? [0.08, 0.15, 0.06, 0.9] : sp > 0.4 ? [0.13, 0.17, 0.12, 0.8] : [0.16, 0.2, 0.18, 0.65];
+  const S = anim.st, k = Math.min(1, dt * 6);
+  if (!POSTURE_OFF) { S.spineBack += (T[0] - S.spineBack) * k; S.headUp += (T[1] - S.headUp) * k; S.armOut += (T[2] - S.armOut) * k; S.stanceK += (T[3] - S.stanceK) * k; }
 }
+let POSTURE_OFF = /noposture/.test(location.hash);
 
 // ---------- Sandık ----------
 function hitCrate(x, y, fromTop) {
@@ -436,7 +441,7 @@ function updateCamera(dt) {
   cam.x += (tx - cam.x) * Math.min(1, dt * 3.2); cam.y += (ty - cam.y) * Math.min(1, dt * 2.6);
   shake = Math.max(0, shake - dt); const sx = shake ? (Math.random() - 0.5) * shake * 0.5 : 0, sy = shake ? (Math.random() - 0.5) * shake * 0.5 : 0;
   const dist = b && b.wallsUp ? 13.5 : 11.2;
-  camera.position.set(cam.x + sx, cam.y + 0.4 + sy, dist); camera.lookAt(cam.x + sx, cam.y - 0.1 + sy, 0);
+  camera.position.set(cam.x + sx, cam.y + 0.1 + sy, dist); camera.lookAt(cam.x + sx, cam.y - 0.15 + sy, 0);
   sun.position.set(cam.x + 6, 18, 12); sun.target.position.set(cam.x, 0, 0);
 }
 
@@ -560,7 +565,7 @@ function autopilot() {
   autoHold -= 1 / 60; if (autoHold <= 0 && p.vy < 6) input.jump = false;
 }
 
-window.KB2 = { G, input, ents, get L() { return L; }, get player() { return player; }, load: loadLevel, save, tp: (x) => { player.x = x; player.y = L.cols[Math.floor(x)] + 0.05; player.vx = player.vy = 0; camSnap = true; } };
+window.KB2 = { get anim() { return anim; }, G, input, ents, get L() { return L; }, get player() { return player; }, load: loadLevel, save, tp: (x) => { player.x = x; player.y = L.cols[Math.floor(x)] + 0.05; player.vx = player.vy = 0; camSnap = true; } };
 
 (async function boot() {
   bindControls();
