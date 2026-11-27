@@ -349,6 +349,19 @@ export function makeBeam() {
   flash.position.set(0, 2.2, 0.6); g.add(flash);
   return { g, beam, rings, flash, flashed: false };
 }
+/** Bölüm sonu portalı: taş-turkuaz çerçeve (resim) + arkasında dönen girdap (aynı resimden kesilmiş) */
+export function makePortal() {
+  mats();
+  const g = new THREE.Group(), H = 3.1, W = H * 1309 / 1176, R = 0.2536 * W * 1.04, cy = (1 - 0.5621) * H;
+  const frame = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: tex('portal_frame'), transparent: true, alphaTest: 0.25, toneMapped: false }));
+  frame.geometry.translate(0, H / 2 - 0.05, 0); frame.position.z = -0.6; g.add(frame);
+  const swirl = new THREE.Mesh(new THREE.CircleGeometry(R, 48), new THREE.MeshBasicMaterial({ map: tex('portal_swirl'), transparent: true, toneMapped: false, depthWrite: false }));
+  swirl.position.set(0, cy - 0.05, -0.65); g.add(swirl);
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(R * 1.9, 32), new THREE.MeshBasicMaterial({ map: glowTex(), color: 0x7a6aff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  glow.position.set(0, cy - 0.05, -0.7); g.add(glow);
+  g.userData = { frame, swirl, glow, cy: cy - 0.05, R };
+  return g;
+}
 export const makeSprite = (name, h, aspect) => { mats(); return sprite(name, h, aspect); };
 export const ASPECT = { heart: 236 / 212, star: 249 / 237, crate: 245 / 251, bridge: 329 / 125, raft: 333 / 187, thorns: 339 / 170, sign: 244 / 271, stump: 308 / 246, rocks: 306 / 223, log: 330 / 188, vines: 209 / 352, mushrooms: 241 / 227 };
 /** Köprü: ip köprü parçaları yan yana (uçlar biraz bindirilir) */

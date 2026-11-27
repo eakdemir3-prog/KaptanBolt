@@ -7,10 +7,12 @@ import { makeRobot, SKINS } from './game/robot.js';
 import { buildLevel, updateRafts } from './level.js';
 import { LEVELS } from './levels.js';
 import { P, stepPlayer, moveX, newPlayer } from './physics.js';
-import { buildWorld, backdrop, seed, makeCoin, makeSpring, makePost, setPost, makeBeam, makeSprite, ASPECT, makeBridge, makeRaft, makeThorns } from './world.js';
+import { buildWorld, backdrop, seed, makeCoin, makeSpring, makePost, setPost, makeBeam, makePortal, makeSprite, ASPECT, makeBridge, makeRaft, makeThorns } from './world.js';
 import { sfx, unlockAudio } from './audio.js';
 import { clone as skClone } from 'three/addons/utils/SkeletonUtils.js';
 import { makeWalker } from './rigwalk.js';
+import { makeTeleport, updateTeleport } from './teleport.js';
+const TPV = +((location.hash.match(/tp=(\d)/) || [])[1] || 0);
 
 const $ = (id) => document.getElementById(id);
 const renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: true, powerPreference: 'high-performance' });
@@ -112,7 +114,7 @@ function loadLevel(n) {
   for (const r of L.rafts) { const m = add(makeRaft(r.w)); ents.rafts.push({ r, m }); }
   for (const s of L.signs) { const m = add(makeSprite('sign', 1.3, ASPECT.sign)); m.position.set(s.x, s.y - 0.05, -0.7); ents.signs.push({ ...s, m, shown: false }); }
   for (const d of L.decos) { const m = add(makeSprite(d.kind, 1, ASPECT[d.kind])); m.position.set(d.x, d.y - 0.04, d.z); }
-  if (L.end && !L.boss) { const m = add(makePost(true)); m.position.set(L.end.x, L.end.y, 0); const beam = makeBeam(); beam.g.position.set(L.end.x, L.end.y, 0); add(beam.g); ents.end = { ...L.end, m, beam }; }
+  if (L.end && !L.boss) { const m = add(makePortal()); m.position.set(L.end.x + 0.6, L.end.y, 0); ents.end = { ...L.end, m, px: L.end.x + 0.6 }; }
   if (L.boss) setupBoss();
 
   if (!bolt) {
@@ -382,8 +384,8 @@ function updateItems(dt) {
   for (const r of ents.rafts) r.m.position.set(r.r.s.x0, r.r.s.y, 0);
   const e = ents.end;
   if (e) {
-    e.m.userData.glow.scale.setScalar(1.5 + Math.sin(G.t * 4) * 0.2);
-    if (G.state === 'play' && p.x > e.x - 0.4 && Math.abs(p.y - e.y) < 3) { setPost(e.m, true); win(); }
+    const U = e.m.userData; U.swirl.rotation.z -= dt * (G.state === 'win' ? 2 + G.end * 9 : 1.6); U.glow.material.opacity = 0.3 + Math.sin(G.t * 3) * 0.08;
+    if (G.state === 'play' && p.x > e.x - 0.4 && Math.abs(p.y - e.y) < 3) win();
     if (G.state === 'win') teleportFx(e, dt);
   }
 }
@@ -397,6 +399,19 @@ function openCage(c) {
 
 // ---------- Işınlanma ----------
 function teleportFx(e, dt) {
+  if (!TPV) { // portala atla, girdaba çekil
+    const t = G.end, U = e.m.userData, cx = e.px, cy = e.y + U.cy;
+    if (t < 0.25) { bolt.position.x += (cx - 0.9 - bolt.position.x) * Math.min(1, dt * 8); bolt.rotation.y += (Math.PI / 2 - bolt.rotation.y) * Math.min(1, dt * 10); }
+    else if (t < 1.05) {
+      const q = (t - 0.25) / 0.8, sx = e.sx ?? (e.sx = bolt.position.x), sy = e.sy ?? (e.sy = bolt.position.y);
+      bolt.position.x = sx + (cx - sx) * q; bolt.position.y = sy + (cy - 0.5 - sy) * q + Math.sin(q * Math.PI) * 0.8; bolt.position.z = -0.3 * q;
+      bolt.rotation.z = 0; bolt.scale.setScalar(BOLT_S * Math.max(0.01, 1 - q * q)); if (q > 0.97) bolt.visible = false;
+      if (Math.random() < 0.6) spark(cx + (Math.random() - 0.5) * 1.6, cy + (Math.random() - 0.5) * 1.6, 0.3);
+    } else if (!e.flashed) { e.flashed = true; bolt.visible = false; for (let i = 0; i < 24; i++) spark(cx + (Math.random() - 0.5) * 0.6, cy + (Math.random() - 0.5) * 0.6, 1.4); sfx.checkpoint(); }
+    U.glow.material.opacity = 0.35 + (t > 0.9 && t < 1.5 ? Math.sin((t - 0.9) / 0.6 * Math.PI) * 0.6 : 0); U.glow.scale.setScalar(1 + (t > 0.9 && t < 1.5 ? Math.sin((t - 0.9) / 0.6 * Math.PI) * 0.4 : 0));
+    return;
+  }
+  if (TPV) { if (!e.fx) { e.fx = makeTeleport(TPV, levelRoot, e.x, e.y); bolt.position.x = e.x; bolt.position.y = e.y; } updateTeleport(e.fx, bolt, BOLT_S, dt, spark); return; }
   const t = G.end, B = e.beam;
   B.beam.material.opacity = Math.min(0.85, t * 2.2) * (t > 1.35 ? Math.max(0, 1 - (t - 1.35) * 3) : 1);
   B.rings.forEach((r, i) => { const k = (t * 0.9 + i / 3) % 1; r.position.y = 0.15 + k * 3.4; r.scale.setScalar(1 - k * 0.35); r.material.opacity = (1 - k) * Math.min(1, t * 3) * (t > 1.35 ? 0 : 0.9); });
@@ -534,7 +549,7 @@ function bindControls() {
 // ---------- Döngü ----------
 const clock = new THREE.Clock();
 function frame() {
-  const dt = Math.min(clock.getDelta(), 1 / 30);
+  const dt = Math.min(clock.getDelta(), 1 / 30) * (window.__ts || 1);
   G.t += dt; G.inv = Math.max(0, G.inv - dt);
   if (L && (G.state === 'play' || G.state === 'win' || G.state === 'lose')) {
     updateRafts(L, G.t, dt);
@@ -571,7 +586,7 @@ function autopilot() {
   autoHold -= 1 / 60; if (autoHold <= 0 && p.vy < 6) input.jump = false;
 }
 
-window.KB2 = { get anim() { return anim; }, G, input, ents, get L() { return L; }, get player() { return player; }, load: loadLevel, save, tp: (x) => { player.x = x; player.y = L.cols[Math.floor(x)] + 0.05; player.vx = player.vy = 0; camSnap = true; } };
+window.KB2 = { tpTest(v, t) { const e = { x: L.end.x, y: L.end.y }; if (!window.__fx || window.__fx.kind !== v) { window.__fx = makeTeleport(v, levelRoot, e.x, e.y); bolt.position.set(e.x, e.y, 0); bolt.scale.setScalar(BOLT_S); bolt.visible = true; bolt.rotation.set(0, 0.8, 0); } const fx = window.__fx; while (fx.t < t) { updateTeleport(fx, bolt, BOLT_S, 1 / 60, spark); updateParts(1 / 60); } }, get anim() { return anim; }, G, input, ents, get L() { return L; }, get player() { return player; }, load: loadLevel, save, tp: (x) => { player.x = x; player.y = L.cols[Math.floor(x)] + 0.05; player.vx = player.vy = 0; camSnap = true; } };
 
 (async function boot() {
   bindControls();
