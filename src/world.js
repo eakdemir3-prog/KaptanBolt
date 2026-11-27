@@ -44,10 +44,33 @@ function rockTex() {
   });
 }
 
+const TL = new THREE.TextureLoader();
+const TEX = {};
+function tex(name, setup) {
+  if (TEX[name]) return TEX[name];
+  const t = TL.load(`props/${name}.webp`); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; if (setup) setup(t);
+  return (TEX[name] = t);
+}
+// Zemin dokusu (1024x682): üst %15 düz çimen, %15-20 sarkan yapraklar, altı toprak ve taş
+const GROUND_TW = 3.6, GROUND_TH = GROUND_TW * 682 / 1024;
+const spriteMat = (name) => new THREE.MeshBasicMaterial({ map: tex(name), transparent: true, alphaTest: 0.35, depthWrite: true, toneMapped: false, side: THREE.DoubleSide });
+const SPR = {};
+function sprite(name, h, aspect) {
+  const geo = new THREE.PlaneGeometry(h * aspect, h); geo.translate(0, h / 2, 0);
+  const m = new THREE.Mesh(geo, SPR[name] || (SPR[name] = spriteMat(name)));
+  return m;
+}
+const BUSH = [[1, 679 / 275], [2, 562 / 384], [3, 628 / 384]];
+const FLOWER_A = [273 / 200, 275 / 200, 264 / 200, 265 / 200, 258 / 200, 260 / 200];
+
 const M = {};
 function mats() {
   if (M.dirt) return M;
   M.dirt = new THREE.MeshStandardMaterial({ map: dirtTex(), roughness: 0.95 });
+  M.lip = tex('ground', (t) => { t.wrapS = THREE.RepeatWrapping; });
+  M.soil = tex('ground', (t) => { t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.MirroredRepeatWrapping; });
+  M.soilColor = new THREE.MeshStandardMaterial({ color: 0x9a4a1c, roughness: 0.95 });
+  M.top = new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#86c602'; g.fillRect(0, 0, w, h); for (let i = 0; i < 500; i++) { g.fillStyle = R() < 0.5 ? 'rgba(60,140,0,0.35)' : 'rgba(190,240,60,0.35)'; g.beginPath(); g.ellipse(R() * w, R() * h, 2 + R() * 4, 1 + R() * 2, R() * 3, 0, 7); g.fill(); } }), roughness: 0.85 });
   M.grass = new THREE.MeshStandardMaterial({ map: grassTex(), roughness: 0.8 });
   M.rock = new THREE.MeshStandardMaterial({ map: rockTex(), roughness: 0.9 });
   M.leaf = new THREE.MeshStandardMaterial({ color: 0x46b53a, roughness: 0.75 });
@@ -63,21 +86,36 @@ function mats() {
 }
 const mesh = (geo, mat, x = 0, y = 0, z = 0, shadow = true) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = shadow; m.receiveShadow = true; return m; };
 
-/** Bir sıra toprak blok: x0..x1 genişlik, yükseklik h (zemin y=0'dan başlar, aşağısı derin) */
+/** Ön yüze boyalı zemin dokusu giydirilmiş bant: üstte çimen saçağı, altta toprak (x0'a göre kesintisiz) */
+function soilFace(x0, w, yTop, hgt, z, lip = true) {
+  const g = new THREE.Group();
+  if (lip) {
+    const lh = Math.min(GROUND_TH, hgt), k = lh / GROUND_TH; // kısa bantta dokunun sadece üst kısmı
+    const t = M.lip.clone(); t.needsUpdate = true; t.repeat.set(w / GROUND_TW, k); t.offset.set(x0 / GROUND_TW, 1 - k);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, lh), new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 }));
+    m.position.set(x0 + w / 2, yTop - lh / 2, z); m.receiveShadow = true; g.add(m);
+  }
+  const rest = hgt - (lip ? GROUND_TH : 0);
+  if (rest > 0.01) { // altı: dokunun toprak kısmı aynalı tekrar
+    const t = M.soil.clone(); t.needsUpdate = true; t.repeat.set(w / GROUND_TW, rest / (GROUND_TH * 0.75)); t.offset.set(x0 / GROUND_TW + 0.37, 0);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, rest), new THREE.MeshStandardMaterial({ map: t, roughness: 0.95 }));
+    m.position.set(x0 + w / 2, yTop - (lip ? GROUND_TH : 0) - rest / 2, z); m.receiveShadow = true; g.add(m);
+  }
+  return g;
+}
+/** Bir sıra zemin: üst çimen yüzeyi, boyalı ön yüz, toprak yanlar */
 function groundRun(x0, w, h) {
   const g = new THREE.Group();
-  const deep = h + 6; // ekranın altına kadar uzansın
-  const geo = new RoundedBoxGeometry(w, deep, DEPTH, 3, 0.16);
-  const box = new THREE.Mesh(geo, M.dirt.clone()); box.material.map = M.dirt.map.clone(); box.material.map.repeat.set(w / 2.2, deep / 2.2); box.material.map.needsUpdate = true;
+  const deep = h + 8;
+  const box = new THREE.Mesh(new THREE.BoxGeometry(w, deep, DEPTH), [M.soilColor, M.soilColor, M.top, M.soilColor, M.soilColor, M.soilColor]);
   box.position.set(x0 + w / 2, h - deep / 2, 0); box.receiveShadow = true; g.add(box);
-  // çimen başlığı: hafif taşan, yuvarlak
-  const cap = new THREE.Mesh(new RoundedBoxGeometry(w + 0.22, 0.34, DEPTH + 0.22, 3, 0.13), M.grass); cap.position.set(x0 + w / 2, h - 0.08, 0); cap.receiveShadow = true; g.add(cap);
-  // ön kenardan sarkan çimen saçakları
-  const fr = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.34, 5), M.grass);
-  const n = Math.round(w * 3.2), fringe = new THREE.InstancedMesh(fr.geometry, M.grass, n);
-  const o = new THREE.Object3D();
-  for (let i = 0; i < n; i++) { o.position.set(x0 + 0.05 + (i + R() * 0.6) * (w - 0.1) / n, h - 0.3 - R() * 0.08, DEPTH / 2 + 0.1); o.rotation.set(Math.PI, 0, (R() - 0.5) * 0.5); o.scale.setScalar(0.7 + R() * 0.6); o.updateMatrix(); fringe.setMatrixAt(i, o.matrix); }
-  g.add(fringe);
+  g.add(soilFace(x0, w, h + 0.02, deep, DEPTH / 2 + 0.005));
+  // yan yüzler (boşluk kenarı): toprak dokusu
+  for (const sx of [x0, x0 + w]) {
+    const t = M.lip.clone(); t.needsUpdate = true; t.repeat.set(DEPTH / GROUND_TW, 1);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(DEPTH, GROUND_TH), new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 }));
+    m.position.set(sx + (sx === x0 ? -0.005 : 0.005), h + 0.02 - GROUND_TH / 2, 0); m.rotation.y = sx === x0 ? -Math.PI / 2 : Math.PI / 2; g.add(m);
+  }
   return g;
 }
 
@@ -85,10 +123,11 @@ function groundRun(x0, w, h) {
 function floatRock(x, y, w) {
   const g = new THREE.Group();
   const cx = x + w / 2;
-  const top = new THREE.Mesh(new RoundedBoxGeometry(w + 0.2, 0.36, 2.4, 3, 0.14), M.grass); top.position.set(cx, y + 0.9, 0); top.castShadow = top.receiveShadow = true; g.add(top);
-  const body = new THREE.Mesh(new RoundedBoxGeometry(w, 0.8, 2.2, 3, 0.25), M.rock); body.position.set(cx, y + 0.45, 0); body.castShadow = body.receiveShadow = true; g.add(body);
-  const bottom = new THREE.Mesh(new THREE.ConeGeometry(Math.min(w * 0.45, 1.4), 1.3, 7), M.rock); bottom.position.set(cx, y - 0.45, 0); bottom.rotation.x = Math.PI; bottom.scale.z = 0.8; bottom.castShadow = true; g.add(bottom);
-  for (let i = 0; i < w; i++) { const v = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.6 + R() * 0.9, 5), M.leaf3); v.position.set(x + 0.4 + i, y + 0.3 - R() * 0.4, 1.12); g.add(v); }
+  const top = new THREE.Mesh(new RoundedBoxGeometry(w + 0.2, 0.36, 2.4, 3, 0.14), M.top); top.position.set(cx, y + 0.9, 0); top.castShadow = top.receiveShadow = true; g.add(top);
+  const body = new THREE.Mesh(new RoundedBoxGeometry(w, 0.8, 2.2, 3, 0.25), M.soilColor); body.position.set(cx, y + 0.45, 0); body.castShadow = body.receiveShadow = true; g.add(body);
+  const bottom = new THREE.Mesh(new THREE.ConeGeometry(Math.min(w * 0.45, 1.4), 1.3, 7), M.soilColor); bottom.position.set(cx, y - 0.45, 0); bottom.rotation.x = Math.PI; bottom.scale.z = 0.8; bottom.castShadow = true; g.add(bottom);
+  const face = soilFace(x - 0.1, w + 0.2, y + 1.06, 1.12, 1.215); g.add(face);
+  for (let i = 0; i < 2; i++) { const f = sprite(`flower${1 + Math.floor(R() * 6)}`, 0.42, 1.35); f.position.set(x + 0.4 + R() * (w - 0.8), y + 1.05, -0.6); g.add(f); }
   return g;
 }
 
@@ -157,29 +196,23 @@ export function buildWorld(scene, L) {
     root.add(groundRun(x, e - x + 1, h));
     // üstte çalı, çiçek, çimen tutamı
     for (let i = x; i <= e; i++) {
-      if (R() < 0.22) root.add(bush(i + 0.5, h, -1.1 - R() * 0.4, 0.7 + R() * 0.5));
-      if (R() < 0.35) root.add(flower(i + R(), h, -0.9 + R() * 0.3));
-      if (R() < 0.3) root.add(flower(i + R(), h, 1.1 + R() * 0.3));
+      if (R() < 0.2) { const [k, a] = BUSH[Math.floor(R() * 3)]; const b = sprite(`bush${k}`, 0.9 + R() * 0.6, a); b.position.set(i + 0.5, h - 0.05, -0.75 - R() * 0.3); if (R() < 0.5) b.scale.x = -1; root.add(b); }
+      if (R() < 0.22) { const k = Math.floor(R() * 6); const f = sprite(`flower${k + 1}`, 0.42 + R() * 0.15, FLOWER_A[k]); f.position.set(i + R(), h - 0.03, -0.35 - R() * 0.3); root.add(f); }
+      if (R() < 0.1 && i > x && i < e) { const k = Math.floor(R() * 6); const f = sprite(`flower${k + 1}`, 0.36, FLOWER_A[k]); f.position.set(i + R(), h - 0.02, DEPTH / 2 - 0.15); root.add(f); }
     }
     x = e + 1;
   }
   for (const p of L.plats) root.add(floatRock(p.x, p.y, p.w));
   // uçurumlar: boşluğun arkası derinlere doğru kararan bir yarık (düz yeşil zemin görünmesin)
-  const abyss = canvasTex(4, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#3d6b3a'); gr.addColorStop(0.25, '#23402a'); gr.addColorStop(1, '#0b1410'); g.fillStyle = gr; g.fillRect(0, 0, w, h); }, false);
-  const abyssMat = new THREE.MeshBasicMaterial({ map: abyss, fog: false });
+  const abyss = canvasTex(4, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(20,40,22,0)'); gr.addColorStop(0.12, 'rgba(20,40,22,0.55)'); gr.addColorStop(0.35, 'rgba(10,20,12,0.95)'); gr.addColorStop(1, 'rgba(5,10,6,1)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); }, false);
+  const abyssMat = new THREE.MeshBasicMaterial({ map: abyss, fog: false, transparent: true, depthWrite: false });
   for (let x = 1; x < L.w - 1; x++) {
     if (L.cols[x] || !L.cols[x - 1]) continue;
     let e = x; while (e + 1 < L.w && !L.cols[e + 1]) e++;
     const top = Math.min(L.cols[x - 1], L.cols[e + 1] || L.cols[x - 1]) - 0.15, w = e - x + 1;
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.4, top + 10), abyssMat); back.position.set(x + w / 2, top - (top + 10) / 2, -DEPTH / 2 + 0.05); root.add(back);
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.4, top + 10), abyssMat); back.position.set(x + w / 2, top + 1.2 - (top + 10) / 2, DEPTH / 2 - 0.02); root.add(back);
     x = e;
   }
-  // ön kenarda küçük çimen tutamları
-  const blade = new THREE.ConeGeometry(0.05, 0.32, 3);
-  const pts = []; for (let i = 0; i < L.w; i += 0.18) if (L.cols[Math.floor(i)] > 0) pts.push([i + R() * 0.1, L.cols[Math.floor(i)], 1.15 + R() * 0.45]);
-  const im = new THREE.InstancedMesh(blade, M.blade, pts.length); const o = new THREE.Object3D();
-  pts.forEach(([a, b, c], k) => { o.position.set(a, b + 0.12, c); o.rotation.set((R() - 0.5) * 0.5, R() * 3, (R() - 0.5) * 0.5); o.scale.setScalar(0.7 + R() * 0.8); o.updateMatrix(); im.setMatrixAt(k, o.matrix); });
-  root.add(im);
   return root;
 }
 
@@ -192,23 +225,15 @@ export function makeCoin() {
   return g;
 }
 
-/** Kafes: taban, yuvarlak kubbe, parmaklıklar ve asma kilit. bars dizisi kırılırken dağılır */
+/** Kafes: boyalı resim (önde), hayvan arkasında parmaklık aralarından görünür. Açılınca parçalara ayrılır. */
+export const CAGE_W = 2.3, CAGE_H = 2.3 * 633 / 640;
 export function makeCage() {
   mats();
-  const g = new THREE.Group(); const bars = [];
-  const base = mesh(new THREE.CylinderGeometry(0.72, 0.78, 0.14, 24), M.iron, 0, 0.07, 0); g.add(base);
-  const dome = mesh(new THREE.SphereGeometry(0.72, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), M.iron, 0, 1.25, 0); dome.scale.y = 0.45; g.add(dome); bars.push(dome);
-  const ring = mesh(new THREE.TorusGeometry(0.71, 0.035, 8, 32), M.rust, 0, 1.25, 0); ring.rotation.x = Math.PI / 2; g.add(ring); bars.push(ring);
-  for (let i = 0; i < 14; i++) {
-    const a = (i / 14) * Math.PI * 2;
-    const b = mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.15, 6), M.rust, Math.cos(a) * 0.7, 0.68, Math.sin(a) * 0.7); g.add(b); bars.push(b);
-  }
-  const hook = mesh(new THREE.TorusGeometry(0.1, 0.03, 8, 16), M.iron, 0, 1.62, 0); g.add(hook); bars.push(hook);
-  const lock = new THREE.Group(); lock.position.set(0, 0.6, 0.74);
-  lock.add(mesh(new RoundedBoxGeometry(0.22, 0.2, 0.08, 2, 0.03), M.gold));
-  const sh = mesh(new THREE.TorusGeometry(0.07, 0.022, 6, 14, Math.PI), M.iron, 0, 0.1, 0); lock.add(sh);
-  g.add(lock); bars.push(lock);
-  g.userData.bars = bars;
+  const g = new THREE.Group();
+  // arka: kafesin tamamı; ön: sadece öndeki parmaklıklar ve kilit — hayvan ikisinin arasında durur
+  const back = sprite('cage', CAGE_H, 640 / 633); back.position.set(0, -0.12, -0.45); g.add(back);
+  const front = sprite('cage_front', CAGE_H, 640 / 633); front.position.set(0, -0.12, 0.6); front.renderOrder = 2; g.add(front);
+  g.userData.sprites = [back, front]; g.userData.tex = tex('cage');
   return g;
 }
 
