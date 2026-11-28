@@ -142,35 +142,67 @@ function separateRewards(L) {
   }
   L.coins = L.coins.filter((c) => !drop.includes(c));
 }
+/** Devriyeler: düz ve güvenli zeminde 3–5 blok gidip gelir. Tanımlı aralık (b.e range) tercih edilir.
+ *  Dönüş noktaları kafes/bayrak/yay/bitiş, diken, boşluk kenarı (kalkış ve iniş alanı) ve diğer düşmanlardan uzak tutulur.
+ *  Yer yetmezse düşman yakındaki uygun bir zemine taşınır; hiç yer yoksa kaldırılır. */
 function patrols(L) {
-  const HW = { bocek: 0.53, kirpi: 0.55 };
-  for (const e of L.enemies) {
-    const hw = HW[e.type] || 0.55, y = e.t, fx = Math.floor(e.x);
-    let a, b;
-    const plat = L.oneway.find((s) => e.x >= s.x0 && e.x <= s.x1 && Math.abs(s.y - y) < 0.05);
-    if (plat) { a = plat.x0; b = plat.x1; }
-    else { a = fx; while (a - 1 >= 0 && L.cols[a - 1] === y && !L.solid(a - 1, y)) a--; b = fx + 1; while (b < L.w && L.cols[b] === y && !L.solid(b, y)) b++; }
-    // geniş zeminde uzun devriye: başlangıç etrafında en fazla 8 blok (tek yönde 6–8 blok yürür)
-    a = Math.max(a, e.x - 4); b = Math.min(b, e.x + 4);
-    const avoid = [...L.cages.map((c) => c.x), ...L.checkpoints.map((c) => c.x), ...L.springs.map((c) => c.x), ...(L.end ? [L.end.x] : [])];
-    for (const ox of avoid) { if (ox > e.x && ox - 1.6 < b) b = ox - 1.6; if (ox < e.x && ox + 1.6 > a) a = ox + 1.6; }
-    // boşluk sonrası güvenli iniş alanı (karşı kıyının ilk 2,5 bloğu) ve boşluk öncesi kalkış alanı (son 1,5 blok) boş kalsın
-    for (const LZ of [2.5, 1.6]) { // önce 2,5 blok güvenli iniş; dar zeminde 1,6'ya iner
-      let a2 = a, b2 = b;
-      for (const g of L.gaps) {
-        if (Math.abs(L.cols[g.e + 1] - y) < 0.05 && g.e + 1 <= e.x + 1 && g.e + 1 + LZ > a2) a2 = g.e + 1 + LZ;
-        if (Math.abs(L.cols[g.s - 1] - y) < 0.05 && g.s >= e.x - 1 && g.s - LZ * 0.6 < b2) b2 = g.s - LZ * 0.6;
-      }
-      if (b2 - a2 >= 2 * hw + 1 || LZ === 1.6) { a = a2; b = Math.max(a2 + 2 * hw + 0.3, b2); break; }
+  const HW = { bocek: 0.53, kirpi: 0.55 }, MIN = 3, MAX = 5;
+  const cols = L.cols, taken = [];
+  // y yüksekliğindeki düz zemin/platform üzerinde x'i içeren aralık
+  const span = (x, y) => {
+    const plat = L.oneway.find((s) => !s.crumble && s.dx === undefined && x >= s.x0 && x <= s.x1 && Math.abs(s.y - y) < 0.05);
+    if (plat) return [plat.x0, plat.x1];
+    const fx = Math.floor(x); if (cols[fx] !== y || L.solid(fx, y)) return null;
+    let a = fx; while (a - 1 >= 0 && cols[a - 1] === y && !L.solid(a - 1, y)) a--;
+    let b = fx + 1; while (b < L.w && cols[b] === y && !L.solid(b, y)) b++;
+    return [a, b];
+  };
+  const blocked = (y) => {
+    const r = [];
+    for (const c of [...L.cages, ...L.checkpoints, ...L.springs]) if (Math.abs(c.y - y) < 0.5) r.push([c.x - 1.6, c.x + 1.6]);
+    if (L.end && Math.abs(L.end.y - y) < 0.5) r.push([L.end.x - 2, 1e9]);
+    r.push([-1e9, L.start.x + 4]); // başlangıçta düşman olmaz
+    for (const t of L.thorns) if (Math.abs(t.y - y) < 0.5) r.push([t.x0 - 1.2, t.x1 + 1.2]);
+    for (const c of L.icicles || []) r.push([c.x - 1, c.x + 1]);
+    for (const z of L.lasers || []) r.push([z.x - 1.2, z.x + 1.2]);
+    for (const g of L.gaps) { if (Math.abs(cols[g.e + 1] - y) < 0.05) r.push([g.e + 1 - 0.1, g.e + 1 + 2.5]); if (Math.abs(cols[g.s - 1] - y) < 0.05) r.push([g.s - 1.6, g.s + 0.1]); }
+    for (const t of taken) if (Math.abs(t.y - y) < 0.05) r.push([t.a - 2.5, t.b + 2.5]);
+    return r;
+  };
+  // [a,b] aralığından engelleri çıkar → boş alt aralıklar
+  const free = (a, b, y) => {
+    let iv = [[a, b]];
+    for (const [c0, c1] of blocked(y)) iv = iv.flatMap(([u, v]) => (c1 <= u || c0 >= v ? [[u, v]] : [[u, Math.min(v, c0)], [Math.max(u, c1), v]].filter(([p, q]) => q - p > 0.05)));
+    return iv;
+  };
+  const place = (e, hw, x, y, want) => {
+    const sp = span(x, y); if (!sp) return null;
+    let best = null;
+    for (const [u, v] of free(sp[0], sp[1], y)) {
+      const room = v - u - 2 * hw; if (room <= 0) continue;
+      const c = Math.min(v - hw, Math.max(u + hw, want));
+      const score = Math.min(room, MAX) * 10 - Math.abs(c - want);
+      if (!best || score > best.score) best = { u, v, room, c, score };
     }
-    e.x0 = a + hw; e.x1 = Math.max(a + hw, b - hw); e.x = Math.min(e.x1, Math.max(e.x0, e.x));
+    if (!best) return null;
+    const len = Math.min(MAX, best.room), lo = Math.max(best.u + hw, Math.min(best.c - len / 2, best.v - hw - len));
+    return { x0: lo, x1: lo + len, len, y };
+  };
+  const keep = [];
+  for (const e of L.enemies) {
+    const hw = HW[e.type] || 0.55, want = e.range ? (e.range[0] + e.range[1]) / 2 + 0.5 : e.x;
+    let r = place(e, hw, e.x, e.t, want);
+    if (!r || r.len < MIN) { // yakında daha uygun düz zemin ara (±25 blok, herhangi bir yükseklik)
+      for (let d = 1; d <= 40 && (!r || r.len < MIN); d++) for (const sx of [e.x + d, e.x - d]) {
+        const y = cols[Math.floor(sx)]; if (!y) continue; const q = place(e, hw, sx, y, sx);
+        if (q && q.len >= MIN && (!r || q.len > r.len)) r = q;
+      }
+    }
+    if (!r || r.len < 2.5) continue; // hiç yer yok: düşman kaldırılır
+    e.t = r.y; e.x0 = r.x0; e.x1 = r.x1; e.x = Math.min(e.x1, Math.max(e.x0, (e.x0 + e.x1) / 2));
+    taken.push({ a: e.x0 - hw, b: e.x1 + hw, y: r.y }); keep.push(e);
   }
-  for (const e of L.enemies) for (const f of L.enemies) {
-    if (e === f || e.t !== f.t || f.x <= e.x || e.x1 + 0.53 + 2.5 <= f.x0 - 0.53) continue; // arada en az 2,5 blok boş iniş yeri
-    const mid = (e.x + f.x) / 2; e.x1 = Math.max(e.x0, Math.min(e.x1, mid - 1.25 - 0.53)); f.x0 = Math.min(f.x1, Math.max(f.x0, mid + 1.25 + 0.53));
-  }
-  // sıkışıp yürüyemeyen düşman (dar zemin + kafes + komşu düşman) kaldırılır: yerinde sayan düşman tuzak olur
-  L.enemies = L.enemies.filter((e) => e.x1 - e.x0 >= 0.6);
+  L.enemies = keep;
 }
 
 // Gerçek zıplama ölçümü: düz zeminde tam hızda, tuş basılı tam zıplama → rota uzunluğu

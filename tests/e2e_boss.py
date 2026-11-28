@@ -22,6 +22,12 @@ with sync_playwright() as p:
             return ev(f"""new Promise(async res=>{{const b=KB2.ents.boss,p=KB2.player; const hp0=b.hp; for(let i=0;i<{n};i++){{ KB2.ents.sballs.forEach(q=>q.y=-9); const sd=(b.x-b.x0>5)?-1:1; p.x=b.x+sd*4; p.y=b.y; p.vy=0; p.face=-sd; p.ground=true; KB2.G.inv=99; KB2.G.cd=0; KB2.input.fire=true; const t0=KB2.G.t; while(KB2.G.t-t0<0.55) await new Promise(r=>setTimeout(r,25)); }} const t1=KB2.G.t; while(KB2.G.t-t1<0.4) await new Promise(r=>setTimeout(r,25)); res([hp0-b.hp,b.st,b.hp,b.rage])}})""")
         ev("(()=>{const b=KB2.ents.boss; b.st='walk'; b.t=-99; b.vx=0; KB2.G.ch=3})()")
         r=fire_at(1); check(f"{lv}: açık değilken şimşek işlemez", r[0]==0, r)
+        v0=ev("document.getElementById('bossBar').classList.contains('vuln')")
+        ev(f"(()=>{{const b=KB2.ents.boss; b.st='{vul}'; b.t=-99}})()"); pg.wait_for_timeout(250)
+        v1=ev("(()=>{const b=KB2.ents.boss;return [document.getElementById('bossBar').classList.contains('vuln'), getComputedStyle(document.querySelector('#bossBar .vz')).display, b.vMark&&b.vMark.material.opacity>0.2]})()")
+        check(f"{lv}: açık an görünür (sarı bar + ŞİMDİ ATEŞ ET + hedef halkası)", (not v0) and v1[0] and v1[1]=='block' and v1[2], [v0]+v1)
+        ev("(()=>{const b=KB2.ents.boss; b.st='walk'; b.t=-99})()")
+        if lv==140: check("140: final boss adı AMİRAL", ev("document.getElementById('bossName').textContent")=='Amiral', ev("document.getElementById('bossName').textContent"))
         # açık anda ateş: her isabet 1 can; sıfır enerjiyle başla (dolum)
         ev(f"(()=>{{const b=KB2.ents.boss; b.st='{vul}'; b.t=-99; KB2.G.ch=0; KB2.G.cd=0}})()")
         r=ev(f"""new Promise(async res=>{{const b=KB2.ents.boss,p=KB2.player; const hp0=b.hp; const t0=KB2.G.t;

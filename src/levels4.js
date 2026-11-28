@@ -127,7 +127,7 @@ export const LEVELS4 = [
     b.ground(12, 2).row(1, 2, 4).end(7);
   } },
   { name: 'Buz Sarayı Bahçesi', build(b) {
-    b.ground(16, 2).row(1, 2, 3).iceWall(5, 2).iceWall(10, 3).cage(14, 2, 'kus');
+    b.ground(16, 2).row(1, 2, 3).iceWall(5, 2).iceWall(9, 3).cage(13, 2, 'kus');
     b.ground(8, 3).crate(3, 3).row(1, 5, 2);
     b.gap(2);
     b.ground(14, 2).arc(-2.9, 2, 5).ice(3, 8).row(3, 2, 6).e('kirpi', 11, null, [9, 13]);

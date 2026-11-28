@@ -119,6 +119,48 @@ function bossLevel(world) {
     b.ground(16, 2).end(9);
   } };
 }
+// ---- elle tasarlanmış rotalar: önce yeni mekanik tek başına ve güvenli gösterilir, sonra diğerleriyle birleşir ----
+const HAND = {
+  // 116 Kristal Labirent (karanlık): maden arabası + kristal köprü
+  116: { name: 'Kristal Labirent', dark: true, build(b) {
+    b.ground(14, 2).row(1, 2, 3).cage(10, 2, 'kus').sign(6, 'cart').light(3);
+    // 1) araba tek başına: kısa çukur, geniş iniş
+    b.gap(6).raft(0.5, 2, 2.4, 'x', 2.4, 1.6).thorns(0, 6, -3).row(2, 4, 2);
+    b.ground(12, 2).row(3, 2, 3).light(6).sign(9, 'crystal');
+    // 2) kristal köprü tek başına: iki kırılan kristal, aralar 1 blok
+    b.gap(5).crumble(1, 2, 2).row(1, 3, 2);
+    b.ground(12, 2).cage(7, 2, 'tilki').row(1, 2, 3).light(10);
+    // 3) birleşim: araba kristal köprüye taşır, köprüden karşı kıyıya
+    b.gap(14).raft(0.5, 2, 2.4, 'x', 5.0, 1.7).crumble(9, 2, 2).thorns(0, 14, -3).row(2, 4, 3).row(9, 3, 2);
+    b.ground(10, 2).cp(2).row(5, 2, 3).light(7);
+    // 4) örümcekli düşen kaya koridoru, sonra köprü → araba (ters sıra)
+    b.ground(16, 2).e('bocek', 6, null, [3, 9]).icicle(12).row(11, 2, 3).light(4);
+    b.gap(12).crumble(1, 2, 2).raft(4, 2, 2.4, 'x', 4.0, 1.7).thorns(0, 12, -3).row(1, 3, 2).row(6, 4, 2);
+    b.ground(12, 2).spring(3, 2).plat(5, 8, 3).star(6, 8).row(5, 8, 1).row(7, 8, 1).light(9);
+    b.ground(16, 2).e('kirpi', 8, null, [5, 11]).row(1, 2, 3).row(13, 2, 2);
+    b.ground(14, 2).row(1, 2, 3).cage(11, 2, 'maymun').light(5);
+    b.ground(12, 2).row(1, 2, 4).end(7);
+  } },
+  // 138 Kaptan Köşkü: rüzgâr sütunu + yürüyen bant + lazer
+  138: { name: 'Kaptan Köşkü', build(b) {
+    b.ground(14, 2).row(1, 2, 3).cage(10, 2, 'kus').sign(6, 'wind');
+    // 1) rüzgâr sütunu tek başına (altında diken yok, düşersen sütun geri taşır)
+    b.gap(6).spore(0.5, 2, 5, 4).row(1, 6, 4);
+    b.ground(12, 2).row(3, 2, 4).sign(8, 'belt');
+    // 2) bant tek başına, sonra lazer tek başına (bantsız)
+    b.ground(16, 2).belt(2, 10, 1).row(3, 2, 6);
+    b.ground(14, 2).sign(2, 'laser').laser(8, 0).row(1, 2, 3).row(11, 2, 2).cage(4, 2, 'tilki');
+    // 3) birleşim: rüzgârdan bantlı zemine in, bant lazere taşır (lazer kapanınca geç ya da zıpla)
+    b.gap(6).spore(0.5, 2, 5, 4).row(1, 6, 4);
+    b.ground(20, 2).belt(1, 15, 1).laser(11, 0.8).row(3, 2, 4).row(16, 2, 3).cp(18);
+    // 4) ters bant + iki lazer, sonra rüzgârla yıldız platformu
+    b.ground(20, 2).belt(2, 14, -1).laser(6, 0).laser(12, 1.6).row(1, 2, 2).row(16, 2, 3);
+    b.ground(10, 2).spore(3, 2, 3, 7.6).plat(5, 10, 3).star(6, 10).row(5, 10, 1); b.ground(6, 2);
+    b.ground(16, 2).e('kirpi', 8, null, [5, 11]).row(1, 2, 3);
+    b.ground(14, 2).row(1, 2, 3).cage(11, 2, 'maymun');
+    b.ground(12, 2).row(1, 2, 4).end(7);
+  } },
+};
 export const LEVELS5 = [];
-for (const w of [5, 6, 7]) { for (let i = 1; i <= 19; i++) LEVELS5.push(makeLevel(w, i)); LEVELS5.push(bossLevel(w)); }
+for (const w of [5, 6, 7]) { for (let i = 1; i <= 19; i++) { const n = (w - 1) * 20 + i; LEVELS5.push(HAND[n] || makeLevel(w, i)); } LEVELS5.push(bossLevel(w)); }
 export const setSeeds = (o) => Object.assign(SEEDS, o);

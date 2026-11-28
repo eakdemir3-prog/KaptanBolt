@@ -465,11 +465,19 @@ const BOSSES = {
   amiral: { model: 'amiral_rig', name: 'Amiral', proj: 'w7/bolt', hp: 12, phases: true },
 };
 function bossMats(root) { const r = []; root.traverse((o) => { if (o.isMesh && o.material) { o.material = o.material.clone(); r.push({ m: o.material, e: o.material.emissive ? o.material.emissive.clone() : new THREE.Color(0) }); } }); return r; }
-const _red = new THREE.Color(0xff1a10), _wh = new THREE.Color(0xffffff);
+const _red = new THREE.Color(0xff1a10), _wh = new THREE.Color(0xffffff), _yel = new THREE.Color(0xffd21a);
+/** Savunmasız an: sarı nabız + kısa "esneme" (vuruş anı açıkça görünsün) + üstte hedef halkası */
 function bossGlow(b, dt) {
   b.flash = Math.max(0, (b.flash || 0) - dt);
-  const k = b.rage ? 0.65 + Math.sin(G.t * 9) * 0.25 : 0;
-  for (const q of b.mats) { if (!q.m.emissive) continue; q.m.emissive.copy(q.e).lerp(_red, k); if (b.flash > 0) q.m.emissive.lerp(_wh, Math.min(1, b.flash * 5)); }
+  const v = !b.dead && bossVulnerable(b);
+  if (v && !b.vWas) { b.vT = 0; sfx.coin(); for (let k = 0; k < 10; k++) spark(b.x, b.y + (b.yOff || 0) + b.h, 0.9); }
+  b.vWas = v; b.vT = (b.vT || 0) + dt;
+  const k = b.rage ? 0.65 + Math.sin(G.t * 9) * 0.25 : 0, ky = v ? 0.55 + Math.sin(G.t * 14) * 0.35 : 0;
+  for (const q of b.mats) { if (!q.m.emissive) continue; q.m.emissive.copy(q.e).lerp(_red, k); if (ky) q.m.emissive.lerp(_yel, ky); if (b.flash > 0) q.m.emissive.lerp(_wh, Math.min(1, b.flash * 5)); }
+  if (b.m && !b.dead) { const s = v && b.vT < 0.35 ? Math.sin((b.vT / 0.35) * Math.PI) * 0.12 : 0; b.m.scale.set(1 - s * 0.4, 1 + s, 1 - s * 0.4); }
+  if (!b.vMark) { b.vMark = add(new THREE.Mesh(new THREE.RingGeometry(0.42, 0.6, 40), new THREE.MeshBasicMaterial({ color: 0xffe94a, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }))); toActor(b.vMark); }
+  b.vMark.material.opacity = v ? 0.65 + Math.sin(G.t * 14) * 0.3 : 0;
+  b.vMark.position.set(b.x, b.y + (b.yOff || 0) + b.h + 0.9 + Math.sin(G.t * 6) * 0.12, 0.6); b.vMark.rotation.z += dt * 3;
 }
 function bossVulnerable(b) { return b.kind === 'kral' ? b.st === 'tired' : b.st === 'stun'; }
 function bossShot(b, s) {
@@ -505,7 +513,7 @@ function bossBar(b, dt = 0) {
   const f = b.hp / b.max;
   if (barTrail > f) { barHold += dt; if (barHold > 0.45) barTrail = Math.max(f, barTrail - dt * 0.6); } else { barTrail = f; barHold = 0; }
   $('bossFill').style.width = `${f * 100}%`; $('bossTrail').style.width = `${barTrail * 100}%`;
-  el.classList.toggle('rage', !!b.rage);
+  el.classList.toggle('rage', !!b.rage); el.classList.toggle('vuln', !b.dead && bossVulnerable(b));
 }
 // ---------- Boss: Mantar Kral ----------
 // Yürür; uzaktaysa bağırıp spor topları atar (şimşek topları patlatır); yakındaysa yumruk kombosuyla yere vurur
@@ -640,7 +648,7 @@ function updateShip(dt) {
 }
 
 // ---------- Para, kafes, mantar, direkler, can, yıldız ----------
-const SIGN_TIP = { move: '◀ ▶ tuşlarıyla yürü', jump: 'Sarı tuş: zıpla! Basılı tutarsan daha yükseğe', stomp: 'Böceklerin üstüne zıpla, ez!', spike: 'Kirpinin üstüne zıplama, üstünden atla!', spring: 'Mantara bas, yükseğe fırla!', bounce: 'Renkli mantarlar: pembe az, turkuaz orta, altın çok zıplatır!', spore: 'Spor bulutuna gir: yukarı süzülürsün! Sonra yönünü seç', snail: 'Salyangozun kabuğu sert: önce şimşekle vur, sonra üstüne zıpla!', crumble: 'Çatlak kum kayaları basınca çöker: üstünde durma, hemen atla!', sand: 'Bataklık kumu seni yavaşlatır, zıplaman kısalır!', storm: 'Kum fırtınası seni geri iter: koşmaya devam et!', lava: 'Lava değme: can götürür!', magma: 'Magma kayası iner çıkar: tepedeyken atla!', bat: 'Ateş yarasası dalış yapar: şimşek işlemez, üstüne zıpla!', chase: '🌋 Lav geliyor! Durmadan koş!', rocks: 'Tavandan kaya düşer: altında durma!', cart: 'Maden arabasına bin, karşıya taşısın!', mole: 'Köstebek yerden çıkar: dışarıdayken şimşekle vur, sonra üstüne zıpla!', dark: '🔦 Karanlık! Parlayan kristallere dokun, etraf aydınlansın', cloud: 'Bulutlar basınca kaybolur: hızlı geç!', wind: 'Rüzgâr sütunu seni yukarı taşır!', drone: 'Drone dalış yapar: üstüne zıpla!', belt: 'Konveyör bant seni taşır!', laser: 'Lazer açılıp kapanır: kapalıyken geç!', asker: 'Askerin kalkanı sert: önce şimşekle vur, sonra üstüne zıpla!', ice: 'Buz kaygandır: erkenden yavaşla, kayarak düşme!', icicle: 'Sarkıtların altından hızlı geç: titreyince düşer!', iceblock: 'Buz blokları yolu kapatır: şimşekle erit!', yeti: 'Yeti kartopu atar: önce şimşekle vur, sonra üstüne zıpla!', snake: 'Yılan kumdan çıkıp batar: dışarıdayken şimşekle vur, sonra üstüne zıpla!', thorn: 'Dikenli çalılara değme!', bridge: 'İp köprüler sağlam, rahat geç', crate: 'Sandığın üstüne zıpla ya da alttan kafa at: altın çıkar!', raft: 'Sal gidip gelir: üstüne atla, taşısın', gun: 'Parlayan küreyi al: şimşek eldiveni!' };
+const SIGN_TIP = { move: '◀ ▶ tuşlarıyla yürü', jump: 'Sarı tuş: zıpla! Basılı tutarsan daha yükseğe', stomp: 'Böceklerin üstüne zıpla, ez!', spike: 'Kirpinin üstüne zıplama, üstünden atla!', spring: 'Mantara bas, yükseğe fırla!', bounce: 'Renkli mantarlar: pembe az, turkuaz orta, altın çok zıplatır!', spore: 'Spor bulutuna gir: yukarı süzülürsün! Sonra yönünü seç', snail: 'Salyangozun kabuğu sert: önce şimşekle vur, sonra üstüne zıpla!', crumble: 'Çatlak kum kayaları basınca çöker: üstünde durma, hemen atla!', sand: 'Bataklık kumu seni yavaşlatır, zıplaman kısalır!', storm: 'Kum fırtınası seni geri iter: koşmaya devam et!', lava: 'Lava değme: can götürür!', magma: 'Magma kayası iner çıkar: tepedeyken atla!', bat: 'Ateş yarasası dalış yapar: şimşek işlemez, üstüne zıpla!', chase: '🌋 Lav geliyor! Durmadan koş!', rocks: 'Tavandan kaya düşer: altında durma!', cart: 'Maden arabasına bin, karşıya taşısın!', crystal: 'Kristal köprü basınca çatlar: üstünde durma, hemen atla!', mole: 'Köstebek yerden çıkar: dışarıdayken şimşekle vur, sonra üstüne zıpla!', dark: '🔦 Karanlık! Parlayan kristallere dokun, etraf aydınlansın', cloud: 'Bulutlar basınca kaybolur: hızlı geç!', wind: 'Rüzgâr sütunu seni yukarı taşır!', drone: 'Drone dalış yapar: üstüne zıpla!', belt: 'Konveyör bant seni taşır!', laser: 'Lazer açılıp kapanır: kapalıyken geç!', asker: 'Askerin kalkanı sert: önce şimşekle vur, sonra üstüne zıpla!', ice: 'Buz kaygandır: erkenden yavaşla, kayarak düşme!', icicle: 'Sarkıtların altından hızlı geç: titreyince düşer!', iceblock: 'Buz blokları yolu kapatır: şimşekle erit!', yeti: 'Yeti kartopu atar: önce şimşekle vur, sonra üstüne zıpla!', snake: 'Yılan kumdan çıkıp batar: dışarıdayken şimşekle vur, sonra üstüne zıpla!', thorn: 'Dikenli çalılara değme!', bridge: 'İp köprüler sağlam, rahat geç', crate: 'Sandığın üstüne zıpla ya da alttan kafa at: altın çıkar!', raft: 'Sal gidip gelir: üstüne atla, taşısın', gun: 'Parlayan küreyi al: şimşek eldiveni!' };
 function updateItems(dt) {
   const p = player;
   for (const c of ents.coins) {
