@@ -76,6 +76,14 @@ export function kralRig(model) {
         rot(B.Spine, 'x', 0.15 * lift - 0.3 * slam);
         rot(B.LeftUpLeg, 'x', -0.35 * slam); rot(B.RightUpLeg, 'x', -0.35 * slam); rot(B.LeftLeg, 'x', 0.6 * slam); rot(B.RightLeg, 'x', 0.6 * slam);
         model.position.y = -0.18 * slam + 0.1 * lift;
+      } else if (st === 'crouch' || st === 'land') {
+        const c = st === 'crouch' ? sm(0, 1, t / 0.4) : sm(1, 0, t / 0.5);
+        rot(B.LeftUpLeg, 'x', -0.6 * c); rot(B.RightUpLeg, 'x', -0.6 * c); rot(B.LeftLeg, 'x', 1.0 * c); rot(B.RightLeg, 'x', 1.0 * c);
+        rot(B.LeftArm, 'x', 0.5 * c); rot(B.RightArm, 'x', 0.5 * c); rot(B.Spine, 'x', 0.15 * c);
+        model.position.y = -0.3 * c + (st === 'crouch' ? Math.sin(t * 40) * 0.02 : 0);
+      } else if (st === 'leap') {
+        rot(B.LeftUpLeg, 'x', -0.7); rot(B.RightUpLeg, 'x', -0.4); rot(B.LeftLeg, 'x', 0.9); rot(B.RightLeg, 'x', 0.6);
+        rot(B.LeftArm, 'z', 1.3); rot(B.RightArm, 'z', -1.3);
       } else if (st === 'tired') {
         const sw = Math.sin(t * 3);
         rot(B.Spine, 'z', sw * 0.08); rot(B.Spine, 'x', 0.12); rot(B.Head, 'x', 0.18); rot(B.Head, 'z', sw * 0.1);

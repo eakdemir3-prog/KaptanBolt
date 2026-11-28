@@ -392,10 +392,14 @@ function bossShot(b, s) {
 function bossContact(b) {
   const p = player;
   if (G.state !== 'play' || b.st === 'wait' || b.dead) return;
-  if (Math.abs(p.x - b.x) < (P.PW + b.w) / 2 - 0.1 && p.y < b.y + b.h && p.y + P.PH > b.y + 0.1) {
-    const top = p.vy < -1 && (p.prevY ?? p.y) > b.y + b.h * 0.55;
-    if (top) { p.vy = P.STOMP; p.noCut = true; p.vx = (p.x < b.x ? -1 : 1) * 4; sfx.bump(); }
-    else hurt(b.x);
+  const by = b.y + (b.yOff || 0);
+  if ((G.passT || 0) > G.t) return; // kafadan sekip üstünden geçerken yan temas sayılmaz
+  if (Math.abs(p.x - b.x) < (P.PW + b.w) / 2 - 0.1 && p.y < by + b.h && p.y + P.PH > by + 0.1) {
+    const top = p.vy < -1 && (p.prevY ?? p.y) > by + b.h * 0.55;
+    if (top) { // kafadan sek: gittiğin yöne, boss'un üstünden aşarak öbür tarafa
+      const dir = input.right ? 1 : input.left ? -1 : p.face || 1;
+      p.vy = P.STOMP_HOLD * 1.05; p.noCut = true; p.vx = dir * P.RUN; p.face = dir; G.passT = G.t + 0.55; sfx.spring(); dust(p.x, by + b.h, 4);
+    } else hurt(b.x);
   }
 }
 let barTrail = 1, barHold = 0, barShown = null;
@@ -420,9 +424,18 @@ function setupKral() {
   const walls = [B.x0 - 1, B.x1];
   const wallM = walls.map((wx) => { const g = add(new THREE.Group()); for (let i = 0; i < 6; i++) { const c = makeSprite('crate', 1.02, ASPECT.crate); c.position.set(0.5, i, 0.3); g.add(c); } g.position.set(wx, -8, 0); return g; });
   const ring = add(new THREE.Mesh(new THREE.RingGeometry(0.36, 0.45, 48), new THREE.MeshBasicMaterial({ color: 0xb8ff4a, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }))); ring.rotation.x = -Math.PI / 2; toActor(ring);
-  ents.boss = { ...B, kind: 'kral', name: 'Mantar Kral', mats: bossMats(body), rage: false, max: BOSS_HP, waveHit: false, m, body, rig, stars, ring, x: B.x1 - 4, y: B.y, vx: 0, dir: -1, hp: BOSS_HP, st: 'wait', t: 0, w: 2.3, h: 2.9, wallX: walls, wallM, wallsUp: false, flash: 0, dead: false, fired: 0, slammed: false, tipPunch: false };
+  const shadow = add(new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ color: 0x1a0830, transparent: true, opacity: 0, depthWrite: false }))); shadow.rotation.x = -Math.PI / 2; shadow.scale.set(1.4, 0.5, 1); toActor(shadow);
+  ents.boss = { ...B, kind: 'kral', name: 'Mantar Kral', shadow, atk: 0, yOff: 0, lx0: 0, lx1: 0, dblLeap: false, mats: bossMats(body), rage: false, max: BOSS_HP, waveHit: false, m, body, rig, stars, ring, x: B.x1 - 4, y: B.y, vx: 0, dir: -1, hp: BOSS_HP, st: 'wait', t: 0, w: 2.3, h: 2.9, wallX: walls, wallM, wallsUp: false, flash: 0, dead: false, fired: 0, slammed: false, tipPunch: false };
   const base = L.solid;
   L.solid = (x, y) => (ents.boss && ents.boss.wallsUp && ents.boss.wallX.includes(x) && y < 14) || base(x, y);
+}
+/** Büyük Sıçrayış: çömelir (gölge iner), Bolt'un üstünden aşıp öbür tarafa atlar; altından koşarak geçilir */
+function kralLeap(b, cornered) {
+  const p = player, lo = b.x0 + b.w / 2 + 0.2, hi = b.x1 - b.w / 2 - 0.2;
+  let tx = p.x + Math.sign(p.x - b.x || 1) * 4;               // oyuncunun öbür yanı
+  if (cornered) tx = p.x - b.x0 < 3 ? hi - 1 : lo + 1;       // köşedeyse arenanın öbür ucuna: oyuncuya yer açar
+  b.lx0 = b.x; b.lx1 = Math.max(lo, Math.min(hi, tx)); b.st = 'crouch'; b.t = 0;
+  if (!b.tipLeap) { b.tipLeap = true; toast('🍄 Kral sıçrayacak: altından koş!'); }
 }
 function throwSpore(b) {
   const p = player, fromX = b.x + b.dir * 0.8, fromY = b.y + 2.4;
@@ -459,7 +472,11 @@ function updateKral(dt) {
   else if (b.st === 'roar' || b.st === 'rage') { toward(); b.vx = 0; if (b.t > (b.st === 'rage' ? 1.5 : 1.8)) { go('walk'); } }
   else if (b.st === 'walk') {
     toward(); b.vx = b.dir * (1.3 + (1 - fr) * 1.0);
-    if (b.t > (b.rage ? 1.1 : fr <= 0.5 ? 1.6 : 2.4)) { b.vx = 0; if (Math.abs(p.x - b.x) < 4.5) { go('punch'); b.slammed = false; b.waveHit = false; if (!b.tipPunch) { b.tipPunch = true; toast('👊 Yere vuracak: halka gelince zıpla!'); } } else { go('shout'); b.fired = 0; } }
+    const cornered = p.x - b.x0 < 3 || b.x1 - p.x < 3;
+    if (cornered && Math.abs(p.x - b.x) < 2.5 + b.w / 2) b.vx = 0; // duvara sıkıştırmaz
+    if (cornered && b.t > 0.6 || b.t > (b.rage ? 1.1 : fr <= 0.5 ? 1.6 : 2.4)) { b.vx = 0; b.atk++;
+      if (cornered || b.atk % 3 === 0) { kralLeap(b, cornered); }
+      else if (Math.abs(p.x - b.x) < 4.5) { go('punch'); b.slammed = false; b.waveHit = false; if (!b.tipPunch) { b.tipPunch = true; toast('👊 Yere vuracak: halka gelince zıpla!'); } } else { go('shout'); b.fired = 0; } }
   } else if (b.st === 'shout') {
     b.vx = 0; toward();
     const vol = b.rage ? 3 : fr <= 0.5 ? 2 : 1, gap = b.rage ? 0.55 : 0.8; // öfke: art arda üç yaylım
@@ -475,12 +492,23 @@ function updateKral(dt) {
     if (b.slammed && rad < 7.5) { if (Math.random() < 0.6) { dust(b.x - rad, b.y, 1); dust(b.x + rad, b.y, 1); }
       const d = Math.abs(p.x - b.x); if (!b.waveHit && G.state === 'play' && p.ground && d > rad - 0.7 && d < rad + 0.25) { b.waveHit = true; hurt(b.x); } }
     if (b.t > 2.0) { go('tired'); b.ring.material.opacity = 0; toast('⚡ Şimdi ateş et!'); }
+  } else if (b.st === 'crouch') {
+    b.vx = 0; b.shadow.material.opacity = Math.min(0.7, b.t * 1.4); b.shadow.position.set(b.lx1, b.y + 0.04, 0.3);
+    if (b.t > 0.55) { go('leap'); sfx.spring(); dust(b.x, b.y, 8); }
+  } else if (b.st === 'leap') {
+    const T = 1.3, k = Math.min(1, b.t / T); b.x = b.lx0 + (b.lx1 - b.lx0) * k; b.yOff = Math.sin(k * Math.PI) * 2.9; b.vx = 0;
+    b.dir = b.lx1 > b.lx0 ? 1 : -1; b.shadow.material.opacity = 0.7; b.shadow.position.set(b.lx1, b.y + 0.04, 0.3);
+    if (k >= 1) { b.yOff = 0; go('land'); b.shadow.material.opacity = 0; sfx.stomp(); vibrate(70); shake = 0.45; dust(b.x - 1, b.y, 10); dust(b.x + 1, b.y, 10);
+      if (G.state === "play" && Math.abs(p.x - b.x) < b.w / 2 + 0.2 && p.y < b.y + 1) hurt(b.x); }
+  } else if (b.st === 'land') {
+    b.vx = 0; if (b.t > 0.5) { if (b.rage && !b.dblLeap) { b.dblLeap = true; kralLeap(b, true); } else { b.dblLeap = false; go('walk'); } }
   } else if (b.st === 'tired') {
     b.vx = 0; b.stars.visible = true; b.stars.rotation.y += dt * 6;
     if (b.t > (b.rage ? 2.1 : 2.8)) { b.stars.visible = false; go('walk'); }
   }
   b.x = Math.max(b.x0 + b.w / 2, Math.min(b.x1 - b.w / 2, b.x + b.vx * dt));
-  b.m.position.set(b.x, b.y, 0);
+  if (b.st !== 'leap') b.x = Math.max(b.x0 + b.w / 2, Math.min(b.x1 - b.w / 2, b.x));
+  b.m.position.set(b.x, b.y + b.yOff, 0);
   const tr = (b.dir > 0 ? -0.5 : Math.PI + 0.5); b.m.rotation.y += (tr - b.m.rotation.y) * Math.min(1, dt * 6);
   b.m.rotation.z = 0; b.rig.update(dt, b.st === 'rage' ? 'shout' : b.flash > 0 ? 'hit' : b.st, b.flash > 0 ? 0.25 - b.flash : b.t, b.vx);
   b.stars.position.set(b.x, b.y + b.h + 0.5, 0);
