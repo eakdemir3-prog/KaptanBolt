@@ -368,12 +368,13 @@ export function makeCage2D() {
   mats();
   const H = 2.0, k = H / 708, g = new THREE.Group();
   const pl = (name, w, h, mat) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w * k, h * k), mat || new THREE.MeshBasicMaterial({ map: tex(name), transparent: true, alphaTest: 0.3, toneMapped: false, side: THREE.DoubleSide })); return m; };
-  const body = pl('cage_body', 755, 708); body.geometry.translate(0, 708 * k / 2, 0); body.position.set(0, -0.06, -0.38); g.add(body);
+  const body = pl('cage_body', 755, 708); body.geometry.translate(0, 708 * k / 2, 0); body.position.set(0, -0.06, -0.1); g.add(body);
   // kapı: menteşe (sol kenar) etrafında döner
   const hinge = new THREE.Group(); const dw = 518 * k, dh = 472 * k;
-  hinge.position.set(-dw / 2, -0.06 + (302 - 236) * k, 0.36); g.add(hinge); // kapı, gövdedeki açıklığın tam önüne
+  // kapı gövdeye yakın (paralaks kaymasın); çerçevesinin ortası açıklığın ortasına (menteşe payı 31 px)
+  hinge.position.set(-(31 + (518 - 31) / 2) * k, -0.06 + (302 - 236) * k, 0.1); g.add(hinge);
   const door = pl('cage_door', 518, 472); door.geometry.translate(dw / 2, dh / 2, 0); hinge.add(door);
-  const lock = pl('cage_lock', 211, 289); lock.scale.setScalar(0.62); lock.position.set(hinge.position.x + dw - 0.12, hinge.position.y + dh * 0.45, 0.42); g.add(lock);
+  const lock = pl('cage_lock', 211, 289); lock.scale.setScalar(0.62); lock.position.set(hinge.position.x + dw - 0.1, hinge.position.y + dh * 0.45, 0.14); g.add(lock);
   g.userData = { body, hinge, door, lock, lock0: lock.position.clone() };
   return g;
 }
