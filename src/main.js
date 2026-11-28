@@ -92,7 +92,9 @@ const cloneM = (n) => (MODELS[n] ? (n === 'bocek' || n === 'kirpi' || SPEC[n]?.s
 const SAVE_KEY = 'kb2.save';
 let save = { unlocked: 1, best: {} };
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.best) save = s; } catch { /* yok */ }
-if (/unlock/.test(location.hash)) save.unlocked = 40;
+// TEST SÜRÜMÜ: bütün bölümler açık (yayın öncesi false yapılacak)
+const TEST_UNLOCK = true;
+if (TEST_UNLOCK || /unlock/.test(location.hash)) save.unlocked = 40;
 const store = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch { /* yok */ } };
 
 // ---------- Oyun durumu ----------
