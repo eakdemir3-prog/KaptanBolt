@@ -69,6 +69,7 @@ export function buildLevel(n) {
   patrols(L);
   groundGapCoins(L);
   fillCoins(L, def.coins || 50);
+  separateRewards(L);
   return L;
 }
 
@@ -103,6 +104,23 @@ function fillCoins(L, target) {
 
 /** Her düşmana devriye aralığı: bastığı yüzeyde, başlangıcın ±3 karesi; kafes, kayıt noktası, mantar ve
  *  bitişe 1,6 kareden fazla yaklaşmaz; aynı yüzeydeki düşmanların aralıkları çakışmaz (arada ≥1,5 kare boşluk). */
+/** Kalp ve kristal sabit kalır; üstüne binen sıradan altın aynı yükseklikte boş bir yere kaydırılır (yoksa kaldırılır). */
+function separateRewards(L) {
+  const fixed = [...L.hearts.map((h) => ({ x: h.x, y: h.y, r: 0.36 })), ...(L.star ? [{ x: L.star.x, y: L.star.y, r: 0.42 }] : [])];
+  // kalp ile kristal çakışırsa kalbi yana al
+  if (L.star) for (const h of L.hearts) if (Math.abs(h.x - L.star.x) < 0.95 && Math.abs(h.y - L.star.y) < 0.95) h.x += h.x >= L.star.x ? 1 : -1;
+  const hits = (x, y, self) => fixed.some((f) => Math.abs(f.x - x) < f.r + 0.45 && Math.abs(f.y - y) < f.r + 0.45) || L.coins.some((c) => c !== self && Math.abs(c.x - x) < 0.6 && Math.abs(c.y - y) < 0.5);
+  const okAt = (c, x) => { const ix = Math.floor(x); if (L.solid(ix, Math.floor(c.y)) || L.thorns.some((t) => x > t.x0 - 0.3 && x < t.x1 + 0.3 && c.y < t.y + 1.3)) return false;
+    const g = L.cols[Math.floor(c.x)], onGround = g && Math.abs(c.y - (g + 0.75)) < 0.05; return !onGround || L.cols[ix] === g; };
+  const drop = [];
+  for (const c of L.coins) {
+    if (!hits(c.x, c.y, c)) continue;
+    let moved = false;
+    for (const d of [0.9, -0.9, 1.8, -1.8, 2.7, -2.7]) if (okAt(c, c.x + d) && !hits(c.x + d, c.y, c)) { c.x += d; moved = true; break; }
+    if (!moved) drop.push(c);
+  }
+  L.coins = L.coins.filter((c) => !drop.includes(c));
+}
 function patrols(L) {
   const HW = { bocek: 0.53, kirpi: 0.55 };
   for (const e of L.enemies) {

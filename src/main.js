@@ -316,7 +316,7 @@ function updateGun(dt) {
       break;
     }
     const b = ents.boss;
-    if (!hit && b && !b.dead && b.st !== 'wait' && Math.abs(b.x - s.x) < b.w / 2 + 0.2 && s.y > b.y - 0.2 && s.y < b.y + b.h + 0.2) { hit = true; bossShot(b, s); }
+    if (!hit && b && !b.dead && b.st !== 'wait' && Math.abs(b.x - s.x) < b.w / 2 + 0.2 && s.y > b.y + (b.yOff || 0) - 0.2 && s.y < b.y + (b.yOff || 0) + b.h + 0.2) { hit = true; bossShot(b, s); }
     if (hit) { for (let k = 0; k < 14; k++) spark(s.x, s.y, 1.1); burst(s.x, s.y, 0x7ae8ff, 8); levelRoot.remove(s.m); ents.shots.splice(i, 1); }
   }
 }
@@ -383,7 +383,7 @@ function bossShot(b, s) {
   b.hp = Math.max(0, b.hp - 1); b.flash = 0.25; sfx.stomp(); vibrate(40); burst(s.x, s.y, b.kind === 'kral' ? 0xb8ff4a : 0xffa040, 14); shake = Math.max(shake, 0.2);
   if (b.hp <= 0) {
     b.dead = true; b.t = 0; b.wallsUp = false; b.stars.visible = false; if (b.ring) b.ring.material.opacity = 0;
-    for (const s2 of ents.sballs) levelRoot.remove(s2.m); ents.sballs = [];
+    for (const s2 of ents.sballs) { levelRoot.remove(s2.m); if (s2.mk) levelRoot.remove(s2.mk); } ents.sballs = [];
     sfx.cage(); toast(`💥 ${b.name} yenildi!`); shake = 0.6; return;
   }
   if (!b.rage && b.hp <= b.max * 0.25) { b.rage = true; b.st = 'rage'; b.t = 0; b.stars.visible = false; b.vx = 0; sfx.bump(); shake = 0.5; toast(`🔥 ${b.name} öfkelendi!`); }
@@ -440,20 +440,22 @@ function kralLeap(b, cornered) {
 function throwSpore(b) {
   const p = player, fromX = b.x + b.dir * 0.8, fromY = b.y + 2.4;
   for (let i = 0; i < 3; i++) {
-    const T = 0.9 + i * 0.25, tx = p.x + (i - 1) * 1.6, vx = (tx - fromX) / T, vy = ((p.y + 0.3 - fromY) + 0.5 * 16 * T * T) / T;
+    const T = 0.95 + i * 0.25, tx = Math.max(b.x0 + 0.6, Math.min(b.x1 - 0.6, p.x + (i - 1) * 2.0)), gy = (L.cols[Math.floor(tx)] || b.y) + 0.25, vx = (tx - fromX) / T, vy = ((gy - fromY) + 0.5 * 16 * T * T) / T;
     const m = add(makeSprite('w2/sporeball', 1.0, 256 / 198)); m.geometry = m.geometry.clone(); m.geometry.translate(0, -0.5, 0); toActor(m);
-    m.position.set(fromX, fromY, 0.5); ents.sballs.push({ m, x: fromX, y: fromY, vx, vy, t: -i * 0.12 });
+    // düşeceği yer: yerde yeşil işaret (top inene kadar)
+    const mk = add(new THREE.Mesh(new THREE.CircleGeometry(0.42, 24), new THREE.MeshBasicMaterial({ color: 0xb8ff4a, transparent: true, opacity: 0.0, depthWrite: false, toneMapped: false }))); mk.rotation.x = -Math.PI / 2; mk.scale.set(1.3, 0.55, 1); mk.position.set(tx, (L.cols[Math.floor(tx)] || b.y) + 0.05, 0.4); toActor(mk);
+    m.position.set(fromX, fromY, 0.5); ents.sballs.push({ m, mk, x: fromX, y: fromY, vx, vy, t: -i * 0.12 });
   }
 }
 function updateSballs(dt) {
   const p = player;
   for (let i = ents.sballs.length - 1; i >= 0; i--) {
-    const s = ents.sballs[i]; s.t += dt; if (s.t < 0) { s.m.visible = false; continue; } s.m.visible = true;
+    const s = ents.sballs[i]; s.t += dt; if (s.mk) s.mk.material.opacity = 0.35 + Math.sin(G.t * 18) * 0.2; if (s.t < 0) { s.m.visible = false; continue; } s.m.visible = true;
     s.vy -= 16 * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.m.position.set(s.x, s.y, 0.5); s.m.rotation.z += dt * 5; s.m.scale.x = s.vx < 0 ? 1 : -1;
     let pop = L.solid(Math.floor(s.x), Math.floor(s.y - 0.3)) || s.y < -3 || s.t > 4;
     for (const sh of ents.shots) if (Math.abs(sh.x - s.x) < 0.7 && Math.abs(sh.y - s.y) < 0.7) { pop = true; sh.t = 99; }
     if (!pop && G.state === 'play' && Math.abs(p.x - s.x) < 0.6 && s.y > p.y - 0.2 && s.y < p.y + P.PH + 0.3) { pop = true; hurt(s.x); }
-    if (pop) { burst(s.x, s.y, 0xb8ff4a, 10); levelRoot.remove(s.m); ents.sballs.splice(i, 1); }
+    if (pop) { burst(s.x, s.y, 0xb8ff4a, 10); levelRoot.remove(s.m); if (s.mk) levelRoot.remove(s.mk); ents.sballs.splice(i, 1); }
   }
 }
 function updateKral(dt) {
@@ -472,14 +474,16 @@ function updateKral(dt) {
   else if (b.st === 'roar' || b.st === 'rage') { toward(); b.vx = 0; if (b.t > (b.st === 'rage' ? 1.5 : 1.8)) { go('walk'); } }
   else if (b.st === 'walk') {
     toward(); b.vx = b.dir * (1.3 + (1 - fr) * 1.0);
-    const cornered = p.x - b.x0 < 3 || b.x1 - p.x < 3;
-    if (cornered && Math.abs(p.x - b.x) < 2.5 + b.w / 2) b.vx = 0; // duvara sıkıştırmaz
-    if (cornered && b.t > 0.6 || b.t > (b.rage ? 1.1 : fr <= 0.5 ? 1.6 : 2.4)) { b.vx = 0; b.atk++;
-      if (cornered || b.atk % 3 === 0) { kralLeap(b, cornered); }
+    // köşede ve yakınsa: sıkıştırmaz; arada bir (bekleme süresiyle) öbür uca sıçrayıp yer açar
+    const cornered = (p.x - b.x0 < 3 || b.x1 - p.x < 3) && Math.abs(p.x - b.x) < 4.2;
+    if (cornered && Math.abs(p.x - b.x) < 2.5 + b.w / 2) b.vx = 0;
+    const escape = cornered && G.t > (b.leapCd || 0);
+    if (escape && b.t > 0.8 || b.t > (b.rage ? 1.1 : fr <= 0.5 ? 1.6 : 2.4)) { b.vx = 0; b.atk++;
+      if (escape || b.atk % 3 === 0) { b.leapCd = G.t + 7; kralLeap(b, escape); }
       else if (Math.abs(p.x - b.x) < 4.5) { go('punch'); b.slammed = false; b.waveHit = false; if (!b.tipPunch) { b.tipPunch = true; toast('👊 Yere vuracak: halka gelince zıpla!'); } } else { go('shout'); b.fired = 0; } }
   } else if (b.st === 'shout') {
     b.vx = 0; toward();
-    const vol = b.rage ? 3 : fr <= 0.5 ? 2 : 1, gap = b.rage ? 0.55 : 0.8; // öfke: art arda üç yaylım
+    const vol = b.rage ? 3 : fr <= 0.5 ? 2 : 1, gap = b.rage ? 0.95 : 0.85; // öfke: art arda üç yaylım
     if (b.fired < vol && b.t > 0.7 + b.fired * gap) { b.fired++; throwSpore(b); sfx.shot(); }
     if (b.t > 0.9 + vol * gap) go('walk');
   } else if (b.st === 'punch') {
@@ -491,7 +495,7 @@ function updateKral(dt) {
     if (!b.slammed && b.t > tSlam) { b.slammed = true; sfx.stomp(); vibrate(80); shake = 0.5; dust(b.x - 1, b.y, 10); dust(b.x + 1, b.y, 10); }
     if (b.slammed && rad < 7.5) { if (Math.random() < 0.6) { dust(b.x - rad, b.y, 1); dust(b.x + rad, b.y, 1); }
       const d = Math.abs(p.x - b.x); if (!b.waveHit && G.state === 'play' && p.ground && d > rad - 0.7 && d < rad + 0.25) { b.waveHit = true; hurt(b.x); } }
-    if (b.t > 2.0) { go('tired'); b.ring.material.opacity = 0; toast('⚡ Şimdi ateş et!'); }
+    if (b.t > 2.0) { go('tired'); b.tiredMax = b.rage ? 2.1 : 2.8; b.ring.material.opacity = 0; toast('⚡ Şimdi ateş et!'); }
   } else if (b.st === 'crouch') {
     b.vx = 0; b.shadow.material.opacity = Math.min(0.7, b.t * 1.4); b.shadow.position.set(b.lx1, b.y + 0.04, 0.3);
     if (b.t > 0.55) { go('leap'); sfx.spring(); dust(b.x, b.y, 8); }
@@ -501,17 +505,17 @@ function updateKral(dt) {
     if (k >= 1) { b.yOff = 0; go('land'); b.shadow.material.opacity = 0; sfx.stomp(); vibrate(70); shake = 0.45; dust(b.x - 1, b.y, 10); dust(b.x + 1, b.y, 10);
       if (G.state === "play" && Math.abs(p.x - b.x) < b.w / 2 + 0.2 && p.y < b.y + 1) hurt(b.x); }
   } else if (b.st === 'land') {
-    b.vx = 0; if (b.t > 0.5) { if (b.rage && !b.dblLeap) { b.dblLeap = true; kralLeap(b, true); } else { b.dblLeap = false; go('walk'); } }
+    b.vx = 0; if (b.t > 0.5) { if (b.rage && !b.dblLeap) { b.dblLeap = true; kralLeap(b, false); } else { b.dblLeap = false; go('tired'); b.tiredMax = b.rage ? 1.6 : 2.0; toast('⚡ Şimdi ateş et!'); } }
   } else if (b.st === 'tired') {
     b.vx = 0; b.stars.visible = true; b.stars.rotation.y += dt * 6;
-    if (b.t > (b.rage ? 2.1 : 2.8)) { b.stars.visible = false; go('walk'); }
+    if (b.t > (b.tiredMax || 2.8)) { b.stars.visible = false; go('walk'); }
   }
   b.x = Math.max(b.x0 + b.w / 2, Math.min(b.x1 - b.w / 2, b.x + b.vx * dt));
   if (b.st !== 'leap') b.x = Math.max(b.x0 + b.w / 2, Math.min(b.x1 - b.w / 2, b.x));
   b.m.position.set(b.x, b.y + b.yOff, 0);
   const tr = (b.dir > 0 ? -0.5 : Math.PI + 0.5); b.m.rotation.y += (tr - b.m.rotation.y) * Math.min(1, dt * 6);
   b.m.rotation.z = 0; b.rig.update(dt, b.st === 'rage' ? 'shout' : b.flash > 0 ? 'hit' : b.st, b.flash > 0 ? 0.25 - b.flash : b.t, b.vx);
-  b.stars.position.set(b.x, b.y + b.h + 0.5, 0);
+  b.stars.position.set(b.x, b.y + b.yOff + b.h + 0.5, 0);
   bossGlow(b, dt);
   bossContact(b);
 }
