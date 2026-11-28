@@ -42,7 +42,8 @@ function setWorldTheme(w) {
   if (BD) scene.remove(BD.group);
   BD = backdrop(scene, 400);
 }
-const worldOf = (n) => (n > 20 ? 2 : 1);
+const FORCE_W = +((location.hash.match(/theme=(\d)/) || [])[1] || 0); // önizleme: #theme=3
+const worldOf = (n) => FORCE_W || (n > 20 ? 2 : 1);
 const lvLabel = (n) => `${worldOf(n)}-${n - (worldOf(n) - 1) * 20}`;
 const ACTOR = 1; // karakter katmanı: zeminden sonra, derinlik temizlenerek çizilir
 const toActor = (o) => { o.traverse((c) => c.layers.set(ACTOR)); return o; };
