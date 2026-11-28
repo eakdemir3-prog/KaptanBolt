@@ -50,7 +50,7 @@ const TEX = {};
 /** Dünya teması: doku ve arka plan dosyaları (ilk kurulumdan önce seçilir) */
 export const THEMES = {
   1: { ground: 'props/ground.webp', soil: 'soil', bg: 'vadi', far: [0xf4fbff, 0x3f8f73], mid: [0xe8f4e0, 0x3a7330], fog: 0xbfe6ff, hemi: [0xe6f6ff, 0x7a8a4a, 1.9], sun: [0xfff1d6, 2.1] },
-  2: { ground: 'props/w2/ground.webp', soil: 'w2/soil', bg: 'mantar', far: [0xffffff, 0x5a4f86], mid: [0xffffff, 0x1f5a4a], fog: 0xb9a3e0, animal: { kus: 'sincap', tilki: 'tavsan', maymun: 'geyik' }, hemi: [0xe4d8ff, 0x5a4a7a, 1.85], sun: [0xffe6f2, 1.9] },
+  2: { ground: 'props/w2/ground.webp', soil: 'w2/soil', bg: 'mantar', far: [0xffffff, 0x5a4f86], mid: [0xffffff, 0x1f5a4a], fog: 0xb9a3e0, enemy: { bocek: 'mantarcik', kirpi: 'salyangoz' }, animal: { kus: 'sincap', tilki: 'tavsan', maymun: 'geyik' }, hemi: [0xe4d8ff, 0x5a4a7a, 1.85], sun: [0xffe6f2, 1.9] },
 };
 export let THEME = THEMES[/w2/.test(location.hash) ? 2 : 1];
 export function setTheme(n) { THEME = THEMES[n] || THEMES[1]; }

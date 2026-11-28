@@ -47,6 +47,8 @@ const MODELS = {};
 const SPEC = {
   bocek: { size: 1.25, fit: 'w', yaw: Math.PI / 2 },
   kirpi: { size: 1.3, fit: 'w', yaw: Math.PI / 2 },
+  mantarcik: { size: 1.25, fit: 'h', yaw: Math.PI / 2, skin: true, face: 0.55, matte: true, h: 1.1 },
+  salyangoz: { size: 1.35, fit: 'w', yaw: Math.PI / 2, face: 0.35, matte: true },
   kus: { size: 0.85, fit: 'h', yaw: 0.35 },
   tilki: { size: 0.9, fit: 'h', yaw: 0.35 + Math.PI / 4 },
   maymun: { size: 0.95, fit: 'h', yaw: 0.35 },
@@ -64,11 +66,11 @@ function loadModel(n) {
     const s = sp.size / (sp.fit === 'h' ? sz.y : Math.max(sz.x, sz.z));
     wrap.scale.setScalar(s); const c = b.getCenter(new THREE.Vector3());
     wrap.position.set(-c.x * s, -b.min.y * s, -c.z * s);
-    m.traverse((o) => { if (o.isMesh) { o.geometry.userData.shared = true; o.castShadow = true; o.receiveShadow = true; if (o.material) o.material.roughness = Math.max(0.45, o.material.roughness ?? 0.6); } });
+    m.traverse((o) => { if (o.isMesh) { o.geometry.userData.shared = true; o.castShadow = true; o.receiveShadow = true; if (o.material) { o.material.roughness = Math.max(0.45, o.material.roughness ?? 0.6); if (sp.matte) { o.material.metalness = Math.min(0.15, o.material.metalness ?? 0); o.receiveShadow = false; o.material.emissiveMap = o.material.map; o.material.emissive = new THREE.Color(0x8a8a8a); } } } });
     const holder = new THREE.Group(); holder.add(wrap); MODELS[n] = holder; ok();
   }, undefined, () => ok()));
 }
-const cloneM = (n) => (MODELS[n] ? (n === 'bocek' || n === 'kirpi' ? skClone(MODELS[n]) : MODELS[n].clone(true)) : new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), new THREE.MeshStandardMaterial({ color: 0xff00ff })));
+const cloneM = (n) => (MODELS[n] ? (n === 'bocek' || n === 'kirpi' || SPEC[n]?.skin ? skClone(MODELS[n]) : MODELS[n].clone(true)) : new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), new THREE.MeshStandardMaterial({ color: 0xff00ff })));
 
 // ---------- Kayıt ----------
 const SAVE_KEY = 'kb2.save';
@@ -99,9 +101,11 @@ function loadLevel(n) {
   for (const c of L.coins) { const m = add(makeCoin()); m.position.set(c.x, c.y, 0); ents.coins.push({ ...c, m, taken: false, ph: Math.random() * 6 }); }
   G.coinsTotal = L.coins.length + L.crates.size * 3;
   for (const e of L.enemies) {
-    const holder = add(new THREE.Group()); const em = cloneM(e.type); holder.add(em); toActor(holder);
-    let ball = null; if (e.type === 'kirpi') { ball = new THREE.Mesh(new THREE.SphereGeometry(0.62, 20, 14), new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.7 })); ball.position.y = 0.55; ball.scale.set(1.15, 0.95, 1); ball.visible = false; ball.castShadow = true; holder.add(ball); toActor(ball); const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.06, 8, 32), new THREE.MeshBasicMaterial({ color: 0xffd23a, toneMapped: false })); ring.position.y = 0.55; ball.add(ring); ball.userData.ring = ring; }
-    ents.enemies.push({ ball, walker: makeWalker(em, e.type), type: e.type, x0: e.x0, x1: e.x1, x: e.x, y: e.t, vx: e.type === 'kirpi' ? -0.75 : -1.05, w: e.type === 'kirpi' ? 1.1 : 1.05, h: e.type === 'kirpi' ? 0.95 : 0.8, m: holder, alive: true, squash: 0, ph: Math.random() * 6 });
+    const holder = add(new THREE.Group()); const look = THEME.enemy?.[e.type] || e.type, em = cloneM(look); holder.add(em); toActor(holder);
+    let ball = null;
+    if (e.type === 'kirpi' && look !== 'kirpi') { ball = new THREE.Group(); ball.position.y = 0.5; ball.visible = false; holder.add(ball); const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.06, 8, 32), new THREE.MeshBasicMaterial({ color: 0xffd23a, toneMapped: false })); ball.add(ring); toActor(ring); ball.userData.ring = ring; }
+    if (e.type === 'kirpi' && look === 'kirpi') { ball = new THREE.Mesh(new THREE.SphereGeometry(0.62, 20, 14), new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.7 })); ball.position.y = 0.55; ball.scale.set(1.15, 0.95, 1); ball.visible = false; ball.castShadow = true; holder.add(ball); toActor(ball); const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.06, 8, 32), new THREE.MeshBasicMaterial({ color: 0xffd23a, toneMapped: false })); ring.position.y = 0.55; ball.add(ring); ball.userData.ring = ring; }
+    ents.enemies.push({ ball, look, face: SPEC[look]?.face || 0, walker: makeWalker(em, look), type: e.type, x0: e.x0, x1: e.x1, x: e.x, y: e.t, vx: e.type === 'kirpi' ? -0.75 : -1.05, w: e.type === 'kirpi' ? 1.1 : 1.05, h: SPEC[look]?.h || (e.type === 'kirpi' ? 0.95 : 0.8), m: holder, alive: true, squash: 0, ph: Math.random() * 6 });
   }
   for (const c of L.cages) {
     const g = add(makeCage2D()); g.position.set(c.x, c.y, 0);
@@ -215,13 +219,13 @@ function updateEnemies(dt) {
     if (!e.alive) { e.squash += dt; e.m.scale.y = Math.max(0.05, 1 - e.squash * 6); e.m.position.y -= dt * (e.squash > 0.3 ? 4 : 0); if (e.squash > 1) e.m.visible = false; continue; }
     const nx = e.x + e.vx * dt, front = nx + Math.sign(e.vx) * e.w / 2;
     let moving = 0;
-    if (e.curled > 0) { e.curled -= dt; e.m.scale.set(0.82, 0.62, 0.82); e.m.rotation.z = Math.sin(G.t * 20) * 0.04; if (e.ball) { e.ball.visible = true; e.ball.material.color.setHex(0xb87a4a); e.ball.userData.ring.scale.setScalar(1 + Math.sin(G.t * 10) * 0.1); } if (e.curled <= 0) { e.m.scale.set(1, 1, 1); e.m.rotation.z = 0; if (e.ball) e.ball.visible = false; } }
+    if (e.curled > 0) { e.curled -= dt; e.m.scale.set(0.82, 0.62, 0.82); e.m.rotation.z = Math.sin(G.t * 20) * 0.04; if (e.ball) { e.ball.visible = true; if (e.ball.material) e.ball.material.color.setHex(0xb87a4a); e.ball.userData.ring.scale.setScalar(1 + Math.sin(G.t * 10) * 0.1); } if (e.curled <= 0) { e.m.scale.set(1, 1, 1); e.m.rotation.z = 0; if (e.ball) e.ball.visible = false; } }
     else if (e.wait > 0) { e.wait -= dt; if (e.wait <= 0) e.vx = -e.vx; } // kenarda kısa durup döner
     else if ((e.vx < 0 && nx <= e.x0) || (e.vx > 0 && nx >= e.x1) || L.solid(Math.floor(front), Math.floor(e.y + 0.3)) || !groundUnder(front, e.y)) e.wait = 0.35;
     else { e.x = nx; moving = e.vx; }
     e.m.position.set(e.x, e.y, 0);
     // kenarda beklerken yavaşça yeni yöne döner (görünür dönüş)
-    const dirN = e.wait > 0 ? -e.vx : e.vx; e.m.rotation.y += ((dirN > 0 ? 0 : Math.PI) - e.m.rotation.y) * Math.min(1, dt * (e.wait > 0 ? 7 : 12));
+    const dirN = e.wait > 0 ? -e.vx : e.vx; e.m.rotation.y += ((dirN > 0 ? -e.face : Math.PI + e.face) - e.m.rotation.y) * Math.min(1, dt * (e.wait > 0 ? 7 : 12));
     if (e.walker) e.walker.update(dt, moving, G.t);
     const p = player;
     if (G.state !== 'play' || Math.abs(p.x - e.x) > (P.PW + e.w) / 2 - 0.08 || Math.min(p.y, p.prevY ?? p.y) > e.y + e.h || p.y + P.PH < e.y + 0.1) continue;
@@ -282,7 +286,7 @@ function updateGun(dt) {
     if (!hit) for (const e of ents.enemies) {
       if (!e.alive || Math.abs(e.x - s.x) > e.w / 2 + 0.15 || s.y < e.y - 0.1 || s.y > e.y + e.h + 0.35) continue;
       hit = true;
-      if (e.type === 'kirpi' && !(e.curled > 0)) { e.curled = 2.2; sfx.bump(); burst(e.x, e.y + 0.5, 0x8af0ff, 8); toast('Kirpi top oldu! Bir daha vur'); }
+      if (e.type === 'kirpi' && !(e.curled > 0)) { e.curled = 2.2; sfx.bump(); burst(e.x, e.y + 0.5, 0x8af0ff, 8); toast(e.look === 'salyangoz' ? 'Kabuk çatladı! Üstüne zıpla' : 'Kirpi top oldu! Bir daha vur'); }
       else { e.alive = false; sfx.stomp(); vibrate(25); burst(e.x, e.y + 0.5, 0x8af0ff, 14); dropCoins(e.x, e.y + 0.6, 1); }
       break;
     }

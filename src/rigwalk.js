@@ -14,7 +14,45 @@ const Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
 const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), ax = new THREE.Vector3();
 
 /** model: SkeletonUtils ile kopyalanmış sahne. frame: modelin kendi ekseni (gltf sahnesi) */
+/** Mantarcık: iskeletin dinlenme duruşu kullanılır (Meshy'nin yürüyüşü gövdeyi sarkıtıyor);
+ *  kodla hoplayarak yürür: her adımda zıplar, inişte basılır, bacaklar ve kollar sallanır. */
+function hopper(model) {
+  const bones = {}; model.traverse((o) => { if (o.isBone) bones[o.name.replace('mixamorig', '').replace(':', '')] = o; });
+  const scene = model.children[0]?.children[0] || model;
+  const rest = new Map(); for (const b of Object.values(bones)) rest.set(b, b.quaternion.clone());
+  const X = new THREE.Vector3(1, 0, 0);
+  const rot = (b, ang) => { if (!b || !ang) return; scene.getWorldQuaternion(qa); ax.copy(X).applyQuaternion(qa); b.parent.getWorldQuaternion(qb); ax.applyQuaternion(qb.invert()).normalize(); qa.setFromAxisAngle(ax, ang); b.quaternion.premultiply(qa); };
+  let ph = 0;
+  return {
+    update(dt, speed, t) {
+      for (const [b, q] of rest) b.quaternion.copy(q);
+      const k = Math.min(1, Math.abs(speed) / 0.8);
+      ph += dt * (k > 0 ? 7.5 : 2.5);
+      const s = Math.sin(ph), hop = Math.abs(s);
+      model.position.y = hop * 0.22 * k;
+      const land = Math.max(0, 1 - hop * 3) * k; // yere değdiği an basılır
+      model.scale.set(1 + land * 0.12, 1 - land * 0.16 + hop * 0.05 * k, 1 + land * 0.12);
+      model.updateMatrixWorld(true);
+      rot(bones.LeftUpLeg, s * 0.5 * k); rot(bones.RightUpLeg, -s * 0.5 * k);
+      rot(bones.LeftArm, -s * 0.45 * k + Math.sin(t * 3) * 0.05); rot(bones.RightArm, s * 0.45 * k - Math.sin(t * 3) * 0.05);
+      rot(bones.Head, Math.sin(ph * 2) * 0.05 * k);
+    },
+  };
+}
+/** Salyangoz: iskelet yok; kayarken uzayıp kısalır, durunca yavaşça nefes alır */
+function slider(model) {
+  let ph = 0;
+  return {
+    update(dt, speed, t) {
+      const k = Math.min(1, Math.abs(speed) / 0.5); ph += dt * (2 + 5 * k);
+      const w = Math.sin(ph);
+      model.scale.set(1 + w * 0.07 * k + Math.sin(t * 2) * 0.01, 1 - w * 0.045 * k + Math.sin(t * 2) * 0.015, 1);
+    },
+  };
+}
 export function makeWalker(model, kind) {
+  if (kind === 'mantarcik') return hopper(model);
+  if (kind === 'salyangoz') return slider(model);
   const spec = RIGS[kind]; if (!spec) return null;
   const bones = {}; model.traverse((o) => { if (o.isBone) bones[o.name] = o; });
   const frame = Object.values(bones)[0]?.parent?.parent || model; // SmartRigArmature
