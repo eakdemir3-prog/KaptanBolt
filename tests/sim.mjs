@@ -6,7 +6,7 @@ import { P, stepPlayer, newPlayer, coinHit, applyFields } from '../src/physics.j
 const DT = 1 / 60;
 function simLevel(n) {
   const L = buildLevel(n);
-  L.crates.clear(); // sandıklar kırılabilir: engel sayılmaz
+  L.crates.clear(); L.iceb.clear(); // sandıklar kırılabilir, buz blokları şimşekle erir: engel sayılmaz
   // sallar: menzil boyunca 5 sabit konumdan örnek
   const ow = L.oneway.filter((s) => !L.rafts.some((r) => r.s === s)).map((s) => ({ ...s }));
   for (const r of L.rafts) for (const k of [0, 0.25, 0.5, 0.75, 1]) {

@@ -57,6 +57,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d2a1a; fon
 .lv { touch-action: manipulation; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 16px; border: 2px solid rgba(255,255,255,.35); background: linear-gradient(#3a8a4a, #1f5a2c); color: #fff; font-family: Pop, sans-serif; box-shadow: 0 4px 0 #123a1c; }
 .lv b { font-size: 24px; line-height: 1; }
 .lv small { font-size: 9px; opacity: .85; line-height: 1.1; min-height: 20px; text-align: center; }
+#levels.w4 .lv:not(.boss):not(.lock) { background: linear-gradient(#5aa8e0, #2a5a9a); box-shadow: 0 4px 0 #163a6a; }
 #levels.w3 .lv:not(.boss):not(.lock) { background: linear-gradient(#d88a3a, #9a4a1c); box-shadow: 0 4px 0 #5a2a0c; }
 #levels.w2 .lv:not(.boss):not(.lock) { background: linear-gradient(#7a4ab0, #44236e); box-shadow: 0 4px 0 #2a1248; }
 .lv .st { display: flex; align-items: center; gap: 1px; }

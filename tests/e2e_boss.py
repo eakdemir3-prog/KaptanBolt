@@ -8,7 +8,7 @@ with sync_playwright() as p:
     pg=b.new_context(viewport={"width":915,"height":412},has_touch=True,is_mobile=True).new_page(); errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
     pg.goto("http://127.0.0.1:5180/"); pg.wait_for_function("KB2.G.state==='menu'",timeout=90000)
     ev=pg.evaluate
-    for lv,vul in ((20,'stun'),(40,'tired'),(60,'stun')):
+    for lv,vul in ((20,'stun'),(40,'tired'),(60,'stun'),(80,'tired')):
         ev(f"KB2.load({lv}); 0"); pg.wait_for_timeout(500)
         ev("(()=>{const b=KB2.ents.boss;KB2.tp(b.x0+3);})()"); pg.wait_for_timeout(1500)
         st=ev("(()=>{const b=KB2.ents.boss;return [b.st,b.hp,b.max,!document.getElementById('bossBar').classList.contains('hidden'),document.getElementById('bossName').textContent]})()")
@@ -19,14 +19,14 @@ with sync_playwright() as p:
         check(f"{lv}: üstten temas can azaltmaz", r==[0,0], r)
         # açık değilken ateş: hasar yok
         def fire_at(n):
-            return ev(f"""new Promise(async res=>{{const b=KB2.ents.boss,p=KB2.player; const hp0=b.hp; for(let i=0;i<{n};i++){{ KB2.ents.sballs.forEach(q=>q.y=-9); const sd=(b.x-b.x0>5)?-1:1; p.x=b.x+sd*4; p.y=b.y; p.vy=0; p.face=-sd; p.ground=true; KB2.G.inv=99; KB2.input.fire=true; await new Promise(r=>setTimeout(r,450)); }} await new Promise(r=>setTimeout(r,400)); res([hp0-b.hp,b.st,b.hp,b.rage])}})""")
+            return ev(f"""new Promise(async res=>{{const b=KB2.ents.boss,p=KB2.player; const hp0=b.hp; for(let i=0;i<{n};i++){{ KB2.ents.sballs.forEach(q=>q.y=-9); const sd=(b.x-b.x0>5)?-1:1; p.x=b.x+sd*4; p.y=b.y; p.vy=0; p.face=-sd; p.ground=true; KB2.G.inv=99; KB2.G.cd=0; KB2.input.fire=true; const t0=KB2.G.t; while(KB2.G.t-t0<0.55) await new Promise(r=>setTimeout(r,25)); }} const t1=KB2.G.t; while(KB2.G.t-t1<0.4) await new Promise(r=>setTimeout(r,25)); res([hp0-b.hp,b.st,b.hp,b.rage])}})""")
         ev("(()=>{const b=KB2.ents.boss; b.st='walk'; b.t=-99; b.vx=0; KB2.G.ch=3})()")
         r=fire_at(1); check(f"{lv}: açık değilken şimşek işlemez", r[0]==0, r)
         # açık anda ateş: her isabet 1 can; sıfır enerjiyle başla (dolum)
         ev(f"(()=>{{const b=KB2.ents.boss; b.st='{vul}'; b.t=-99; KB2.G.ch=0; KB2.G.cd=0}})()")
         r=ev(f"""new Promise(async res=>{{const b=KB2.ents.boss,p=KB2.player; const hp0=b.hp; const t0=KB2.G.t;
           while(KB2.G.ch<1 && KB2.G.t-t0<5) {{ b.st='{vul}'; b.t=-99; await new Promise(r=>setTimeout(r,100)); }}
-          const wait=KB2.G.t-t0; KB2.ents.sballs.forEach(q=>q.y=-9); const sd=(b.x-b.x0>5)?-1:1; p.x=b.x+sd*4; p.y=b.y; p.face=-sd; p.ground=true; KB2.G.inv=99; KB2.input.fire=true; await new Promise(r=>setTimeout(r,900)); res([hp0-b.hp, +wait.toFixed(2), +b.x.toFixed(1), b.x0, +p.x.toFixed(1), p.face, b.st, KB2.ents.shots.length])}})""")
+          const wait=KB2.G.t-t0; KB2.ents.sballs.forEach(q=>q.y=-9); const sd=(b.x-b.x0>5)?-1:1; p.x=b.x+sd*4; p.y=b.y; p.face=-sd; p.ground=true; KB2.G.inv=99; KB2.input.fire=true; const t2=KB2.G.t; while(KB2.G.t-t2<0.8) await new Promise(r=>setTimeout(r,25)); res([hp0-b.hp, +wait.toFixed(2), +b.x.toFixed(1), b.x0, +p.x.toFixed(1), p.face, b.st, KB2.ents.shots.length])}})""")
         check(f"{lv}: sıfır enerjiden dolup isabet ediyor (oyun saniyesi)", r[0]>=1 and r[1]<1.5, r)
         ev(f"(()=>{{const b=KB2.ents.boss; b.st='{vul}'; b.t=-99; KB2.G.ch=3}})()")
         # %25'e kadar indir → öfke
@@ -42,7 +42,7 @@ with sync_playwright() as p:
             if ev("KB2.ents.boss.dead"): break
             ev(f"(()=>{{const b=KB2.ents.boss; b.st='{vul}'; b.t=-99; KB2.G.ch=3}})()"); fire_at(1)
         check(f"{lv}: şimşekle yenildi", ev("KB2.ents.boss.dead"))
-        pg.wait_for_function("!!KB2.ents.ship", timeout=60000)
+        pg.wait_for_function("!!KB2.ents.ship", timeout=120000)
         check(f"{lv}: duvarlar indi, gemi geldi, bar kapandı", ev("!KB2.ents.boss.wallsUp && !!KB2.ents.ship && document.getElementById('bossBar').classList.contains('hidden')"))
         ev(f"KB2.load({lv}); 0"); pg.wait_for_timeout(500)
         check(f"{lv}: yeniden başlatınca can/evre/bar sıfır", ev("(()=>{const b=KB2.ents.boss;return b.hp===b.max && !b.rage && b.st==='wait' && document.getElementById('bossBar').classList.contains('hidden')})()"))

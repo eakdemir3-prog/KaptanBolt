@@ -58,7 +58,7 @@ THEMES[3] = { n: 3, name: 'Güneş Kanyonu', ground: 'props/w3/ground.webp', soi
   far: [0xffffff, 0xc98a6a], mid: [0xffffff, 0xb8542a], enemy: { bocek: 'akrep', kirpi: 'yilan' }, animal: { kus: 'fennek', tilki: 'deve', maymun: 'kertenkele' }, fog: 0xf6d6a8, hemi: [0xfff2d8, 0x9a6a3a, 1.95], sun: [0xffe6c0, 2.2] };
 THEMES[4] = { n: 4, name: 'Buzul Dağları', ground: 'props/w4/ground.webp', soil: 'w4/soil', bg: 'buzul', top: ['#f2f8ff', 'rgba(190,215,240,0.45)', 'rgba(255,255,255,0.6)'],
   spr: { bush1: ['w4/bush', 269 / 187], bush2: ['w4/pine', 250 / 293], bush3: ['w4/crystal', 289 / 255], flower1: ['w4/frostgrass', 255 / 185], flower2: ['w4/frostgrass', 255 / 185], flower3: ['w4/crystal', 289 / 255], flower4: ['w4/frostgrass', 255 / 185], flower5: ['w4/bush', 269 / 187], flower6: ['w4/frostgrass', 255 / 185], stump: ['w4/snowman', 223 / 258], rocks: ['w4/rocks', 307 / 202], log: ['w4/sled', 380 / 170], mushrooms: ['w4/barrel', 184 / 223], vines: ['w4/vine', 114 / 422], sign: ['w4/sign', 264 / 219] },
-  far: [0xffffff, 0x9aa8d8], mid: [0xffffff, 0xdfeaf6], fog: 0xd6e6ff, hemi: [0xeaf4ff, 0x6a7a9a, 1.9], sun: [0xfff4e8, 2.1] };
+  far: [0xffffff, 0x9aa8d8], mid: [0xffffff, 0xdfeaf6], enemy: { bocek: 'buzbocek', kirpi: 'yeti' }, animal: { kus: 'penguen', tilki: 'fok', maymun: 'kutuptilki' }, fog: 0xd6e6ff, hemi: [0xeaf4ff, 0x6a7a9a, 1.9], sun: [0xfff4e8, 2.1] };
 export let THEME = THEMES[1];
 /** Dünya değişince zemin dokuları yeniden yüklenir (süs resimleri adlarıyla önbellekte kalır). Değiştiyse true. */
 export function applyTheme(n) {
@@ -357,6 +357,11 @@ export function makeSpring(kind = null) {
 export function makeCrumble(w) {
   mats();
   const g = new THREE.Group(), W = w + 0.35, h1 = W * 218 / 819, h2 = W * 333 / 817;
+  if (THEME.n === 4) { // buzul: karlı kaya; çatlayınca soluk mavi
+    const h = W * 218 / 481, a = sprite('w4/plat', h, 481 / 218); a.position.set(w / 2, -h * 0.82, 0.3); g.add(a);
+    const b = sprite('w4/plat', h, 481 / 218); b.material = b.material.clone(); b.material.color.setHex(0x9ad8ff); b.position.copy(a.position); b.visible = false; g.add(b);
+    g.userData = { a, b }; return g;
+  }
   const a = sprite('w3/plat', h1, 819 / 218); a.position.set(w / 2, -h1 * 0.9, 0.3); g.add(a);
   const b = sprite('w3/plat_crack', h2, 817 / 333); b.position.set(w / 2, -h2 * 0.94, 0.3); b.visible = false; g.add(b);
   g.userData = { a, b }; return g;
@@ -372,8 +377,23 @@ export function makeQuicksand(w) {
 export function makeStorm(w) {
   mats();
   const g = new THREE.Group(), clouds = [];
-  for (let i = 0; i < Math.max(2, Math.round(w / 3)); i++) { const c = sprite('w3/storm', 1.4 + R() * 0.8, 569 / 223); c.material = c.material.clone(); c.material.alphaTest = 0.02; c.material.depthWrite = false; c.material.transparent = true; c.position.set(R() * w, 0.2 + R() * 3.2, 0.8 + R() * 0.4); c.userData.v = 3 + R() * 2; g.add(c); clouds.push(c); }
+  for (let i = 0; i < Math.max(2, Math.round(w / 3)); i++) { const c = sprite('w3/storm', 1.4 + R() * 0.8, 569 / 223); c.material = c.material.clone(); if (THEME.n === 4) c.material.color.setHex(0xeaf6ff); c.material.alphaTest = 0.02; c.material.depthWrite = false; c.material.transparent = true; c.position.set(R() * w, 0.2 + R() * 3.2, 0.8 + R() * 0.4); c.userData.v = 3 + R() * 2; g.add(c); clouds.push(c); }
   g.userData = { clouds, w }; return g;
+}
+/** Kaygan buz şeridi */
+export function makeIce(w) {
+  mats();
+  const g = new THREE.Group(), segW = 3, n = Math.max(1, Math.round(w / segW)), step = w / n;
+  for (let i = 0; i < n; i++) { const s = sprite('w4/ice', step * 1.06 * 57 / 455 * 1.6, 455 / 57 / 1.6); s.position.set((i + 0.5) * step, -0.16, 0.95); g.add(s); }
+  return g;
+}
+/** Buz sarkıtı: üstte karlı kaya, altında sarkıt */
+export function makeIcicle() {
+  mats();
+  const g = new THREE.Group();
+  const rock = sprite('w4/plat', 0.75, 481 / 218); rock.position.set(0, -0.15, -0.1); g.add(rock);
+  const ic = sprite('w4/icicle', 1.3, 444 / 356); ic.geometry = ic.geometry.clone(); ic.geometry.translate(0, -1.3, 0); ic.position.set(0, -0.05, 0.1); g.add(ic);
+  g.userData = { ic }; return g;
 }
 /** Spor bulutu: altta bulut resmi, üstünde yukarı akan parıltılı ışık sütunu */
 export function makeSpore(w, h) {

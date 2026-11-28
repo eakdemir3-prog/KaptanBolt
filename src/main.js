@@ -7,7 +7,7 @@ import { makeRobot, SKINS } from './game/robot.js';
 import { buildLevel, updateRafts } from './level.js';
 import { LEVELS } from './levels.js';
 import { P, stepPlayer, moveX, newPlayer, coinHit, applyFields } from './physics.js';
-import { THEME, THEMES, applyTheme, makeSpore, makeCrumble, makeQuicksand, makeStorm, buildWorld, backdrop, seed, makeCoin, makeSpring, makePost, setPost, makeBeam, makePortal, makeCage2D, makeSprite, ASPECT, makeBridge, makeRaft, makeThorns } from './world.js';
+import { THEME, THEMES, applyTheme, makeSpore, makeCrumble, makeQuicksand, makeStorm, makeIce, makeIcicle, buildWorld, backdrop, seed, makeCoin, makeSpring, makePost, setPost, makeBeam, makePortal, makeCage2D, makeSprite, ASPECT, makeBridge, makeRaft, makeThorns } from './world.js';
 import { sfx, unlockAudio } from './audio.js';
 import { clone as skClone } from 'three/addons/utils/SkeletonUtils.js';
 import { makeWalker, kralRig } from './rigwalk.js';
@@ -43,7 +43,7 @@ function setWorldTheme(w) {
   BD = backdrop(scene, 400);
 }
 const FORCE_W = +((location.hash.match(/theme=(\d)/) || [])[1] || 0); // önizleme: #theme=3
-const worldOf = (n) => FORCE_W || (n > 40 ? 3 : n > 20 ? 2 : 1);
+const worldOf = (n) => FORCE_W || Math.ceil(n / 20);
 const lvLabel = (n) => `${worldOf(n)}-${n - (worldOf(n) - 1) * 20}`;
 const ACTOR = 1; // karakter katmanı: zeminden sonra, derinlik temizlenerek çizilir
 const toActor = (o) => { o.traverse((c) => c.layers.set(ACTOR)); return o; };
@@ -74,6 +74,12 @@ const SPEC = {
   kertenkele: { size: 0.95, fit: 'h', yaw: 0.35 },
   yilan: { size: 1.55, fit: 'h', yaw: Math.PI / 2, face: 0.45, matte: true, h: 1.15 },
   akrep: { size: 1.35, fit: 'w', yaw: Math.PI / 2, skin: true, face: 0.35, matte: true, h: 0.85 },
+  penguen: { size: 0.95, fit: 'h', yaw: 0.35 },
+  fok: { size: 1.0, fit: 'w', yaw: 0.35 },
+  kutuptilki: { size: 0.95, fit: 'h', yaw: 0.35 },
+  buzbocek: { size: 1.25, fit: 'w', yaw: Math.PI / 2, face: 0.4, matte: true, h: 0.85 },
+  yeti: { size: 1.6, fit: 'h', yaw: Math.PI / 2, skin: true, face: 0.55, matte: true, h: 1.25 },
+  golem: { size: 3.4, fit: 'h', yaw: Math.PI / 2, skin: true, face: 0.5, matte: true },
   devakrep: { size: 1.3, fit: 'w', yaw: Math.PI / 2, skin: true, matte: true },
   cage: { size: 2.2, fit: 'w', yaw: 0 },
   ship: { size: 4.6, fit: 'w', yaw: -0.25 },
@@ -101,13 +107,13 @@ let save = { unlocked: 1, best: {} };
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.best) save = s; } catch { /* yok */ }
 // TEST SÜRÜMÜ: bütün bölümler açık (yayın öncesi false yapılacak)
 const TEST_UNLOCK = true;
-if (TEST_UNLOCK || /unlock/.test(location.hash)) save.unlocked = 60;
+if (TEST_UNLOCK || /unlock/.test(location.hash)) save.unlocked = 80;
 const store = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch { /* yok */ } };
 
 // ---------- Oyun durumu ----------
 const G = { t: 0, state: 'load', n: 1, coins: 0, coinsTotal: 0, cages: 0, hearts: 3, cp: null, inv: 0, star: false, won: false, end: 0 };
 let L = null, player = null, levelRoot = null;
-const ents = { crumbles: [], storms: [], spores: [], sballs: [], shots: [], glove: null, coins: [], enemies: [], cages: [], springs: [], posts: [], parts: [], crates: [], hearts: [], rafts: [], signs: [], star: null, end: null, boss: null, ship: null, flying: [] };
+const ents = { icicles: [], iceb: [], crumbles: [], storms: [], spores: [], sballs: [], shots: [], glove: null, coins: [], enemies: [], cages: [], springs: [], posts: [], parts: [], crates: [], hearts: [], rafts: [], signs: [], star: null, end: null, boss: null, ship: null, flying: [] };
 const input = { left: false, right: false, jump: false, jumpPressed: false, fire: false };
 const BOLT_S = 1.12 * 1.2;
 let bolt, anim;
@@ -142,6 +148,9 @@ function loadLevel(n) {
   }
   for (const s of L.springs) { const m = add(makeSpring(s.kind)); m.position.set(s.x, s.y - 0.05, 0); ents.springs.push({ ...s, src: s, m, t: 1 }); }
   for (const c of L.crumbles) { const m = add(makeCrumble(c.w)); m.position.set(c.x, c.y, 0); ents.crumbles.push({ c, m, t: 0, st: 'ok' }); }
+  for (const z of L.ices) { const m = add(makeIce(z.x1 - z.x0)); m.position.set(z.x0, z.y, 0); }
+  for (const c of L.icicles) { const m = add(makeIcicle()); m.position.set(c.x, c.top, 0); toActor(m); ents.icicles.push({ ...c, m, st: 'hang', t: 0, iy: 0 }); }
+  for (const c of L.iceb.values()) { const m = add(makeSprite('w4/iceblock', 1.04, 340 / 322)); m.position.set(c.x + 0.5, c.y - 0.02, 0.35); ents.iceb.push({ ...c, m, hp: 1 }); }
   for (const z of L.sands) { const m = add(makeQuicksand(z.x1 - z.x0)); m.position.set(z.x0, z.y, 0); }
   for (const z of L.storms) { const m = add(makeStorm(z.x1 - z.x0)); m.position.set(z.x0, L.cols[Math.floor(z.x0)] || 2, 0); ents.storms.push({ z, m }); }
   for (const z of L.spores) { const m = add(makeSpore(z.x1 - z.x0, z.y1 - z.y0)); m.position.set(z.x0, z.y0, 0); ents.spores.push({ z, m }); }
@@ -175,7 +184,7 @@ function loadLevel(n) {
   Object.assign(input, { left: false, right: false, jump: false, jumpPressed: false });
   camSnap = true; updateCamera(0);
   updateHud(); showScreen(null);
-  toast(n === 41 ? `🏜️ Güneş Kanyonu! ${lvLabel(n)} • ${L.name}` : n === 21 ? `🍄 Mantar Ormanı! ${lvLabel(n)} • ${L.name}` : `${lvLabel(n)} • ${L.name}`);
+  toast(n === 61 ? `❄️ Buzul Dağları! ${lvLabel(n)} • ${L.name}` : n === 41 ? `🏜️ Güneş Kanyonu! ${lvLabel(n)} • ${L.name}` : n === 21 ? `🍄 Mantar Ormanı! ${lvLabel(n)} • ${L.name}` : `${lvLabel(n)} • ${L.name}`);
 }
 
 // ---------- Oyuncu ----------
@@ -268,6 +277,10 @@ function updateEnemies(dt) {
     if (e.walker) e.walker.update(dt, moving, G.t);
     const p = player;
     if (e.hidden) continue;
+    if (e.look === 'yeti' && !(e.curled > 0) && G.state === 'play') { // kartopu atar
+      e.throwT = (e.throwT ?? 1.5 + e.ph * 0.3) - dt;
+      if (e.throwT <= 0 && Math.abs(p.x - e.x) < 9 && Math.abs(p.y - e.y) < 4) { e.throwT = 2.8; lob(e.x + Math.sign(p.x - e.x) * 0.5, e.y + 1.3, p.x, 'w4/snowball', 1); sfx.shot(); }
+    }
     if (G.state !== 'play' || Math.abs(p.x - e.x) > (P.PW + e.w) / 2 - 0.08 || Math.min(p.y, p.prevY ?? p.y) > e.y + e.h || p.y + P.PH < e.y + 0.1) continue;
     // ezme: önceki adımda ayaklar böceğin üst çizgisinde/üstündeyken bu adımda aşağı doğru geçtiyse
     const topY = e.y + e.h, stomp = p.vy < 0 && (p.prevY ?? p.y) >= topY - 0.12 && p.y < (p.prevY ?? p.y);
@@ -323,7 +336,9 @@ function updateGun(dt) {
   for (let i = ents.shots.length - 1; i >= 0; i--) {
     const s = ents.shots[i]; s.t += dt; s.x += s.vx * dt; s.m.position.x = s.x; const fl = 1 + Math.sin(s.t * 40) * 0.08; s.m.userData.fb.scale.set(fl, 1 + Math.sin(s.t * 33) * 0.06, 1); s.m.position.y = s.y + Math.sin(s.t * 25) * 0.03;
     if (Math.random() < 0.5) spark(s.x - Math.sign(s.vx) * 0.9, s.y + (Math.random() - 0.5) * 0.3, 0.25);
-    let hit = s.t > 1.3 || L.solid(Math.floor(s.x), Math.floor(s.y));
+    const ib = L.iceb.get(`${Math.floor(s.x)},${Math.floor(s.y)}`);
+    if (ib) { const q = ents.iceb.find((e) => e.x === ib.x && e.y === ib.y); L.iceb.delete(`${ib.x},${ib.y}`); if (q) { q.m.visible = false; burst(q.x + 0.5, q.y + 0.5, 0xbfeaff, 16); for (let k = 0; k < 6; k++) spark(q.x + 0.5, q.y + 0.5, 0.8); } sfx.stomp(); if (!G.iceTip) { G.iceTip = true; toast('💧 Buz eridi!'); } }
+    let hit = !!ib || s.t > 1.3 || L.solid(Math.floor(s.x), Math.floor(s.y));
     if (!hit) for (const e of ents.enemies) {
       if (!e.alive || e.hidden || Math.abs(e.x - s.x) > e.w / 2 + 0.15 || s.y < e.y - 0.1 || s.y > e.y + e.h + 0.35) continue;
       hit = true;
@@ -339,7 +354,7 @@ function updateGun(dt) {
 
 // ---------- Boss: Dev Paslı Böcek ----------
 function setupBoss() {
-  if (LEVELS[G.n - 1].bossKind === 'kral') return setupKral();
+  if (LEVELS[G.n - 1].bossKind === 'kral' || LEVELS[G.n - 1].bossKind === 'golem') return setupKral();
   const B = L.boss;
   const AK = LEVELS[G.n - 1].bossKind === 'akrep', look = AK ? 'devakrep' : 'bocek';
   const m = add(new THREE.Group()); const body = cloneM(look); body.scale.setScalar(AK ? 3.2 : 3.0); m.add(body); const walker = makeWalker(body, look); toActor(m);
@@ -354,7 +369,6 @@ function setupBoss() {
 function updateBoss(dt) {
   const b = ents.boss; if (!b) return;
   if (b.kind === 'kral') return updateKral(dt);
-  updateSballs(dt);
   b.t += dt; const p = player;
   for (const [i, g] of b.wallM.entries()) g.position.y += ((b.wallsUp ? b.y : b.y - 8) - g.position.y) * Math.min(1, dt * 6) + (i ? 0 : 0);
   if (b.dead) {
@@ -441,7 +455,8 @@ function bossBar(b, dt = 0) {
 // (yerdeysen can gider, zıpla!). Vuruştan sonra yorulur: o sırada kafasına zıpla. 3 can.
 function setupKral() {
   const B = L.boss;
-  const m = add(new THREE.Group()); const body = cloneM('kral'); m.add(body); toActor(m);
+  const GO = LEVELS[G.n - 1].bossKind === 'golem';
+  const m = add(new THREE.Group()); const body = cloneM(GO ? 'golem' : 'kral'); m.add(body); toActor(m);
   body.traverse((o) => { if (o.isMesh && o.material) o.material = o.material.clone(); });
   const rig = kralRig(body);
   const stars = add(new THREE.Group()); for (let i = 0; i < 4; i++) { const st = makeSprite('star', 0.4, ASPECT.star); st.position.set(Math.cos(i * 1.57) * 0.9, 0, Math.sin(i * 1.57) * 0.9); stars.add(st); } stars.visible = false;
@@ -449,7 +464,7 @@ function setupKral() {
   const wallM = walls.map((wx) => { const g = add(new THREE.Group()); for (let i = 0; i < 6; i++) { const c = makeSprite('crate', 1.02, ASPECT.crate); c.position.set(0.5, i, 0.3); g.add(c); } g.position.set(wx, -8, 0); return g; });
   const ring = add(new THREE.Mesh(new THREE.RingGeometry(0.36, 0.45, 48), new THREE.MeshBasicMaterial({ color: 0xb8ff4a, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }))); ring.rotation.x = -Math.PI / 2; toActor(ring);
   const shadow = add(new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ color: 0x1a0830, transparent: true, opacity: 0, depthWrite: false }))); shadow.rotation.x = -Math.PI / 2; shadow.scale.set(1.4, 0.5, 1); toActor(shadow);
-  ents.boss = { ...B, kind: 'kral', name: 'Mantar Kral', shadow, atk: 0, yOff: 0, lx0: 0, lx1: 0, dblLeap: false, mats: bossMats(body), rage: false, max: BOSS_HP, waveHit: false, m, body, rig, stars, ring, x: B.x1 - 4, y: B.y, vx: 0, dir: -1, hp: BOSS_HP, st: 'wait', t: 0, w: 2.3, h: 2.9, wallX: walls, wallM, wallsUp: false, flash: 0, dead: false, fired: 0, slammed: false, tipPunch: false };
+  ents.boss = { ...B, kind: 'kral', golem: GO, name: GO ? 'Buz Golemi' : 'Mantar Kral', shadow, atk: 0, yOff: 0, lx0: 0, lx1: 0, dblLeap: false, mats: bossMats(body), rage: false, max: BOSS_HP, waveHit: false, m, body, rig, stars, ring, x: B.x1 - 4, y: B.y, vx: 0, dir: -1, hp: BOSS_HP, st: 'wait', t: 0, w: 2.3, h: 2.9, wallX: walls, wallM, wallsUp: false, flash: 0, dead: false, fired: 0, slammed: false, tipPunch: false };
   const base = L.solid;
   L.solid = (x, y) => (ents.boss && ents.boss.wallsUp && ents.boss.wallX.includes(x) && y < 14) || base(x, y);
 }
@@ -461,11 +476,18 @@ function kralLeap(b, cornered) {
   b.lx0 = b.x; b.lx1 = Math.max(lo, Math.min(hi, tx)); b.st = 'crouch'; b.t = 0;
   if (!b.tipLeap) { b.tipLeap = true; toast('🍄 Kral sıçrayacak: altından koş!'); }
 }
+/** Tek mermi: hedefe yay çizerek atılır, düşeceği yer yeşil/mavi işaretle gösterilir (spor topu güncellemesini kullanır) */
+function lob(fromX, fromY, tx, img, n = 1) {
+  const gy = (L.cols[Math.floor(tx)] || 2) + 0.25, T = 1.0, vx = (tx - fromX) / T, vy = ((gy - fromY) + 0.5 * 16 * T * T) / T;
+  const m = add(makeSprite(img, 0.55, 256 / 121)); m.geometry = m.geometry.clone(); m.geometry.translate(0, -0.27, 0); toActor(m);
+  const mk = add(new THREE.Mesh(new THREE.CircleGeometry(0.4, 24), new THREE.MeshBasicMaterial({ color: 0x9ad8ff, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }))); mk.rotation.x = -Math.PI / 2; mk.scale.set(1.3, 0.55, 1); mk.position.set(tx, gy - 0.2, 0.4); toActor(mk);
+  m.position.set(fromX, fromY, 0.5); ents.sballs.push({ m, mk, x: fromX, y: fromY, vx, vy, t: 0 });
+}
 function throwSpore(b, img = 'w2/sporeball') {
   const p = player, fromX = b.x + b.dir * 0.8, fromY = b.y + (b.akrep ? 3.0 : 2.4);
   for (let i = 0; i < 3; i++) {
     const T = 0.95 + i * 0.25, tx = Math.max(b.x0 + 0.6, Math.min(b.x1 - 0.6, p.x + (i - 1) * 2.0)), gy = (L.cols[Math.floor(tx)] || b.y) + 0.25, vx = (tx - fromX) / T, vy = ((gy - fromY) + 0.5 * 16 * T * T) / T;
-    const m = add(makeSprite(img, img === 'w3/venom' ? 0.6 : 1.0, img === 'w3/venom' ? 256 / 115 : 256 / 198)); m.geometry = m.geometry.clone(); m.geometry.translate(0, -0.5, 0); toActor(m);
+    const m = add(makeSprite(img, img === 'w3/venom' ? 0.6 : img === 'w4/snowball' ? 0.8 : 1.0, img === 'w3/venom' ? 256 / 115 : img === 'w4/snowball' ? 256 / 121 : 256 / 198)); m.geometry = m.geometry.clone(); m.geometry.translate(0, -0.5, 0); toActor(m);
     // düşeceği yer: yerde yeşil işaret (top inene kadar)
     const mk = add(new THREE.Mesh(new THREE.CircleGeometry(0.42, 24), new THREE.MeshBasicMaterial({ color: 0xb8ff4a, transparent: true, opacity: 0.0, depthWrite: false, toneMapped: false }))); mk.rotation.x = -Math.PI / 2; mk.scale.set(1.3, 0.55, 1); mk.position.set(tx, (L.cols[Math.floor(tx)] || b.y) + 0.05, 0.4); toActor(mk);
     m.position.set(fromX, fromY, 0.5); ents.sballs.push({ m, mk, x: fromX, y: fromY, vx, vy, t: -i * 0.12 });
@@ -484,7 +506,6 @@ function updateSballs(dt) {
 }
 function updateKral(dt) {
   const b = ents.boss, p = player; b.t += dt;
-  updateSballs(dt);
   for (const g of b.wallM) g.position.y += ((b.wallsUp ? b.y : b.y - 8) - g.position.y) * Math.min(1, dt * 6);
   if (b.dead) {
     b.m.rotation.z += dt * 2.5; b.m.position.y += dt * (3 - b.t * 6); b.m.scale.setScalar(Math.max(0.01, 1 - b.t * 0.6));
@@ -494,7 +515,7 @@ function updateKral(dt) {
   const toward = () => { b.dir = p.x < b.x ? -1 : 1; };
   const go = (st) => { b.st = st; b.t = 0; };
   const fr = b.hp / b.max;
-  if (b.st === 'wait') { if (p.x > b.x0 + 2) { b.wallsUp = true; go('roar'); sfx.bump(); G.ch = Math.max(G.ch, 3); updateCharges(); toast('⚠️ Mantar Kral! Yumruktan sonra yorulunca ateş et!'); } }
+  if (b.st === 'wait') { if (p.x > b.x0 + 2) { b.wallsUp = true; go('roar'); sfx.bump(); G.ch = Math.max(G.ch, 3); updateCharges(); toast(`⚠️ ${b.name}! Yumruktan sonra yorulunca ateş et!`); } }
   else if (b.st === 'roar' || b.st === 'rage') { toward(); b.vx = 0; if (b.t > (b.st === 'rage' ? 1.5 : 1.8)) { go('walk'); } }
   else if (b.st === 'walk') {
     toward(); b.vx = b.dir * (1.3 + (1 - fr) * 1.0);
@@ -508,7 +529,7 @@ function updateKral(dt) {
   } else if (b.st === 'shout') {
     b.vx = 0; toward();
     const vol = b.rage ? 3 : fr <= 0.5 ? 2 : 1, gap = b.rage ? 0.95 : 0.85; // öfke: art arda üç yaylım
-    if (b.fired < vol && b.t > 0.7 + b.fired * gap) { b.fired++; throwSpore(b); sfx.shot(); }
+    if (b.fired < vol && b.t > 0.7 + b.fired * gap) { b.fired++; throwSpore(b, b.golem ? 'w4/snowball' : 'w2/sporeball'); sfx.shot(); }
     if (b.t > 0.9 + vol * gap) go('walk');
   } else if (b.st === 'punch') {
     b.vx = 0;
@@ -561,7 +582,7 @@ function updateShip(dt) {
 }
 
 // ---------- Para, kafes, mantar, direkler, can, yıldız ----------
-const SIGN_TIP = { move: '◀ ▶ tuşlarıyla yürü', jump: 'Sarı tuş: zıpla! Basılı tutarsan daha yükseğe', stomp: 'Böceklerin üstüne zıpla, ez!', spike: 'Kirpinin üstüne zıplama, üstünden atla!', spring: 'Mantara bas, yükseğe fırla!', bounce: 'Renkli mantarlar: pembe az, turkuaz orta, altın çok zıplatır!', spore: 'Spor bulutuna gir: yukarı süzülürsün! Sonra yönünü seç', snail: 'Salyangozun kabuğu sert: önce şimşekle vur, sonra üstüne zıpla!', crumble: 'Çatlak kum kayaları basınca çöker: üstünde durma, hemen atla!', sand: 'Bataklık kumu seni yavaşlatır, zıplaman kısalır!', storm: 'Kum fırtınası seni geri iter: koşmaya devam et!', snake: 'Yılan kumdan çıkıp batar: dışarıdayken şimşekle vur, sonra üstüne zıpla!', thorn: 'Dikenli çalılara değme!', bridge: 'İp köprüler sağlam, rahat geç', crate: 'Sandığın üstüne zıpla ya da alttan kafa at: altın çıkar!', raft: 'Sal gidip gelir: üstüne atla, taşısın', gun: 'Parlayan küreyi al: şimşek eldiveni!' };
+const SIGN_TIP = { move: '◀ ▶ tuşlarıyla yürü', jump: 'Sarı tuş: zıpla! Basılı tutarsan daha yükseğe', stomp: 'Böceklerin üstüne zıpla, ez!', spike: 'Kirpinin üstüne zıplama, üstünden atla!', spring: 'Mantara bas, yükseğe fırla!', bounce: 'Renkli mantarlar: pembe az, turkuaz orta, altın çok zıplatır!', spore: 'Spor bulutuna gir: yukarı süzülürsün! Sonra yönünü seç', snail: 'Salyangozun kabuğu sert: önce şimşekle vur, sonra üstüne zıpla!', crumble: 'Çatlak kum kayaları basınca çöker: üstünde durma, hemen atla!', sand: 'Bataklık kumu seni yavaşlatır, zıplaman kısalır!', storm: 'Kum fırtınası seni geri iter: koşmaya devam et!', ice: 'Buz kaygandır: erkenden yavaşla, kayarak düşme!', icicle: 'Sarkıtların altından hızlı geç: titreyince düşer!', iceblock: 'Buz blokları yolu kapatır: şimşekle erit!', yeti: 'Yeti kartopu atar: önce şimşekle vur, sonra üstüne zıpla!', snake: 'Yılan kumdan çıkıp batar: dışarıdayken şimşekle vur, sonra üstüne zıpla!', thorn: 'Dikenli çalılara değme!', bridge: 'İp köprüler sağlam, rahat geç', crate: 'Sandığın üstüne zıpla ya da alttan kafa at: altın çıkar!', raft: 'Sal gidip gelir: üstüne atla, taşısın', gun: 'Parlayan küreyi al: şimşek eldiveni!' };
 function updateItems(dt) {
   const p = player;
   for (const c of ents.coins) {
@@ -580,6 +601,18 @@ function updateItems(dt) {
     else { k.t += dt;
       if (k.st === 'shake') { k.m.position.x = c.x + Math.sin(k.t * 50) * 0.04; if (k.t > 0.35) { U.a.visible = false; U.b.visible = true; } if (k.t > 0.85) { k.st = 'fall'; k.t = 0; c.s.y = -999; dust(c.x + c.w / 2, c.y, 6); } }
       else if (k.st === 'fall') { k.m.position.y = c.y - k.t * k.t * 14; k.m.position.x = c.x; if (k.t > 3.2) { k.st = 'ok'; c.s.y = c.y; k.m.position.y = c.y; U.a.visible = true; U.b.visible = false; } }
+    }
+  }
+  for (const c of ents.icicles) {
+    const ic = c.m.userData.ic;
+    if (c.st === 'hang') { if (Math.abs(p.x - c.x) < 1.6 && p.y < c.top) { c.st = 'shake'; c.t = 0; } }
+    else { c.t += dt;
+      if (c.st === 'shake') { ic.position.x = Math.sin(c.t * 60) * 0.05; if (c.t > 0.55) { c.st = 'fall'; c.t = 0; c.iy = 0; c.v = 0; } }
+      else if (c.st === 'fall') { c.v += 30 * dt; c.iy += c.v * dt; ic.position.set(0, -0.05 - c.iy, 0.1);
+        const tipY = c.top - 1.35 - c.iy;
+        if (G.state === 'play' && Math.abs(p.x - c.x) < 0.5 && tipY < p.y + P.PH && tipY + 1.2 > p.y) { hurt(c.x); c.st = 'gone'; c.t = 0; ic.visible = false; burst(c.x, p.y + 1, 0xbfeaff, 10); }
+        else if (tipY <= c.y) { c.st = 'gone'; c.t = 0; ic.visible = false; burst(c.x, c.y + 0.3, 0xbfeaff, 12); sfx.bump(); } }
+      else if (c.st === 'gone' && c.t > 3.5) { c.st = 'hang'; ic.visible = true; ic.position.set(0, -0.05, 0.1); }
     }
   }
   for (const s of ents.storms) { for (const c of s.m.userData.clouds) { c.position.x -= c.userData.v * dt; if (c.position.x < -1) c.position.x += s.m.userData.w + 2; c.material.opacity = 0.75 + Math.sin(G.t * 3 + c.position.y) * 0.15; } }
@@ -629,7 +662,7 @@ function openCage(c) {
   c.open = true; c.t = 0;
   G.cages++; updateHud(); sfx.cage(); vibrate(50);
   burst(c.x + 0.6, c.y + 0.9, 0xffd23a, 10);
-  const names = { kus: 'Mavi Kuş', tilki: 'Tilki', maymun: 'Maymun', sincap: 'Sincap', tavsan: 'Tavşan', geyik: 'Geyik Yavrusu', fennek: 'Fennek Tilkisi', deve: 'Deve Yavrusu', kertenkele: 'Kertenkele' };
+  const names = { kus: 'Mavi Kuş', tilki: 'Tilki', maymun: 'Maymun', sincap: 'Sincap', tavsan: 'Tavşan', geyik: 'Geyik Yavrusu', fennek: 'Fennek Tilkisi', deve: 'Deve Yavrusu', kertenkele: 'Kertenkele', penguen: 'Penguen', fok: 'Fok Yavrusu', kutuptilki: 'Kutup Tilkisi' };
   toast(`🐾 ${names[THEME.animal?.[c.kind] || c.kind] || 'Dostun'} kurtarıldı! ${G.cages}/${ents.cages.length}`);
 }
 
@@ -707,13 +740,13 @@ function win() {
   player.vx = 0; player.lastAnim = ''; anim.play('cheer', { fade: 0.2 });
   const s = stars(), prev = save.best[G.n] || {};
   save.best[G.n] = { stars: Math.max(prev.stars || 0, s), coins: Math.max(prev.coins || 0, G.coins), star: !!(prev.star || G.star), cages: Math.max(prev.cages || 0, G.cages) };
-  save.unlocked = Math.max(save.unlocked, Math.min(60, G.n + 1)); store();
+  save.unlocked = Math.max(save.unlocked, Math.min(80, G.n + 1)); store();
   setTimeout(() => {
     const last = G.n % 20 === 0;
-    $('endTitle').textContent = G.n === 20 ? 'Yeşil Vadi Kurtarıldı!' : G.n === 40 ? 'Mantar Ormanı Kurtarıldı!' : G.n === 60 ? 'Güneş Kanyonu Kurtarıldı!' : 'Bölüm Tamam!';
+    $('endTitle').textContent = G.n === 20 ? 'Yeşil Vadi Kurtarıldı!' : G.n === 40 ? 'Mantar Ormanı Kurtarıldı!' : G.n === 60 ? 'Güneş Kanyonu Kurtarıldı!' : G.n === 80 ? 'Buzul Dağları Kurtarıldı!' : 'Bölüm Tamam!';
     $('endStars').innerHTML = [1, 2, 3].map((i) => `<span class="${i <= s ? 'on' : ''}">★</span>`).join('');
-    $('endInfo').innerHTML = `<img class="ci" src="props/coin_ui.webp" alt=""> ${G.coins}/${G.coinsTotal} &nbsp; 🐾 ${G.cages}/${ents.cages.length} &nbsp; <img class="ci ${G.star ? '' : 'dim'}" src="props/star.webp" alt=""><small>⭐ Bitir ✔ • ⭐ Bütün hayvanlar ${G.cages >= ents.cages.length ? '✔' : '✘'} • ⭐ Altın: ${G.coins}/${Math.ceil(G.coinsTotal * 0.8)} gerekli ${G.coins >= Math.ceil(G.coinsTotal * 0.8) ? '✔' : '✘'}</small><small>(${G.coinsTotal} altının ${ents.crates.length * 3} tanesi sandıklardan çıkar)</small>${G.n === 20 ? '<small>🍄 Yeni dünya açıldı: Mantar Ormanı!</small>' : G.n === 40 ? '<small>🏜️ Yeni dünya açıldı: Güneş Kanyonu!</small>' : G.n === 60 ? '<small>🚀 Sıradaki dünya: Volkan Adası — yakında!</small>' : ''}`;
-    $('next').classList.toggle('hidden', G.n === 60);
+    $('endInfo').innerHTML = `<img class="ci" src="props/coin_ui.webp" alt=""> ${G.coins}/${G.coinsTotal} &nbsp; 🐾 ${G.cages}/${ents.cages.length} &nbsp; <img class="ci ${G.star ? '' : 'dim'}" src="props/star.webp" alt=""><small>⭐ Bitir ✔ • ⭐ Bütün hayvanlar ${G.cages >= ents.cages.length ? '✔' : '✘'} • ⭐ Altın: ${G.coins}/${Math.ceil(G.coinsTotal * 0.8)} gerekli ${G.coins >= Math.ceil(G.coinsTotal * 0.8) ? '✔' : '✘'}</small><small>(${G.coinsTotal} altının ${ents.crates.length * 3} tanesi sandıklardan çıkar)</small>${G.n === 20 ? '<small>🍄 Yeni dünya açıldı: Mantar Ormanı!</small>' : G.n === 40 ? '<small>🏜️ Yeni dünya açıldı: Güneş Kanyonu!</small>' : G.n === 60 ? '<small>❄️ Yeni dünya açıldı: Buzul Dağları!</small>' : G.n === 80 ? '<small>🚀 Sıradaki dünya: Volkan Adası — yakında!</small>' : ''}`;
+    $('next').classList.toggle('hidden', G.n === 80);
     showScreen('end');
   }, G.n % 20 === 0 ? 4200 : 1900);
 }
@@ -722,7 +755,7 @@ function lose() {
   setTimeout(() => {
     $('endTitle').textContent = 'Canın Bitti';
     $('endStars').innerHTML = '';
-    $('endInfo').innerHTML = worldOf(G.n) === 3 ? 'Akrebin üstüne zıpla; yılan kumdan çıkınca önce şimşekle vur!' : worldOf(G.n) === 2 ? 'Mantarcıkların üstüne zıpla; salyangozu önce şimşekle vur!' : 'Böceklerin üstüne zıpla, kirpiden ve dikenlerden uzak dur!';
+    $('endInfo').innerHTML = worldOf(G.n) === 4 ? 'Buz böceğinin üstüne zıpla; yetiyi önce şimşekle vur, kartoplarından kaç!' : worldOf(G.n) === 3 ? 'Akrebin üstüne zıpla; yılan kumdan çıkınca önce şimşekle vur!' : worldOf(G.n) === 2 ? 'Mantarcıkların üstüne zıpla; salyangozu önce şimşekle vur!' : 'Böceklerin üstüne zıpla, kirpiden ve dikenlerden uzak dur!';
     $('next').classList.add('hidden');
     showScreen('end');
   }, 900);
@@ -745,14 +778,14 @@ function showScreen(id) {
 }
 let mapWorld = 1;
 function renderMap(w = null) {
-  if (w) mapWorld = w; else mapWorld = G.n && L ? worldOf(G.n) : Math.min(3, worldOf(save.unlocked));
+  if (w) mapWorld = w; else mapWorld = G.n && L ? worldOf(G.n) : Math.min(4, worldOf(save.unlocked));
   const o = (mapWorld - 1) * 20, best = (n) => save.best[n] || {};
   const ns = Array.from({ length: 20 }, (_, i) => o + i + 1);
   const totalStars = ns.reduce((a, n) => a + (best(n).stars || 0), 0), crystals = ns.filter((n) => best(n).star).length;
-  $('mapTitle').textContent = mapWorld === 3 ? '🏜️ Güneş Kanyonu' : mapWorld === 2 ? '🍄 Mantar Ormanı' : '🌿 Yeşil Vadi';
+  $('mapTitle').textContent = mapWorld === 4 ? '❄️ Buzul Dağları' : mapWorld === 3 ? '🏜️ Güneş Kanyonu' : mapWorld === 2 ? '🍄 Mantar Ormanı' : '🌿 Yeşil Vadi';
   $('mapInfo').innerHTML = `⭐ ${totalStars}/60 &nbsp; <img class="ci" src="props/star.webp" alt=""> ${crystals}/20`;
-  $('w1').classList.toggle('on', mapWorld === 1); $('w2').classList.toggle('on', mapWorld === 2); $('w2').classList.toggle('lock', save.unlocked < 21); $('w3').classList.toggle('on', mapWorld === 3); $('w3').classList.toggle('lock', save.unlocked < 41);
-  $('levels').classList.toggle('w2', mapWorld === 2); $('levels').classList.toggle('w3', mapWorld === 3);
+  $('w1').classList.toggle('on', mapWorld === 1); $('w2').classList.toggle('on', mapWorld === 2); $('w2').classList.toggle('lock', save.unlocked < 21); $('w3').classList.toggle('on', mapWorld === 3); $('w3').classList.toggle('lock', save.unlocked < 41); $('w4').classList.toggle('on', mapWorld === 4); $('w4').classList.toggle('lock', save.unlocked < 61);
+  $('levels').classList.toggle('w2', mapWorld === 2); $('levels').classList.toggle('w3', mapWorld === 3); $('levels').classList.toggle('w4', mapWorld === 4);
   $('levels').innerHTML = ns.map((n) => {
     const d = LEVELS[n - 1], b = best(n), lock = n > save.unlocked;
     return `<button class="lv ${lock ? 'lock' : ''} ${d.boss ? 'boss' : ''}" data-lv="${n}" ${lock ? 'disabled' : ''}><b>${lock ? '🔒' : d.boss ? '👑' : n - o}</b><small>${d.name}</small><span class="st">${[1, 2, 3].map((k) => `<i class="${k <= (b.stars || 0) ? 'on' : ''}">★</i>`).join('')}${b.star ? '<img src="props/star.webp" alt="">' : ''}</span></button>`;
@@ -778,6 +811,7 @@ function bindControls() {
   click('play', () => renderMap());
   click('mapBack', () => showScreen('menu'));
   click('w1', () => renderMap(1));
+  click('w4', () => { if (save.unlocked >= 61) renderMap(4); else toast('🔒 Önce Güneş Kanyonu\'nu kurtar'); });
   click('w3', () => { if (save.unlocked >= 41) renderMap(3); else toast('🔒 Önce Mantar Ormanı\'nı kurtar'); });
   click('w2', () => { if (save.unlocked >= 21) renderMap(2); else toast('🔒 Önce Yeşil Vadi\'yi kurtar'); });
   $('levels').addEventListener('click', (e) => { const b = e.target.closest('[data-lv]'); if (b && !b.disabled) { unlockAudio(); loadLevel(+b.dataset.lv); } });
@@ -786,7 +820,7 @@ function bindControls() {
   click('restart', () => loadLevel(G.n));
   click('toMap', () => renderMap());
   click('again', () => loadLevel(G.n));
-  click('next', () => loadLevel(Math.min(60, G.n + 1)));
+  click('next', () => loadLevel(Math.min(80, G.n + 1)));
   click('endMap', () => renderMap());
   document.addEventListener('visibilitychange', () => { if (document.hidden && G.state === 'play') { G.state = 'pause'; showScreen('paused'); } });
 }
@@ -827,7 +861,7 @@ function frame() {
     if (G.state === 'play') updatePlayer(dt);
     else if (G.state === 'win') G.end += dt;
     if (DEV.on) { const sh = DEV.show; DEV.on = sh; updateDev(); DEV.on = true; if (!sh && DEV.g) { scene.remove(DEV.g); DEV.g = null; } }
-    updateGun(dt); updateEnemies(dt); updateBoss(dt); bossBar(ents.boss, dt); updateShip(dt); updateItems(dt); updateParts(dt); updateCamera(dt);
+    updateGun(dt); updateEnemies(dt); updateSballs(dt); updateBoss(dt); bossBar(ents.boss, dt); updateShip(dt); updateItems(dt); updateParts(dt); updateCamera(dt);
     anim.update(dt);
   } else if (G.state === 'menu') { menuCam(dt); }
   renderer.clear();

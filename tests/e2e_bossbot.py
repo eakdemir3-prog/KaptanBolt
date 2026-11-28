@@ -24,6 +24,6 @@ with sync_playwright() as p:
         pg.wait_for_timeout(5000)
         if ev("!!KB2.ents.boss && KB2.ents.boss.dead"): break
     pg.wait_for_timeout(3000)
-    r=ev("[KB2.ents.boss.hp, KB2.ents.boss.dead, KB2.G.t.toFixed(0), window.__hurt, document.getElementById('bossBar').classList.contains('hidden'), !!KB2.ents.ship]")
+    r=ev("[KB2.ents.boss.t.toFixed(1), KB2.G.state, KB2.ents.boss.hp, KB2.ents.boss.dead, KB2.G.t.toFixed(0), window.__hurt, document.getElementById('bossBar').classList.contains('hidden'), !!KB2.ents.ship]")
     print(' | '.join(ev("window.__log"))[:1500]); print('hp,dead,t,hasar,barKapalı,gemi', r, errs[:3])
     print('SONUÇ', 'YENİLDİ' if r[1] else 'YENİLMEDİ')

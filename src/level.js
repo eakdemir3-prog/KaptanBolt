@@ -10,8 +10,8 @@ const VF = (t) => 2 + (t - 2) * 0.75;
 export function buildLevel(n) {
   const def = LEVELS[n - 1];
   const L = {
-    n, name: def.name, world: n > 40 ? 3 : n > 20 ? 2 : 1, w: 0, cols: [], plats: [], crates: new Map(), bridges: [], rafts: [], coins: [], enemies: [], cages: [],
-    springs: [], spores: [], crumbles: [], sands: [], storms: [], thorns: [], hearts: [], star: null, signs: [], decos: [], vines: [], checkpoints: [], end: null, boss: null, start: { x: 2.5, y: 2 }, ship: false,
+    n, name: def.name, world: Math.ceil(n / 20), w: 0, cols: [], plats: [], crates: new Map(), bridges: [], rafts: [], coins: [], enemies: [], cages: [],
+    springs: [], spores: [], crumbles: [], sands: [], storms: [], ices: [], icicles: [], iceb: new Map(), thorns: [], hearts: [], star: null, signs: [], decos: [], vines: [], checkpoints: [], end: null, boss: null, start: { x: 2.5, y: 2 }, ship: false,
   };
   const b = {
     x: 0, at: 0, h: 2,
@@ -40,6 +40,12 @@ export function buildLevel(n) {
     sand(dx, w) { L.sands.push({ x0: b.at + dx, x1: b.at + dx + w, y: b.h }); return b; },
     /** kum fırtınası: dx'ten w kare boyunca rüzgâr sola iter */
     storm(dx, w) { L.storms.push({ x0: b.at + dx, x1: b.at + dx + w }); return b; },
+    /** kaygan buz: zeminde dx'ten w kare */
+    ice(dx, w) { L.ices.push({ x0: b.at + dx, x1: b.at + dx + w, y: b.h }); return b; },
+    /** buz sarkıtı: zeminin h kare yukarısında asılı; Bolt yaklaşınca titreyip düşer */
+    icicle(dx, h = 3.7) { L.icicles.push({ x: b.at + dx + 0.5, y: b.h, top: b.h + h }); return b; },
+    /** buz bloğu (yolu kapatır, şimşekle erir): dx, zeminden n blok yüksek duvar */
+    iceWall(dx, n = 2, t = null) { const y0 = t == null ? b.h : V(t); for (let i = 0; i < n; i++) L.iceb.set(`${b.at + dx},${y0 + i}`, { x: b.at + dx, y: y0 + i }); return b; },
     /** spor bulutu: dx'ten w kare genişlik, t yüzeyinden h kare yukarı (içinde süzülürsün) */
     spore(dx, t, w, h) { const y0 = V(t); L.spores.push({ x0: b.at + dx, x1: b.at + dx + w, y0, y1: y0 + h }); return b; },
     crate(dx, t = null) { const y = t == null ? b.h : V(t); L.crates.set(`${b.at + dx},${y}`, { x: b.at + dx, y }); return b; },
@@ -61,6 +67,7 @@ export function buildLevel(n) {
     if (y < 0) return false;
     if (y < cols[x]) return true;
     if (L.crates.has(`${x},${y}`)) return true;
+    if (L.iceb.has(`${x},${y}`)) return true;
     return false;
   };
   // tek yönlü yüzeyler: köprüler sabit, sallar her karede güncellenir
@@ -121,9 +128,10 @@ function separateRewards(L) {
     const g = L.cols[Math.floor(c.x)], onGround = g && Math.abs(c.y - (g + 0.75)) < 0.05; return !onGround || L.cols[ix] === g; };
   const drop = [];
   for (const c of L.coins) {
-    if (!hits(c.x, c.y, c)) continue;
+    const buried = L.solid(Math.floor(c.x), Math.floor(c.y)) || L.solid(Math.floor(c.x), Math.floor(c.y - 0.25));
+    if (!buried && !hits(c.x, c.y, c)) continue;
     let moved = false;
-    for (const d of [0.9, -0.9, 1.8, -1.8, 2.7, -2.7]) if (okAt(c, c.x + d) && !hits(c.x + d, c.y, c)) { c.x += d; moved = true; break; }
+    for (const d of [0.9, -0.9, 1.8, -1.8, 2.7, -2.7]) if (okAt(c, c.x + d) && !L.solid(Math.floor(c.x + d), Math.floor(c.y - 0.25)) && !hits(c.x + d, c.y, c)) { c.x += d; moved = true; break; }
     if (!moved) drop.push(c);
   }
   L.coins = L.coins.filter((c) => !drop.includes(c));

@@ -28,6 +28,9 @@ export function applyFields(L, p, dt) {
   if (p.sandT > 0 && p.vy > P.JUMP * 0.76) p.vy = P.JUMP * 0.76;
   p.sandT = Math.max(0, (p.sandT || 0) - dt); p.inSand = false;
   if (L.sands) for (const z of L.sands) if (p.ground && Math.abs(p.y - z.y) < 0.05 && p.x > z.x0 && p.x < z.x1) { p.inSand = true; p.sandT = 0.09; p.vx = Math.max(-P.RUN * 0.45, Math.min(P.RUN * 0.45, p.vx)); break; }
+  // kaygan buz: bir sonraki adımda ivme ve sürtünme azalır (kayarsın)
+  p.onIce = false;
+  if (L.ices) for (const z of L.ices) if (p.ground && Math.abs(p.y - z.y) < 0.05 && p.x > z.x0 && p.x < z.x1) { p.onIce = true; break; }
   // kum fırtınası: rüzgâr sola iter
   p.inStorm = false;
   if (L.storms) for (const z of L.storms) if (p.x > z.x0 && p.x < z.x1) { p.inStorm = true; moveX(L, p, -P.STORM * dt, P.PW, P.PH); break; }
@@ -72,9 +75,9 @@ export function stepPlayer(L, p, inp, dt, ev = []) {
   if (p.ground && p.surf && p.surf.dx !== undefined) { moveX(L, p, p.surf.dx, P.PW, P.PH); p.y = p.surf.y; }
   const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
   if (dir) {
-    const acc = (p.ground ? P.ACC : P.AIR_ACC) * (p.vx * dir < 0 ? P.TURN : 1);
+    const acc = (p.ground ? P.ACC * (p.onIce ? 0.3 : 1) : P.AIR_ACC) * (p.vx * dir < 0 ? (p.onIce && p.ground ? 1.2 : P.TURN) : 1);
     p.vx = Math.max(-P.RUN, Math.min(P.RUN, p.vx + dir * acc * dt)); p.face = dir;
-  } else { const f = (p.ground ? P.FRICT : P.FRICT * 0.3) * dt; p.vx = Math.abs(p.vx) <= f ? 0 : p.vx - Math.sign(p.vx) * f; }
+  } else { const f = (p.ground ? P.FRICT * (p.onIce ? 0.06 : 1) : P.FRICT * 0.3) * dt; p.vx = Math.abs(p.vx) <= f ? 0 : p.vx - Math.sign(p.vx) * f; }
   p.coyote = p.ground ? P.COYOTE : p.coyote - dt;
   p.buffer = inp.jumpPressed ? P.BUFFER : p.buffer - dt; inp.jumpPressed = false;
   if (p.buffer > 0 && p.coyote > 0) { p.vy = P.JUMP; p.ground = false; p.surf = null; p.coyote = 0; p.buffer = 0; p.cut = false; p.jt = 0; ev.push('jump'); }
