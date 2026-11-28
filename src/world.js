@@ -49,11 +49,17 @@ const TL = new THREE.TextureLoader();
 const TEX = {};
 /** Dünya teması: doku ve arka plan dosyaları (ilk kurulumdan önce seçilir) */
 export const THEMES = {
-  1: { ground: 'props/ground.webp', soil: 'soil', bg: 'vadi', far: [0xf4fbff, 0x3f8f73], mid: [0xe8f4e0, 0x3a7330], fog: 0xbfe6ff, hemi: [0xe6f6ff, 0x7a8a4a, 1.9], sun: [0xfff1d6, 2.1] },
-  2: { ground: 'props/w2/ground.webp', soil: 'w2/soil', bg: 'mantar', far: [0xffffff, 0x5a4f86], mid: [0xffffff, 0x1f5a4a], fog: 0xb9a3e0, enemy: { bocek: 'mantarcik', kirpi: 'salyangoz' }, animal: { kus: 'sincap', tilki: 'tavsan', maymun: 'geyik' }, hemi: [0xe4d8ff, 0x5a4a7a, 1.85], sun: [0xffe6f2, 1.9] },
+  1: { n: 1, name: 'Yeşil Vadi', ground: 'props/ground.webp', soil: 'soil', bg: 'vadi', far: [0xf4fbff, 0x3f8f73], mid: [0xe8f4e0, 0x3a7330], fog: 0xbfe6ff, hemi: [0xe6f6ff, 0x7a8a4a, 1.9], sun: [0xfff1d6, 2.1] },
+  2: { n: 2, name: 'Mantar Ormanı', ground: 'props/w2/ground.webp', soil: 'w2/soil', bg: 'mantar',
+    spr: { bush1: ['w2/bush1', 400 / 293], bush2: ['w2/bush2', 400 / 278], bush3: ['w2/bush3', 400 / 285], flower1: ['w2/flower1', 400 / 315], flower2: ['w2/flower2', 394 / 239], flower3: ['w2/flower3', 400 / 210], flower4: ['w2/flower1', 400 / 315], flower5: ['w2/flower2', 394 / 239], flower6: ['w2/flower3', 400 / 210], stump: ['w2/stump', 350 / 283], rocks: ['w2/rocks', 400 / 245], log: ['w2/log', 1024 / 270], mushrooms: ['w2/flower3', 400 / 210], vines: ['w2/vines', 126 / 800], sign: ['w2/sign', 355 / 400] }, far: [0xffffff, 0x5a4f86], mid: [0xffffff, 0x1f5a4a], fog: 0xb9a3e0, enemy: { bocek: 'mantarcik', kirpi: 'salyangoz' }, animal: { kus: 'sincap', tilki: 'tavsan', maymun: 'geyik' }, hemi: [0xe4d8ff, 0x5a4a7a, 1.85], sun: [0xffe6f2, 1.9] },
 };
-export let THEME = THEMES[/w2/.test(location.hash) ? 2 : 1];
-export function setTheme(n) { THEME = THEMES[n] || THEMES[1]; }
+export let THEME = THEMES[1];
+/** Dünya değişince zemin dokuları yeniden yüklenir (süs resimleri adlarıyla önbellekte kalır). Değiştiyse true. */
+export function applyTheme(n) {
+  const T = THEMES[n] || THEMES[1]; if (T === THEME) return false;
+  THEME = T; TALL = DIRT = SOIL = LIP = null; delete M.cap; delete M.side; delete M.soilM; delete M.lipM;
+  return true;
+}
 function tex(name, setup) {
   if (TEX[name]) return TEX[name];
   const t = TL.load(`props/${name}.webp`); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; if (setup) setup(t);
@@ -64,6 +70,7 @@ const GROUND_TW = 3.6, GROUND_TH = GROUND_TW * 682 / 1024;
 const spriteMat = (name) => new THREE.MeshBasicMaterial({ map: tex(name), transparent: true, alphaTest: 0.35, depthWrite: true, toneMapped: false, side: THREE.DoubleSide });
 const SPR = {};
 function sprite(name, h, aspect) {
+  const o = THEME.spr?.[name]; if (o) { name = o[0]; aspect = o[1]; if (name === 'w2/vines') h *= 1.6; }
   const geo = new THREE.PlaneGeometry(h * aspect, h); geo.translate(0, h / 2, 0);
   const m = new THREE.Mesh(geo, SPR[name] || (SPR[name] = spriteMat(name)));
   return m;
@@ -107,13 +114,14 @@ function tallTextures() {
   TALL = new THREE.CanvasTexture(c); TALL.colorSpace = THREE.SRGBColorSpace; TALL.wrapS = THREE.RepeatWrapping; TALL.anisotropy = 8;
   DIRT = new THREE.CanvasTexture(d); DIRT.colorSpace = THREE.SRGBColorSpace; DIRT.wrapS = DIRT.wrapT = THREE.MirroredRepeatWrapping; DIRT.anisotropy = 4;
   const g = c.getContext('2d'); g.fillStyle = '#9a4a1c'; g.fillRect(0, 0, 1024, 2048);
+  const tt = TALL, dd = DIRT;
   new THREE.ImageLoader().load(THEME.ground, (img) => {
     g.drawImage(img, 0, 0, 1024, 682);
     // toprak kısmı (çimen ve kökler hariç) aşağıya aynalı kopyalanır
     const sy = 230, sh = 682 - sy; let y = 682, flip = true;
     while (y < 2048) { g.save(); if (flip) { g.translate(0, y + sh); g.scale(1, -1); g.drawImage(img, 0, sy, 1024, sh, 0, 0, 1024, sh); } else g.drawImage(img, 0, sy, 1024, sh, 0, y, 1024, sh); g.restore(); y += sh; flip = !flip; }
-    TALL.needsUpdate = true;
-    d.getContext('2d').drawImage(img, 0, 300, 512, 300, 0, 0, 512, 512); DIRT.needsUpdate = true;
+    tt.needsUpdate = true;
+    d.getContext('2d').drawImage(img, 0, 300, 512, 300, 0, 0, 512, 512); dd.needsUpdate = true;
   });
 }
 const capMat = () => M.cap || (M.cap = new THREE.MeshStandardMaterial({ map: TALL, roughness: 0.92 }));
@@ -146,11 +154,12 @@ function soilTextures() {
   SOIL = tex(THEME.soil, (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }); // dikişsiz derin toprak
   LIP = new THREE.CanvasTexture(l); LIP.colorSpace = THREE.SRGBColorSpace; LIP.wrapS = THREE.RepeatWrapping; LIP.anisotropy = 8;
   c.getContext('2d').fillStyle = '#9a4a1c'; c.getContext('2d').fillRect(0, 0, 1024, 452);
+  const lp = LIP;
   new THREE.ImageLoader().load(THEME.ground, (img) => {
     const g = l.getContext('2d'); g.drawImage(img, 0, 0, 1024, 300, 0, 0, 1024, 300);
     const d = g.getImageData(0, 0, 1024, 300); // alt 80 piksel saydamlaşarak toprağa karışır
     for (let y = 220; y < 300; y++) { const a = Math.round(255 * (1 - (y - 220) / 80)); for (let x = 0; x < 1024; x++) d.data[(y * 1024 + x) * 4 + 3] = a; }
-    g.putImageData(d, 0, 0); LIP.needsUpdate = true;
+    g.putImageData(d, 0, 0); lp.needsUpdate = true;
   });
 }
 function terrainRegion(L, xs, xe) {
@@ -260,7 +269,8 @@ function tree(x, y, z, s = 1, palm = false) {
 }
 
 /** Arka plan katmanları: resimler yatayda tekrar eder; derinlik farkı kendiliğinden parallax verir */
-export function backdrop(scene, levelW) {
+export function backdrop(scene0, levelW) {
+  const scene = new THREE.Group(); scene0.add(scene);
   const L = new THREE.TextureLoader();
   const layer = (url, z, height, yBottom, opts = {}) => {
     const t = L.load(url); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.anisotropy = 4;
@@ -279,7 +289,7 @@ export function backdrop(scene, levelW) {
   const sky = layer(`bg/${T.bg}-gok.webp`, -120, 120, -20, { aspect: 1672 / 941 });
   const far = layer(`bg/${T.bg}-uzak.webp`, -70, 46, -14, { alpha: true, aspect: 1532 / 941, order: 1, tint: T.far[0], fill: T.far[1] });
   const mid = layer(`bg/${T.bg}-orta.webp`, -26, 21, -9, { alpha: true, aspect: 1532 / 941, order: 2, tint: T.mid[0], fill: T.mid[1] });
-  return { sky, far, mid };
+  return { sky, far, mid, group: scene };
 }
 
 export function buildWorld(scene, L) {
@@ -325,9 +335,26 @@ export function makeCoin() {
 }
 
 /** Zıplatan mantar (resim). userData.spr basılınca y ölçeğiyle ezilir */
-export function makeSpring() {
+const BOUNCE_A = { 1: 512 / 354, 2: 512 / 373, 3: 512 / 403 };
+export function makeSpring(kind = null) {
   mats();
-  const g = new THREE.Group(); const sp = sprite('spring', 1.05, 400 / 345); sp.position.z = 0.3; g.add(sp); g.userData.spr = sp; return g;
+  const g = new THREE.Group();
+  const sp = THEME.n === 2 ? sprite(`w2/bounce${kind || 2}`, 0.95 + (kind === 3 ? 0.12 : 0), BOUNCE_A[kind || 2]) : sprite('spring', 1.05, 400 / 345);
+  sp.position.z = 0.3; g.add(sp); g.userData.spr = sp; return g;
+}
+/** Spor bulutu: altta bulut resmi, üstünde yukarı akan parıltılı ışık sütunu */
+export function makeSpore(w, h) {
+  mats();
+  const g = new THREE.Group();
+  const cw = w * 1.25, cloud = sprite('w2/spore', cw * 473 / 768, 768 / 473); cloud.material = cloud.material.clone(); cloud.material.alphaTest = 0.02; cloud.material.depthWrite = false; cloud.material.opacity = 0.9;
+  cloud.position.set(w / 2, -0.55, 0.5); cloud.renderOrder = 2; g.add(cloud);
+  const grad = canvasTex(16, 128, (c, W, H) => { const r = c.createLinearGradient(0, 0, 0, H); r.addColorStop(0, 'rgba(255,255,255,0)'); r.addColorStop(0.25, 'rgba(255,255,255,0.35)'); r.addColorStop(1, 'rgba(255,255,255,0.55)'); c.fillStyle = r; c.fillRect(0, 0, W, H); const s = c.createLinearGradient(0, 0, W, 0); s.addColorStop(0, 'rgba(0,0,0,1)'); s.addColorStop(0.5, 'rgba(0,0,0,0)'); s.addColorStop(1, 'rgba(0,0,0,1)'); c.globalCompositeOperation = 'destination-out'; c.fillStyle = s; c.fillRect(0, 0, W, H); }, false);
+  const col = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: grad, color: 0x9afff0, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  col.position.set(w / 2, h / 2, 0.45); g.add(col);
+  const dots = [];
+  for (let i = 0; i < Math.round(w * h * 0.9); i++) { const d = new THREE.Mesh(new THREE.CircleGeometry(0.05 + R() * 0.05, 8), new THREE.MeshBasicMaterial({ map: glowTex(), color: R() < 0.5 ? 0x9affea : 0xd9a8ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); d.scale.setScalar(2.2); d.position.set(R() * w, R() * h, 0.6 + R() * 0.3); d.userData.v = 0.8 + R() * 1.4; g.add(d); dots.push(d); }
+  g.userData = { dots, h, w, cloud, col };
+  return g;
 }
 /** Şarj direği: kontrol noktası (küçük) ya da bitiş ışınlanma direği (büyük). Sönükken gri. */
 export function makePost(big = false) {

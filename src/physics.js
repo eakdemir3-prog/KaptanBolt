@@ -15,6 +15,22 @@ export const coinHit = (p, c) => Math.abs(p.x - c.x) < P.PW / 2 + P.COIN_X && c.
 P.JUMP = Math.sqrt(2 * P.G_UP * P.JUMP_H);
 P.SPRING = Math.sqrt(2 * P.G_UP * P.SPRING_H);
 P.STOMP = Math.sqrt(2 * P.G_UP * P.STOMP_H);
+// zıplatan mantar türleri (Mantar Ormanı): 1 pembe az, 2 turkuaz orta, 3 altın çok
+P.BOUNCE_H = { 1: 4.0, 2: 5.4, 3: 7.6 };
+P.springV = (kind) => Math.sqrt(2 * P.G_UP * (P.BOUNCE_H[kind] || P.SPRING_H));
+// spor bulutu: içindeyken yukarı süzülür (yerçekimini yener, hız sınırlı)
+P.SPORE_LIFT = 95; P.SPORE_MAX = 4.6;
+/** Yay/mantar ve spor bulutu etkileri (oyun ve test aynı kural). Basılan yayı döndürür. */
+export function applyFields(L, p, dt) {
+  let hit = null;
+  for (const s of L.springs) if (p.vy <= 0 && Math.abs(p.x - s.x) < 0.75 && p.y >= s.y - 0.05 && p.y < s.y + 0.9) { p.vy = P.springV(s.kind); p.noCut = true; p.ground = false; p.surf = null; hit = s; break; }
+  p.inSpore = false;
+  if (L.spores) for (const z of L.spores) if (p.x > z.x0 && p.x < z.x1 && p.y + P.PH * 0.5 > z.y0 && p.y < z.y1) {
+    p.inSpore = true; p.noCut = true; p.vy = Math.min(Math.max(p.vy, -6) + P.SPORE_LIFT * dt, P.SPORE_MAX); if (p.vy > 0) { p.ground = false; p.surf = null; }
+    break;
+  }
+  return hit;
+}
 P.STOMP_HOLD = Math.sqrt(2 * P.G_UP * P.STOMP_HOLD_H);
 
 /** Yatay hareket + duvar çarpışması. L.solid(ix, iy) */

@@ -10,8 +10,8 @@ const VF = (t) => 2 + (t - 2) * 0.75;
 export function buildLevel(n) {
   const def = LEVELS[n - 1];
   const L = {
-    n, name: def.name, w: 0, cols: [], plats: [], crates: new Map(), bridges: [], rafts: [], coins: [], enemies: [], cages: [],
-    springs: [], thorns: [], hearts: [], star: null, signs: [], decos: [], vines: [], checkpoints: [], end: null, boss: null, start: { x: 2.5, y: 2 }, ship: false,
+    n, name: def.name, world: n > 20 ? 2 : 1, w: 0, cols: [], plats: [], crates: new Map(), bridges: [], rafts: [], coins: [], enemies: [], cages: [],
+    springs: [], spores: [], thorns: [], hearts: [], star: null, signs: [], decos: [], vines: [], checkpoints: [], end: null, boss: null, start: { x: 2.5, y: 2 }, ship: false,
   };
   const b = {
     x: 0, at: 0, h: 2,
@@ -33,7 +33,9 @@ export function buildLevel(n) {
     col(dx, t0, n) { const y0 = VF(t0); for (let i = 0; i < n; i++) L.coins.push({ x: b.at + dx + 0.5, y: y0 + 0.75 + i * 0.85 }); return b; },
     e(type, dx, t = null, range = null) { L.enemies.push({ type, x: b.at + dx + 0.5, t: t == null ? b.h : V(t), range: range && [b.at + range[0], b.at + range[1]] }); return b; },
     cage(dx, t = null, animal = null) { L.cages.push({ x: b.at + dx + 0.5, y: t == null ? b.h : V(t), animal }); return b; },
-    spring(dx, t = null) { L.springs.push({ x: b.at + dx + 0.5, y: t == null ? b.h : V(t) }); return b; },
+    spring(dx, t = null, kind = null) { L.springs.push({ x: b.at + dx + 0.5, y: t == null ? b.h : V(t), kind }); return b; },
+    /** spor bulutu: dx'ten w kare genişlik, t yüzeyinden h kare yukarı (içinde süzülürsün) */
+    spore(dx, t, w, h) { const y0 = V(t); L.spores.push({ x0: b.at + dx, x1: b.at + dx + w, y0, y1: y0 + h }); return b; },
     crate(dx, t = null) { const y = t == null ? b.h : V(t); L.crates.set(`${b.at + dx},${y}`, { x: b.at + dx, y }); return b; },
     thorns(dx, w, t = null) { if (t == null || t >= 0) w = Math.min(w, 2); L.thorns.push({ x0: b.at + dx, x1: b.at + dx + w, y: t == null ? b.h : t < 0 ? t : V(t) }); return b; },
     heart(dx, t = null) { L.hearts.push({ x: b.at + dx + 0.5, y: (t == null ? b.h : V(t)) + 0.8 }); return b; },

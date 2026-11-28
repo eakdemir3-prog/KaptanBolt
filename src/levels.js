@@ -2,6 +2,7 @@
 // b.ground(uzunluk, yükseklik) / b.gap(n) / b.bridge(n) imleci ilerletir; diğerleri son parçanın başına göre (dx) yerleşir.
 // Sınırlar (fizik): zıplama 3,3 kare yükselir, düz koşuda ~4 kare boşluk geçilir; mantar 6,4 kare atar.
 
+import { LEVELS2 } from './levels2.js';
 const A = ['kus', 'tilki', 'maymun'];
 
 export const LEVELS = [
@@ -249,4 +250,5 @@ export const LEVELS = [
     b.ground(16, 2).end(9);
   } },
 ];
+LEVELS.push(...LEVELS2);
 export const ANIMALS = A;

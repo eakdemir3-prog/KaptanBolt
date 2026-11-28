@@ -6,8 +6,8 @@ import { loadRobotModel } from './game/robotModel.js';
 import { makeRobot, SKINS } from './game/robot.js';
 import { buildLevel, updateRafts } from './level.js';
 import { LEVELS } from './levels.js';
-import { P, stepPlayer, moveX, newPlayer, coinHit } from './physics.js';
-import { THEME, buildWorld, backdrop, seed, makeCoin, makeSpring, makePost, setPost, makeBeam, makePortal, makeCage2D, makeSprite, ASPECT, makeBridge, makeRaft, makeThorns } from './world.js';
+import { P, stepPlayer, moveX, newPlayer, coinHit, applyFields } from './physics.js';
+import { THEME, THEMES, applyTheme, makeSpore, buildWorld, backdrop, seed, makeCoin, makeSpring, makePost, setPost, makeBeam, makePortal, makeCage2D, makeSprite, ASPECT, makeBridge, makeRaft, makeThorns } from './world.js';
 import { sfx, unlockAudio } from './audio.js';
 import { clone as skClone } from 'three/addons/utils/SkeletonUtils.js';
 import { makeWalker } from './rigwalk.js';
@@ -24,7 +24,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x7cc8ff);
 scene.fog = new THREE.Fog(THEME.fog, 30, 95);
 const camera = new THREE.PerspectiveCamera(36, 16 / 9, 0.1, 400);
-scene.add(new THREE.HemisphereLight(...THEME.hemi)); // güçlü ortam ışığı: gölgeler yumuşak
+const hemi = new THREE.HemisphereLight(...THEME.hemi); scene.add(hemi); // güçlü ortam ışığı: gölgeler yumuşak
 const sun = new THREE.DirectionalLight(...THEME.sun);
 sun.position.set(6, 18, 12); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 12, bottom: -8, near: 1, far: 60 }); sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02; sun.shadow.radius = 4;
@@ -32,6 +32,18 @@ scene.add(sun, sun.target);
 for (const l of scene.children) if (l.isLight) l.layers.enableAll();
 sun.shadow.camera.layers.enableAll();
 renderer.autoClear = false;
+let BD = null; // arka plan katmanları
+/** Dünya değişince doku, sis, ışık ve arka plan değişir */
+function setWorldTheme(w) {
+  if (!applyTheme(w) && BD) return;
+  const T = THEME; scene.fog.color.setHex(T.fog);
+  hemi.color.setHex(T.hemi[0]); hemi.groundColor.setHex(T.hemi[1]); hemi.intensity = T.hemi[2];
+  sun.color.setHex(T.sun[0]); sun.intensity = T.sun[1];
+  if (BD) scene.remove(BD.group);
+  BD = backdrop(scene, 400);
+}
+const worldOf = (n) => (n > 20 ? 2 : 1);
+const lvLabel = (n) => `${worldOf(n)}-${n - (worldOf(n) - 1) * 20}`;
 const ACTOR = 1; // karakter katmanı: zeminden sonra, derinlik temizlenerek çizilir
 const toActor = (o) => { o.traverse((c) => c.layers.set(ACTOR)); return o; };
 function resize() {
@@ -48,6 +60,7 @@ const SPEC = {
   bocek: { size: 1.25, fit: 'w', yaw: Math.PI / 2 },
   kirpi: { size: 1.3, fit: 'w', yaw: Math.PI / 2 },
   mantarcik: { size: 1.25, fit: 'h', yaw: Math.PI / 2, skin: true, face: 0.55, matte: true, h: 1.1 },
+  kral: { size: 3.3, fit: 'h', yaw: Math.PI / 2, skin: true, face: 0.5, matte: true, anims: true },
   salyangoz: { size: 1.35, fit: 'w', yaw: Math.PI / 2, face: 0.35, matte: true },
   kus: { size: 0.85, fit: 'h', yaw: 0.35 },
   tilki: { size: 0.9, fit: 'h', yaw: 0.35 + Math.PI / 4 },
@@ -67,7 +80,10 @@ function loadModel(n) {
     wrap.scale.setScalar(s); const c = b.getCenter(new THREE.Vector3());
     wrap.position.set(-c.x * s, -b.min.y * s, -c.z * s);
     m.traverse((o) => { if (o.isMesh) { o.geometry.userData.shared = true; o.castShadow = true; o.receiveShadow = true; if (o.material) { o.material.roughness = Math.max(0.45, o.material.roughness ?? 0.6); if (sp.matte) { o.material.metalness = Math.min(0.15, o.material.metalness ?? 0); o.receiveShadow = false; o.material.emissiveMap = o.material.map; o.material.emissive = new THREE.Color(0x8a8a8a); } } } });
-    const holder = new THREE.Group(); holder.add(wrap); MODELS[n] = holder; ok();
+    const holder = new THREE.Group(); holder.add(wrap); MODELS[n] = holder;
+    // Meshy animasyonları: gövde/boyun/kafa izleri atılır (gövde tek omurga sanılıp eğiliyor); kollar ve bacaklar kalır
+    if (sp.anims) holder.userData.clips = g.animations.map((c) => { const k = c.clone(); k.tracks = k.tracks.filter((t) => !/Spine|Neck|Head|Hips/.test(t.name)); return k; });
+    ok();
   }, undefined, () => ok()));
 }
 const cloneM = (n) => (MODELS[n] ? (n === 'bocek' || n === 'kirpi' || SPEC[n]?.skin ? skClone(MODELS[n]) : MODELS[n].clone(true)) : new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), new THREE.MeshStandardMaterial({ color: 0xff00ff })));
@@ -76,13 +92,13 @@ const cloneM = (n) => (MODELS[n] ? (n === 'bocek' || n === 'kirpi' || SPEC[n]?.s
 const SAVE_KEY = 'kb2.save';
 let save = { unlocked: 1, best: {} };
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.best) save = s; } catch { /* yok */ }
-if (/unlock/.test(location.hash)) save.unlocked = 20;
+if (/unlock/.test(location.hash)) save.unlocked = 40;
 const store = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch { /* yok */ } };
 
 // ---------- Oyun durumu ----------
 const G = { t: 0, state: 'load', n: 1, coins: 0, coinsTotal: 0, cages: 0, hearts: 3, cp: null, inv: 0, star: false, won: false, end: 0 };
 let L = null, player = null, levelRoot = null;
-const ents = { shots: [], glove: null, coins: [], enemies: [], cages: [], springs: [], posts: [], parts: [], crates: [], hearts: [], rafts: [], signs: [], star: null, end: null, boss: null, ship: null, flying: [] };
+const ents = { spores: [], sballs: [], shots: [], glove: null, coins: [], enemies: [], cages: [], springs: [], posts: [], parts: [], crates: [], hearts: [], rafts: [], signs: [], star: null, end: null, boss: null, ship: null, flying: [] };
 const input = { left: false, right: false, jump: false, jumpPressed: false, fire: false };
 const BOLT_S = 1.12 * 1.2;
 let bolt, anim;
@@ -95,6 +111,7 @@ function clearLevel() {
 const add = (o) => { levelRoot.add(o); return o; };
 
 function loadLevel(n) {
+  setWorldTheme(worldOf(n));
   clearLevel(); seed(n);
   G.n = n; L = buildLevel(n);
   buildWorld(levelRoot, L);
@@ -112,7 +129,8 @@ function loadLevel(n) {
     const a = cloneM(THEME.animal?.[c.animal] || c.animal); a.position.set(0, 0.3, -0.02); a.scale.multiplyScalar(0.8); g.add(a);
     ents.cages.push({ x: c.x, y: c.y, kind: c.animal, m: g, animal: a, open: false, t: 0 });
   }
-  for (const s of L.springs) { const m = add(makeSpring()); m.position.set(s.x, s.y - 0.05, 0); ents.springs.push({ ...s, m, t: 1 }); }
+  for (const s of L.springs) { const m = add(makeSpring(s.kind)); m.position.set(s.x, s.y - 0.05, 0); ents.springs.push({ ...s, src: s, m, t: 1 }); }
+  for (const z of L.spores) { const m = add(makeSpore(z.x1 - z.x0, z.y1 - z.y0)); m.position.set(z.x0, z.y0, 0); ents.spores.push({ z, m }); }
   for (const c of L.checkpoints) { const m = add(makePost(false)); m.position.set(c.x, c.y, 0); ents.posts.push({ ...c, m, on: false }); }
   for (const c of L.crates.values()) { const m = add(makeSprite('crate', 1.02, ASPECT.crate)); m.position.set(c.x + 0.5, c.y - 0.01, 0.35); ents.crates.push({ ...c, m, broken: false }); }
   for (const h of L.hearts) { const m = add(makeSprite('heart', 0.62, ASPECT.heart)); m.geometry = m.geometry.clone(); m.geometry.translate(0, -0.31, 0); m.position.set(h.x, h.y, 0.2); ents.hearts.push({ ...h, m, taken: false }); }
@@ -143,7 +161,7 @@ function loadLevel(n) {
   Object.assign(input, { left: false, right: false, jump: false, jumpPressed: false });
   camSnap = true; updateCamera(0);
   updateHud(); showScreen(null);
-  toast(`1-${n} • ${L.name}`);
+  toast(n === 21 ? `🍄 Mantar Ormanı! ${lvLabel(n)} • ${L.name}` : `${lvLabel(n)} • ${L.name}`);
 }
 
 // ---------- Oyuncu ----------
@@ -168,6 +186,8 @@ function updatePlayer(dt) {
   const p = player, ev = [];
   p.prevY = p.y;
   stepPlayer(L, p, input, dt, ev);
+  const hs = applyFields(L, p, dt);
+  if (hs) { const s = ents.springs.find((e) => e.src === hs); if (s) s.t = 0; sfx.spring(); vibrate(20); dust(hs.x, hs.y, 5); }
   for (const e of ev) {
     if (e === 'jump') { sfx.jump(); dust(p.x, p.y, 4); p.squash = -0.16; }
     else if (e === 'landHard') { sfx.land(); dust(p.x, p.y, 6); p.squash = Math.min(0.25, -p.landVy / 70); }
@@ -291,13 +311,14 @@ function updateGun(dt) {
       break;
     }
     const b = ents.boss;
-    if (!hit && b && !b.dead && b.st !== 'wait' && Math.abs(b.x - s.x) < b.w / 2 && s.y > b.y && s.y < b.y + b.h) { hit = true; if (!G.bossTip) { G.bossTip = true; toast('Şimşek işlemiyor! Duvara çarptırıp üstüne zıpla'); } }
+    if (!hit && b && !b.dead && b.st !== 'wait' && Math.abs(b.x - s.x) < b.w / 2 && s.y > b.y && s.y < b.y + b.h) { hit = true; if (!G.bossTip) { G.bossTip = true; toast(b.kind === 'kral' ? 'Şimşek krala işlemiyor! Spor toplarını vur, yorulunca kafasına zıpla' : 'Şimşek işlemiyor! Duvara çarptırıp üstüne zıpla'); } }
     if (hit) { for (let k = 0; k < 14; k++) spark(s.x, s.y, 1.1); burst(s.x, s.y, 0x7ae8ff, 8); levelRoot.remove(s.m); ents.shots.splice(i, 1); }
   }
 }
 
 // ---------- Boss: Dev Paslı Böcek ----------
 function setupBoss() {
+  if (LEVELS[G.n - 1].bossKind === 'kral') return setupKral();
   const B = L.boss;
   const m = add(new THREE.Group()); const body = cloneM('bocek'); body.scale.setScalar(3.0); m.add(body); const walker = makeWalker(body, 'bocek'); toActor(m);
   body.traverse((o) => { if (o.isMesh && o.material) { o.material = o.material.clone(); o.material.color?.multiplyScalar(0.9); o.material.emissive = new THREE.Color(0x000000); } });
@@ -310,6 +331,7 @@ function setupBoss() {
 }
 function updateBoss(dt) {
   const b = ents.boss; if (!b) return;
+  if (b.kind === 'kral') return updateKral(dt);
   b.t += dt; const p = player;
   for (const [i, g] of b.wallM.entries()) g.position.y += ((b.wallsUp ? b.y : b.y - 8) - g.position.y) * Math.min(1, dt * 6) + (i ? 0 : 0);
   if (b.dead) {
@@ -348,6 +370,99 @@ function updateBoss(dt) {
     else hurt(b.x);
   }
 }
+// ---------- Boss: Mantar Kral ----------
+// Yürür; uzaktaysa bağırıp spor topları atar (şimşek topları patlatır); yakındaysa yumruk kombosuyla yere vurur
+// (yerdeysen can gider, zıpla!). Vuruştan sonra yorulur: o sırada kafasına zıpla. 3 can.
+function setupKral() {
+  const B = L.boss;
+  const m = add(new THREE.Group()); const body = cloneM('kral'); m.add(body); toActor(m);
+  body.traverse((o) => { if (o.isMesh && o.material) o.material = o.material.clone(); });
+  const mixer = new THREE.AnimationMixer(body), clips = MODELS.kral?.userData.clips || [], acts = {};
+  for (const c of clips) acts[c.name] = mixer.clipAction(c);
+  const stars = add(new THREE.Group()); for (let i = 0; i < 4; i++) { const st = makeSprite('star', 0.4, ASPECT.star); st.position.set(Math.cos(i * 1.57) * 0.9, 0, Math.sin(i * 1.57) * 0.9); stars.add(st); } stars.visible = false;
+  const walls = [B.x0 - 1, B.x1];
+  const wallM = walls.map((wx) => { const g = add(new THREE.Group()); for (let i = 0; i < 6; i++) { const c = makeSprite('crate', 1.02, ASPECT.crate); c.position.set(0.5, i, 0.3); g.add(c); } g.position.set(wx, -8, 0); return g; });
+  const ring = add(new THREE.Mesh(new THREE.RingGeometry(0.2, 0.45, 32), new THREE.MeshBasicMaterial({ color: 0xb8ff4a, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }))); ring.rotation.x = -Math.PI / 2; toActor(ring);
+  ents.boss = { ...B, kind: 'kral', m, body, mixer, acts, cur: null, stars, ring, x: B.x1 - 4, y: B.y, vx: 0, dir: -1, hp: 3, st: 'wait', t: 0, w: 2.3, h: 2.9, wallX: walls, wallM, wallsUp: false, flash: 0, dead: false, fired: 0, slammed: false, tipPunch: false };
+  kralAnim(ents.boss, 'Walking', 0.01); ents.boss.mixer.timeScale = 0;
+  const base = L.solid;
+  L.solid = (x, y) => (ents.boss && ents.boss.wallsUp && ents.boss.wallX.includes(x) && y < 14) || base(x, y);
+}
+function kralAnim(b, name, fade = 0.25, once = false) {
+  const a = b.acts[name]; if (!a || b.cur === name) return; const prev = b.acts[b.cur];
+  a.reset(); a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat); a.clampWhenFinished = once; a.play();
+  if (prev) prev.crossFadeTo(a, fade, false); b.cur = name;
+}
+function throwSpore(b) {
+  const p = player, fromX = b.x + b.dir * 0.8, fromY = b.y + 2.4;
+  for (let i = 0; i < 3; i++) {
+    const T = 0.9 + i * 0.25, tx = p.x + (i - 1) * 1.6, vx = (tx - fromX) / T, vy = ((p.y + 0.3 - fromY) + 0.5 * 16 * T * T) / T;
+    const m = add(makeSprite('w2/sporeball', 1.0, 256 / 198)); m.geometry = m.geometry.clone(); m.geometry.translate(0, -0.5, 0); toActor(m);
+    m.position.set(fromX, fromY, 0.5); ents.sballs.push({ m, x: fromX, y: fromY, vx, vy, t: -i * 0.12 });
+  }
+}
+function updateSballs(dt) {
+  const p = player;
+  for (let i = ents.sballs.length - 1; i >= 0; i--) {
+    const s = ents.sballs[i]; s.t += dt; if (s.t < 0) { s.m.visible = false; continue; } s.m.visible = true;
+    s.vy -= 16 * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.m.position.set(s.x, s.y, 0.5); s.m.rotation.z += dt * 5; s.m.scale.x = s.vx < 0 ? 1 : -1;
+    let pop = L.solid(Math.floor(s.x), Math.floor(s.y - 0.3)) || s.y < -3 || s.t > 4;
+    for (const sh of ents.shots) if (Math.abs(sh.x - s.x) < 0.7 && Math.abs(sh.y - s.y) < 0.7) { pop = true; sh.t = 99; }
+    if (!pop && G.state === 'play' && Math.abs(p.x - s.x) < 0.6 && s.y > p.y - 0.2 && s.y < p.y + P.PH + 0.3) { pop = true; hurt(s.x); }
+    if (pop) { burst(s.x, s.y, 0xb8ff4a, 10); levelRoot.remove(s.m); ents.sballs.splice(i, 1); }
+  }
+}
+function updateKral(dt) {
+  const b = ents.boss, p = player; b.t += dt;
+  updateSballs(dt);
+  for (const g of b.wallM) g.position.y += ((b.wallsUp ? b.y : b.y - 8) - g.position.y) * Math.min(1, dt * 6);
+  b.mixer.update(dt);
+  if (b.dead) {
+    b.m.rotation.z += dt * 2.5; b.m.position.y += dt * (3 - b.t * 6); b.m.scale.setScalar(Math.max(0.01, 1 - b.t * 0.6));
+    if (b.t > 1.6 && b.m.visible) { b.m.visible = false; landShip(); }
+    return;
+  }
+  const toward = () => { b.dir = p.x < b.x ? -1 : 1; };
+  const go = (st) => { b.st = st; b.t = 0; };
+  if (b.st === 'wait') { if (p.x > b.x0 + 2) { b.wallsUp = true; b.mixer.timeScale = 1; go('roar'); kralAnim(b, 'Shouting_Angrily', 0.2); sfx.bump(); toast('⚠️ Mantar Kral! Yumruktan sonra yorulur: kafasına zıpla!'); } }
+  else if (b.st === 'roar') { toward(); b.vx = 0; if (b.t > 1.8) { go('walk'); } }
+  else if (b.st === 'walk') {
+    toward(); kralAnim(b, 'Walking'); b.vx = b.dir * (1.3 + (3 - b.hp) * 0.35);
+    if (b.t > 2.4 - (3 - b.hp) * 0.4) { b.vx = 0; if (Math.abs(p.x - b.x) < 4.5) { go('punch'); kralAnim(b, 'Punch_Combo', 0.15, true); b.slammed = false; if (!b.tipPunch) { b.tipPunch = true; toast('👊 Yere vuracak: zıpla!'); } } else { go('shout'); kralAnim(b, 'Shouting_Angrily', 0.2); b.fired = 0; } }
+  } else if (b.st === 'shout') {
+    b.vx = 0; toward();
+    if (b.fired === 0 && b.t > 0.7) { b.fired = 1; throwSpore(b); sfx.shot(); }
+    if (b.hp < 3 && b.fired === 1 && b.t > 1.5) { b.fired = 2; throwSpore(b); sfx.shot(); }
+    if (b.t > (b.hp < 3 ? 2.3 : 1.7)) go('walk');
+  } else if (b.st === 'punch') {
+    b.vx = 0;
+    const tSlam = 1.1; b.ring.material.opacity = b.t < tSlam ? 0.25 + Math.sin(b.t * 20) * 0.15 : Math.max(0, 0.8 - (b.t - tSlam) * 2);
+    const rr = b.t < tSlam ? 1 : 1 + (b.t - tSlam) * 18; b.ring.scale.setScalar(rr); b.ring.position.set(b.x, b.y + 0.05, 0.6);
+    if (!b.slammed && b.t > tSlam) { b.slammed = true; sfx.stomp(); vibrate(80); shake = 0.5; dust(b.x - 1, b.y, 10); dust(b.x + 1, b.y, 10); if (G.state === 'play' && p.ground && Math.abs(p.x - b.x) < 7) hurt(b.x); }
+    if (b.t > 2.2) { go('tired'); b.ring.material.opacity = 0; b.mixer.timeScale = 0.15; }
+  } else if (b.st === 'tired') {
+    b.vx = 0; b.stars.visible = true; b.stars.rotation.y += dt * 6;
+    if (b.t > 2.8) { b.stars.visible = false; b.mixer.timeScale = 1; go('walk'); }
+  } else if (b.st === 'hit') { b.vx = 0; if (b.t > 1.4) { b.mixer.timeScale = 1; go('walk'); } }
+  b.x = Math.max(b.x0 + b.w / 2, Math.min(b.x1 - b.w / 2, b.x + b.vx * dt));
+  b.m.position.set(b.x, b.y, 0);
+  const tr = (b.dir > 0 ? -0.5 : Math.PI + 0.5); b.m.rotation.y += (tr - b.m.rotation.y) * Math.min(1, dt * 6);
+  b.m.rotation.z = b.st === 'tired' ? Math.sin(b.t * 6) * 0.05 : 0;
+  b.stars.position.set(b.x, b.y + b.h + 0.5, 0);
+  b.flash = Math.max(0, b.flash - dt); b.body.visible = b.flash <= 0 || Math.floor(b.flash * 20) % 2 === 0;
+  if (G.state !== 'play' || b.st === 'wait') return;
+  if (Math.abs(p.x - b.x) < (P.PW + b.w) / 2 - 0.1 && p.y < b.y + b.h && p.y + P.PH > b.y + 0.1) {
+    const top = p.vy < -1 && p.y > b.y + b.h * 0.6;
+    if (top && b.st === 'tired') {
+      b.hp--; b.flash = 0.8; b.stars.visible = false; go('hit'); b.mixer.timeScale = 1; kralAnim(b, 'Face_Punch_Reaction', 0.1, true);
+      p.vy = P.STOMP_HOLD; p.noCut = true; p.vx = (p.x < b.x ? -1 : 1) * 5;
+      sfx.stomp(); vibrate(70); burst(b.x, b.y + b.h, 0xb8ff4a, 18); updateHud();
+      if (b.hp <= 0) { b.dead = true; b.t = 0; b.wallsUp = false; for (const s2 of ents.sballs) levelRoot.remove(s2.m); ents.sballs = []; sfx.cage(); toast('💥 Mantar Kral yenildi!'); shake = 0.6; }
+      else toast(`💥 Kalan: ${'❤'.repeat(b.hp)}`);
+    } else if (top) { p.vy = P.STOMP; p.noCut = true; hurt(b.x); }
+    else hurt(b.x);
+  }
+}
 // gemi iner (20. bölüm sonu)
 function landShip() {
   const s = add(cloneM('ship')); s.position.set(L.end.x, L.end.y + 14, -0.3);
@@ -366,7 +481,7 @@ function updateShip(dt) {
 }
 
 // ---------- Para, kafes, mantar, direkler, can, yıldız ----------
-const SIGN_TIP = { move: '◀ ▶ tuşlarıyla yürü', jump: 'Sarı tuş: zıpla! Basılı tutarsan daha yükseğe', stomp: 'Böceklerin üstüne zıpla, ez!', spike: 'Kirpinin üstüne zıplama, üstünden atla!', spring: 'Mantara bas, yükseğe fırla!', thorn: 'Dikenli çalılara değme!', bridge: 'İp köprüler sağlam, rahat geç', crate: 'Sandığın üstüne zıpla ya da alttan kafa at: altın çıkar!', raft: 'Sal gidip gelir: üstüne atla, taşısın', gun: 'Parlayan küreyi al: şimşek eldiveni!' };
+const SIGN_TIP = { move: '◀ ▶ tuşlarıyla yürü', jump: 'Sarı tuş: zıpla! Basılı tutarsan daha yükseğe', stomp: 'Böceklerin üstüne zıpla, ez!', spike: 'Kirpinin üstüne zıplama, üstünden atla!', spring: 'Mantara bas, yükseğe fırla!', bounce: 'Renkli mantarlar: pembe az, turkuaz orta, altın çok zıplatır!', spore: 'Spor bulutuna gir: yukarı süzülürsün! Sonra yönünü seç', snail: 'Salyangozun kabuğu sert: önce şimşekle vur, sonra üstüne zıpla!', thorn: 'Dikenli çalılara değme!', bridge: 'İp köprüler sağlam, rahat geç', crate: 'Sandığın üstüne zıpla ya da alttan kafa at: altın çıkar!', raft: 'Sal gidip gelir: üstüne atla, taşısın', gun: 'Parlayan küreyi al: şimşek eldiveni!' };
 function updateItems(dt) {
   const p = player;
   for (const c of ents.coins) {
@@ -378,7 +493,10 @@ function updateItems(dt) {
   for (const s of ents.springs) {
     s.t = Math.min(1, s.t + dt * 4);
     const k = 1 - Math.sin(s.t * Math.PI) * 0.35; s.m.userData.spr.scale.set(1 + (1 - k) * 0.5, k, 1);
-    if (p.vy <= 0 && Math.abs(p.x - s.x) < 0.75 && p.y >= s.y - 0.05 && p.y < s.y + 0.9) { p.vy = P.SPRING; p.noCut = true; p.ground = false; p.surf = null; s.t = 0; sfx.spring(); vibrate(20); dust(s.x, s.y, 5); }
+  }
+  for (const s of ents.spores) {
+    const U = s.m.userData; U.col.material.opacity = 0.65 + Math.sin(G.t * 3) * 0.12; U.cloud.scale.set(1 + Math.sin(G.t * 2) * 0.03, 1 + Math.cos(G.t * 2.3) * 0.04, 1);
+    for (const d of U.dots) { d.position.y += d.userData.v * dt * (p.inSpore ? 1.6 : 1); if (d.position.y > U.h) d.position.y -= U.h; d.material.opacity = Math.min(1, (U.h - d.position.y) * 0.8, d.position.y * 2); }
   }
   for (const h of ents.hearts) {
     if (h.taken) continue; h.m.position.y = h.y + Math.sin(G.t * 3) * 0.08; h.m.scale.setScalar(1 + Math.sin(G.t * 6) * 0.05);
@@ -423,7 +541,7 @@ function openCage(c) {
   G.cages++; updateHud(); sfx.cage(); vibrate(50);
   burst(c.x + 0.6, c.y + 0.9, 0xffd23a, 10);
   const names = { kus: 'Mavi Kuş', tilki: 'Tilki', maymun: 'Maymun', sincap: 'Sincap', tavsan: 'Tavşan', geyik: 'Geyik Yavrusu' };
-  toast(`🐾 ${names[c.kind] || 'Dostun'} kurtarıldı! ${G.cages}/${ents.cages.length}`);
+  toast(`🐾 ${names[THEME.animal?.[c.kind] || c.kind] || 'Dostun'} kurtarıldı! ${G.cages}/${ents.cages.length}`);
 }
 
 // ---------- Işınlanma ----------
@@ -500,22 +618,22 @@ function win() {
   player.vx = 0; player.lastAnim = ''; anim.play('cheer', { fade: 0.2 });
   const s = stars(), prev = save.best[G.n] || {};
   save.best[G.n] = { stars: Math.max(prev.stars || 0, s), coins: Math.max(prev.coins || 0, G.coins), star: !!(prev.star || G.star), cages: Math.max(prev.cages || 0, G.cages) };
-  save.unlocked = Math.max(save.unlocked, Math.min(20, G.n + 1)); store();
+  save.unlocked = Math.max(save.unlocked, Math.min(40, G.n + 1)); store();
   setTimeout(() => {
-    const last = G.n === 20;
-    $('endTitle').textContent = last ? 'Yeşil Vadi Kurtarıldı!' : 'Bölüm Tamam!';
+    const last = G.n === 20 || G.n === 40;
+    $('endTitle').textContent = G.n === 20 ? 'Yeşil Vadi Kurtarıldı!' : G.n === 40 ? 'Mantar Ormanı Kurtarıldı!' : 'Bölüm Tamam!';
     $('endStars').innerHTML = [1, 2, 3].map((i) => `<span class="${i <= s ? 'on' : ''}">★</span>`).join('');
-    $('endInfo').innerHTML = `<img class="ci" src="props/coin_ui.webp" alt=""> ${G.coins}/${G.coinsTotal} &nbsp; 🐾 ${G.cages}/${ents.cages.length} &nbsp; <img class="ci ${G.star ? '' : 'dim'}" src="props/star.webp" alt=""><small>⭐ Bitir ✔ • ⭐ Bütün hayvanlar ${G.cages >= ents.cages.length ? '✔' : '✘'} • ⭐ Altın: ${G.coins}/${Math.ceil(G.coinsTotal * 0.8)} gerekli ${G.coins >= Math.ceil(G.coinsTotal * 0.8) ? '✔' : '✘'}</small><small>(${G.coinsTotal} altının ${ents.crates.length * 3} tanesi sandıklardan çıkar)</small>${last ? '<small>🚀 Sıradaki dünya: Mantar Ormanı — yakında!</small>' : ''}`;
-    $('next').classList.toggle('hidden', last);
+    $('endInfo').innerHTML = `<img class="ci" src="props/coin_ui.webp" alt=""> ${G.coins}/${G.coinsTotal} &nbsp; 🐾 ${G.cages}/${ents.cages.length} &nbsp; <img class="ci ${G.star ? '' : 'dim'}" src="props/star.webp" alt=""><small>⭐ Bitir ✔ • ⭐ Bütün hayvanlar ${G.cages >= ents.cages.length ? '✔' : '✘'} • ⭐ Altın: ${G.coins}/${Math.ceil(G.coinsTotal * 0.8)} gerekli ${G.coins >= Math.ceil(G.coinsTotal * 0.8) ? '✔' : '✘'}</small><small>(${G.coinsTotal} altının ${ents.crates.length * 3} tanesi sandıklardan çıkar)</small>${G.n === 20 ? '<small>🍄 Yeni dünya açıldı: Mantar Ormanı!</small>' : G.n === 40 ? '<small>🚀 Sıradaki dünya: Güneş Kanyonu — yakında!</small>' : ''}`;
+    $('next').classList.toggle('hidden', G.n === 40);
     showScreen('end');
-  }, G.n === 20 ? 4200 : 1900);
+  }, G.n === 20 || G.n === 40 ? 4200 : 1900);
 }
 function lose() {
   G.state = 'lose'; sfx.lose(); player.lastAnim = ''; anim.play('fall', { once: true, fade: 0.15 }); bolt.visible = true;
   setTimeout(() => {
     $('endTitle').textContent = 'Canın Bitti';
     $('endStars').innerHTML = '';
-    $('endInfo').innerHTML = 'Böceklerin üstüne zıpla, kirpiden ve dikenlerden uzak dur!';
+    $('endInfo').innerHTML = worldOf(G.n) === 2 ? 'Mantarcıkların üstüne zıpla; salyangozu önce şimşekle vur!' : 'Böceklerin üstüne zıpla, kirpiden ve dikenlerden uzak dur!';
     $('next').classList.add('hidden');
     showScreen('end');
   }, 900);
@@ -536,13 +654,19 @@ function showScreen(id) {
   const inGame = !id || id === 'paused' || id === 'end';
   $('hud').classList.toggle('hidden', !inGame); $('pad').classList.toggle('hidden', !!id);
 }
-function renderMap() {
-  const totalStars = Object.values(save.best).reduce((a, b) => a + (b.stars || 0), 0);
-  const crystals = Object.values(save.best).filter((b) => b.star).length;
+let mapWorld = 1;
+function renderMap(w = null) {
+  if (w) mapWorld = w; else mapWorld = G.n && L ? worldOf(G.n) : Math.min(2, worldOf(save.unlocked));
+  const o = (mapWorld - 1) * 20, best = (n) => save.best[n] || {};
+  const ns = Array.from({ length: 20 }, (_, i) => o + i + 1);
+  const totalStars = ns.reduce((a, n) => a + (best(n).stars || 0), 0), crystals = ns.filter((n) => best(n).star).length;
+  $('mapTitle').textContent = mapWorld === 2 ? '🍄 Mantar Ormanı' : '🌿 Yeşil Vadi';
   $('mapInfo').innerHTML = `⭐ ${totalStars}/60 &nbsp; <img class="ci" src="props/star.webp" alt=""> ${crystals}/20`;
-  $('levels').innerHTML = LEVELS.map((d, i) => {
-    const n = i + 1, b = save.best[n] || {}, lock = n > save.unlocked;
-    return `<button class="lv ${lock ? 'lock' : ''} ${d.boss ? 'boss' : ''}" data-lv="${n}" ${lock ? 'disabled' : ''}><b>${lock ? '🔒' : d.boss ? '👑' : n}</b><small>${d.name}</small><span class="st">${[1, 2, 3].map((k) => `<i class="${k <= (b.stars || 0) ? 'on' : ''}">★</i>`).join('')}${b.star ? '<img src="props/star.webp" alt="">' : ''}</span></button>`;
+  $('w1').classList.toggle('on', mapWorld === 1); $('w2').classList.toggle('on', mapWorld === 2); $('w2').classList.toggle('lock', save.unlocked < 21);
+  $('levels').classList.toggle('w2', mapWorld === 2);
+  $('levels').innerHTML = ns.map((n) => {
+    const d = LEVELS[n - 1], b = best(n), lock = n > save.unlocked;
+    return `<button class="lv ${lock ? 'lock' : ''} ${d.boss ? 'boss' : ''}" data-lv="${n}" ${lock ? 'disabled' : ''}><b>${lock ? '🔒' : d.boss ? '👑' : n - o}</b><small>${d.name}</small><span class="st">${[1, 2, 3].map((k) => `<i class="${k <= (b.stars || 0) ? 'on' : ''}">★</i>`).join('')}${b.star ? '<img src="props/star.webp" alt="">' : ''}</span></button>`;
   }).join('');
   showScreen('map');
 }
@@ -564,13 +688,15 @@ function bindControls() {
   const click = (id, f) => $(id).addEventListener('click', () => { unlockAudio(); f(); });
   click('play', () => renderMap());
   click('mapBack', () => showScreen('menu'));
+  click('w1', () => renderMap(1));
+  click('w2', () => { if (save.unlocked >= 21) renderMap(2); else toast('🔒 Önce Yeşil Vadi\'yi kurtar'); });
   $('levels').addEventListener('click', (e) => { const b = e.target.closest('[data-lv]'); if (b && !b.disabled) { unlockAudio(); loadLevel(+b.dataset.lv); } });
   click('pause', () => { if (G.state === 'play') { G.state = 'pause'; showScreen('paused'); } });
   click('resume', () => { G.state = 'play'; showScreen(null); });
   click('restart', () => loadLevel(G.n));
   click('toMap', () => renderMap());
   click('again', () => loadLevel(G.n));
-  click('next', () => loadLevel(Math.min(20, G.n + 1)));
+  click('next', () => loadLevel(Math.min(40, G.n + 1)));
   click('endMap', () => renderMap());
   document.addEventListener('visibilitychange', () => { if (document.hidden && G.state === 'play') { G.state = 'pause'; showScreen('paused'); } });
 }
@@ -646,7 +772,7 @@ window.KB2 = { tpTest(v, t) { const e = { x: L.end.x, y: L.end.y }; if (!window.
 (async function boot() {
   bindControls();
   await Promise.all([loadRobotModel(), ...Object.keys(SPEC).map(loadModel)]);
-  backdrop(scene, 400);
+  setWorldTheme(1);
   // menü arka planı için 1. bölümün dünyasını kur
   clearLevel(); seed(1); L = buildLevel(1); buildWorld(levelRoot, L); L = null;
   renderer.compile(scene, camera);

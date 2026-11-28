@@ -1,7 +1,7 @@
 // Erişilebilirlik testi: her bölümde kafeslere, kristal yıldıza, bitişe ve altınlara gerçek fizikle gidilebiliyor mu?
 import { buildLevel } from '../src/level.js';
 import { LEVELS } from '../src/levels.js';
-import { P, stepPlayer, newPlayer, coinHit } from '../src/physics.js';
+import { P, stepPlayer, newPlayer, coinHit, applyFields } from '../src/physics.js';
 
 const DT = 1 / 60;
 function simLevel(n) {
@@ -23,7 +23,7 @@ function simLevel(n) {
     L.hearts.forEach(() => {});
   };
   const thorn = (p) => L.thorns.some((t) => p.x + P.PW / 2 > t.x0 + 0.15 && p.x - P.PW / 2 < t.x1 - 0.15 && p.y < t.y + 0.55 && p.y + P.PH > t.y);
-  const spring = (p) => { for (const s of L.springs) if (p.vy <= 0 && Math.abs(p.x - s.x) < 0.75 && p.y >= s.y - 0.05 && p.y < s.y + 0.9) { p.vy = P.SPRING; p.noCut = true; p.ground = false; p.surf = null; return true; } return false; };
+  const spring = (p) => !!applyFields(L, p, DT);
   const key = (p) => `${Math.round(p.x * 4)},${Math.round(p.y * 20)}`;
   const start = newPlayer(L.start.x, L.cols[2] || 2); start.ground = true;
   const seen = new Set([key(start)]); const q = [start];
@@ -32,8 +32,8 @@ function simLevel(n) {
     if (act.v) p.vx = act.dir * P.RUN;
     let t = 0, air = false, moved = 0; const x0 = p.x;
     if (act.jump) { inp.jump = true; inp.jumpPressed = true; }
-    while (t < 3.2) {
-      if (act.jump) { inp.jump = t < act.hold; const d = air ? act.air : act.dir; inp.left = d < 0; inp.right = d > 0; }
+    while (t < (act.late ? 5 : 3.2)) {
+      if (act.jump) { inp.jump = t < act.hold; const d = air ? (t < (act.pre || 0) ? act.dir : act.late && t > act.at ? act.late : act.air) : act.dir; inp.left = d < 0; inp.right = d > 0; }
       else { inp.left = act.dir < 0; inp.right = act.dir > 0; }
       stepPlayer(L, p, inp, DT); t += DT;
       spring(p);
@@ -51,6 +51,8 @@ function simLevel(n) {
   for (const dir of [-1, 1]) {
     acts.push({ jump: false, dir });
     for (const v of [0, 1]) for (const hold of [0, 0.14, 1]) for (const air of [dir, 0, -dir]) acts.push({ jump: true, dir, v, hold, air });
+    // spor bulutu: önce yerinde süzül, sonra bir yöne kay
+    for (const at of [0.8, 1.6, 2.4]) for (const late of [-1, 1]) for (const pre of [0, 0.25]) acts.push({ jump: true, dir, v: 0, hold: 1, air: 0, late, at, pre });
   }
   while (q.length && seen.size < 9000) {
     const s = q.shift();

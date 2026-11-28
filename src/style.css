@@ -48,11 +48,16 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d2a1a; fon
 #map { justify-content: flex-start; padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); background: linear-gradient(rgba(5,30,15,.55), rgba(5,30,15,.75)); }
 .maphead { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 980px; }
 .maphead h2 { flex: 1; margin: 0; font-size: 26px; text-shadow: 0 2px 4px rgba(0,0,0,.5); }
+.wtabs { display: flex; gap: 6px; }
+.wt { opacity: .55; }
+.wt.on { opacity: 1; outline: 2px solid #ffd23a; }
+.wt.lock { filter: grayscale(1); }
 #mapInfo .ci { width: 20px; height: 20px; }
 #levels { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; width: 100%; max-width: 980px; margin-top: 10px; overflow-y: auto; touch-action: pan-y; }
 .lv { touch-action: manipulation; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 16px; border: 2px solid rgba(255,255,255,.35); background: linear-gradient(#3a8a4a, #1f5a2c); color: #fff; font-family: Pop, sans-serif; box-shadow: 0 4px 0 #123a1c; }
 .lv b { font-size: 24px; line-height: 1; }
 .lv small { font-size: 9px; opacity: .85; line-height: 1.1; min-height: 20px; text-align: center; }
+#levels.w2 .lv:not(.boss):not(.lock) { background: linear-gradient(#7a4ab0, #44236e); box-shadow: 0 4px 0 #2a1248; }
 .lv .st { display: flex; align-items: center; gap: 1px; }
 .lv .st i { font-style: normal; color: rgba(255,255,255,.25); font-size: 13px; }
 .lv .st i.on { color: #ffd23a; }
