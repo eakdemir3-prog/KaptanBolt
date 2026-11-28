@@ -47,6 +47,13 @@ function rockTex() {
 
 const TL = new THREE.TextureLoader();
 const TEX = {};
+/** Dünya teması: doku ve arka plan dosyaları (ilk kurulumdan önce seçilir) */
+export const THEMES = {
+  1: { ground: 'props/ground.webp', soil: 'soil', bg: 'vadi', far: [0xf4fbff, 0x3f8f73], mid: [0xe8f4e0, 0x3a7330], fog: 0xbfe6ff, hemi: [0xe6f6ff, 0x7a8a4a, 1.9], sun: [0xfff1d6, 2.1] },
+  2: { ground: 'props/w2/ground.webp', soil: 'w2/soil', bg: 'mantar', far: [0xffffff, 0x5a4f86], mid: [0xffffff, 0x1f5a4a], fog: 0xb9a3e0, animal: { kus: 'sincap', tilki: 'tavsan', maymun: 'geyik' }, hemi: [0xe4d8ff, 0x5a4a7a, 1.85], sun: [0xffe6f2, 1.9] },
+};
+export let THEME = THEMES[/w2/.test(location.hash) ? 2 : 1];
+export function setTheme(n) { THEME = THEMES[n] || THEMES[1]; }
 function tex(name, setup) {
   if (TEX[name]) return TEX[name];
   const t = TL.load(`props/${name}.webp`); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; if (setup) setup(t);
@@ -100,7 +107,7 @@ function tallTextures() {
   TALL = new THREE.CanvasTexture(c); TALL.colorSpace = THREE.SRGBColorSpace; TALL.wrapS = THREE.RepeatWrapping; TALL.anisotropy = 8;
   DIRT = new THREE.CanvasTexture(d); DIRT.colorSpace = THREE.SRGBColorSpace; DIRT.wrapS = DIRT.wrapT = THREE.MirroredRepeatWrapping; DIRT.anisotropy = 4;
   const g = c.getContext('2d'); g.fillStyle = '#9a4a1c'; g.fillRect(0, 0, 1024, 2048);
-  new THREE.ImageLoader().load('props/ground.webp', (img) => {
+  new THREE.ImageLoader().load(THEME.ground, (img) => {
     g.drawImage(img, 0, 0, 1024, 682);
     // toprak kısmı (çimen ve kökler hariç) aşağıya aynalı kopyalanır
     const sy = 230, sh = 682 - sy; let y = 682, flip = true;
@@ -136,10 +143,10 @@ function soilTextures() {
   if (SOIL) return;
   const c = document.createElement('canvas'); c.width = 1024; c.height = 452;
   const l = document.createElement('canvas'); l.width = 1024; l.height = 300;
-  SOIL = tex('soil', (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }); // dikişsiz derin toprak
+  SOIL = tex(THEME.soil, (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }); // dikişsiz derin toprak
   LIP = new THREE.CanvasTexture(l); LIP.colorSpace = THREE.SRGBColorSpace; LIP.wrapS = THREE.RepeatWrapping; LIP.anisotropy = 8;
   c.getContext('2d').fillStyle = '#9a4a1c'; c.getContext('2d').fillRect(0, 0, 1024, 452);
-  new THREE.ImageLoader().load('props/ground.webp', (img) => {
+  new THREE.ImageLoader().load(THEME.ground, (img) => {
     const g = l.getContext('2d'); g.drawImage(img, 0, 0, 1024, 300, 0, 0, 1024, 300);
     const d = g.getImageData(0, 0, 1024, 300); // alt 80 piksel saydamlaşarak toprağa karışır
     for (let y = 220; y < 300; y++) { const a = Math.round(255 * (1 - (y - 220) / 80)); for (let x = 0; x < 1024; x++) d.data[(y * 1024 + x) * 4 + 3] = a; }
@@ -268,9 +275,10 @@ export function backdrop(scene, levelW) {
     }
     return m;
   };
-  const sky = layer('bg/vadi-gok.webp', -120, 120, -20, { aspect: 1672 / 941 });
-  const far = layer('bg/vadi-uzak.webp', -70, 46, -14, { alpha: true, aspect: 1532 / 941, order: 1, tint: 0xf4fbff, fill: 0x3f8f73 });
-  const mid = layer('bg/vadi-orta.webp', -26, 21, -9, { alpha: true, aspect: 1532 / 941, order: 2, tint: 0xe8f4e0, fill: 0x3a7330 });
+  const T = THEME;
+  const sky = layer(`bg/${T.bg}-gok.webp`, -120, 120, -20, { aspect: 1672 / 941 });
+  const far = layer(`bg/${T.bg}-uzak.webp`, -70, 46, -14, { alpha: true, aspect: 1532 / 941, order: 1, tint: T.far[0], fill: T.far[1] });
+  const mid = layer(`bg/${T.bg}-orta.webp`, -26, 21, -9, { alpha: true, aspect: 1532 / 941, order: 2, tint: T.mid[0], fill: T.mid[1] });
   return { sky, far, mid };
 }
 

@@ -7,7 +7,7 @@ import { makeRobot, SKINS } from './game/robot.js';
 import { buildLevel, updateRafts } from './level.js';
 import { LEVELS } from './levels.js';
 import { P, stepPlayer, moveX, newPlayer, coinHit } from './physics.js';
-import { buildWorld, backdrop, seed, makeCoin, makeSpring, makePost, setPost, makeBeam, makePortal, makeCage2D, makeSprite, ASPECT, makeBridge, makeRaft, makeThorns } from './world.js';
+import { THEME, buildWorld, backdrop, seed, makeCoin, makeSpring, makePost, setPost, makeBeam, makePortal, makeCage2D, makeSprite, ASPECT, makeBridge, makeRaft, makeThorns } from './world.js';
 import { sfx, unlockAudio } from './audio.js';
 import { clone as skClone } from 'three/addons/utils/SkeletonUtils.js';
 import { makeWalker } from './rigwalk.js';
@@ -22,10 +22,10 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x7cc8ff);
-scene.fog = new THREE.Fog(0xbfe6ff, 30, 95);
+scene.fog = new THREE.Fog(THEME.fog, 30, 95);
 const camera = new THREE.PerspectiveCamera(36, 16 / 9, 0.1, 400);
-scene.add(new THREE.HemisphereLight(0xe6f6ff, 0x7a8a4a, 1.9)); // güçlü ortam ışığı: gölgeler yumuşak
-const sun = new THREE.DirectionalLight(0xfff1d6, 2.1);
+scene.add(new THREE.HemisphereLight(...THEME.hemi)); // güçlü ortam ışığı: gölgeler yumuşak
+const sun = new THREE.DirectionalLight(...THEME.sun);
 sun.position.set(6, 18, 12); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 12, bottom: -8, near: 1, far: 60 }); sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02; sun.shadow.radius = 4;
 scene.add(sun, sun.target);
@@ -50,6 +50,9 @@ const SPEC = {
   kus: { size: 0.85, fit: 'h', yaw: 0.35 },
   tilki: { size: 0.9, fit: 'h', yaw: 0.35 + Math.PI / 4 },
   maymun: { size: 0.95, fit: 'h', yaw: 0.35 },
+  sincap: { size: 0.9, fit: 'h', yaw: 0.35 },
+  tavsan: { size: 0.95, fit: 'h', yaw: 0.35 },
+  geyik: { size: 1.0, fit: 'w', yaw: 0.35 },
   cage: { size: 2.2, fit: 'w', yaw: 0 },
   ship: { size: 4.6, fit: 'w', yaw: -0.25 },
 };
@@ -102,7 +105,7 @@ function loadLevel(n) {
   }
   for (const c of L.cages) {
     const g = add(makeCage2D()); g.position.set(c.x, c.y, 0);
-    const a = cloneM(c.animal); a.position.set(0, 0.3, -0.02); a.scale.multiplyScalar(0.8); g.add(a);
+    const a = cloneM(THEME.animal?.[c.animal] || c.animal); a.position.set(0, 0.3, -0.02); a.scale.multiplyScalar(0.8); g.add(a);
     ents.cages.push({ x: c.x, y: c.y, kind: c.animal, m: g, animal: a, open: false, t: 0 });
   }
   for (const s of L.springs) { const m = add(makeSpring()); m.position.set(s.x, s.y - 0.05, 0); ents.springs.push({ ...s, m, t: 1 }); }
@@ -415,7 +418,7 @@ function openCage(c) {
   c.open = true; c.t = 0;
   G.cages++; updateHud(); sfx.cage(); vibrate(50);
   burst(c.x + 0.6, c.y + 0.9, 0xffd23a, 10);
-  const names = { kus: 'Mavi Kuş', tilki: 'Tilki', maymun: 'Maymun' };
+  const names = { kus: 'Mavi Kuş', tilki: 'Tilki', maymun: 'Maymun', sincap: 'Sincap', tavsan: 'Tavşan', geyik: 'Geyik Yavrusu' };
   toast(`🐾 ${names[c.kind] || 'Dostun'} kurtarıldı! ${G.cages}/${ents.cages.length}`);
 }
 
