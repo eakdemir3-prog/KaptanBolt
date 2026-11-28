@@ -389,7 +389,7 @@ function updateItems(dt) {
       // 0–0,3 kilit titrer; sonra düşer ve döner; 0,3–0,75 kapı menteşeden açılır; 0,8+ hayvan zıplayıp dışarı çıkar
       if (t < 0.3) { U.lock.rotation.z = Math.sin(t * 60) * 0.25; }
       else if (U.lock.visible) { const q = t - 0.3; U.lock.position.set(U.lock0.x + q * 1.2, U.lock0.y + q * 2.5 - q * q * 14, U.lock0.z + q * 0.5); U.lock.rotation.z = -q * 9; if (U.lock.position.y < -1.5) U.lock.visible = false; }
-      const dq = Math.min(1, Math.max(0, (t - 0.3) / 0.45)); U.hinge.rotation.y = -(1 - Math.pow(1 - dq, 3)) * 1.3 + (dq >= 1 ? Math.sin((t - 0.75) * 14) * 0.06 * Math.max(0, 1 - (t - 0.75) * 3) : 0);
+      const dq = Math.min(1, Math.max(0, (t - 0.3) / 0.45)); U.hinge.rotation.y = -(1 - Math.pow(1 - dq, 3)) * 1.0 + (dq >= 1 ? Math.sin((t - 0.75) * 14) * 0.06 * Math.max(0, 1 - (t - 0.75) * 3) : 0);
       const a = c.animal;
       if (t < 0.8) { a.position.y = 0.3 + Math.abs(Math.sin(t * 12)) * 0.12; }
       else if (t < 1.6) { const q = (t - 0.8) / 0.8; a.position.set(q * 0.4, 0.3 + Math.abs(Math.sin(q * Math.PI * 2)) * 0.7, q * 1.4); a.rotation.y = 0.2; }

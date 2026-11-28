@@ -369,11 +369,17 @@ export function makeCage2D() {
   const H = 2.0, k = H / 708, g = new THREE.Group();
   const pl = (name, w, h, mat) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w * k, h * k), mat || new THREE.MeshBasicMaterial({ map: tex(name), transparent: true, alphaTest: 0.3, toneMapped: false, side: THREE.DoubleSide })); return m; };
   const body = pl('cage_body', 755, 708); body.geometry.translate(0, 708 * k / 2, 0); body.position.set(0, -0.06, -0.1); g.add(body);
+  // kalınlık: gövde resmi arkaya doğru koyulaşan katmanlarla tekrarlanır (yandan bakınca tahta kalınlığı görünür)
+  for (let i = 1; i <= 7; i++) { const l = pl('cage_body', 755, 708, new THREE.MeshBasicMaterial({ map: tex('cage_body'), transparent: true, alphaTest: 0.3, toneMapped: false, color: new THREE.Color().setScalar(0.62 - i * 0.03) })); l.geometry.translate(0, 708 * k / 2, 0); l.position.set(0, -0.06, -0.1 - i * 0.035); g.add(l); }
   // kapı: menteşe (sol kenar) etrafında döner
   const hinge = new THREE.Group(); const dw = 518 * k, dh = 472 * k;
   // kapı gövdeye yakın (paralaks kaymasın); çerçevesinin ortası açıklığın ortasına (menteşe payı 31 px)
   hinge.position.set(-(31 + (518 - 31) / 2) * k, -0.06 + (302 - 236) * k, 0.1); g.add(hinge);
-  const door = pl('cage_door', 518, 472); door.geometry.translate(dw / 2, dh / 2, 0); hinge.add(door);
+  // kapı: önü ve arkası resim, kenarları tahta (kağıt gibi ince görünmesin)
+  const T = 0.11, dtex = tex('cage_door');
+  const face = new THREE.MeshBasicMaterial({ map: dtex, transparent: true, alphaTest: 0.3, toneMapped: false });
+  const door = new THREE.Group(); hinge.add(door);
+  for (let i = 0; i <= 5; i++) { const l = pl('cage_door', 518, 472, i === 0 || i === 5 ? face : new THREE.MeshBasicMaterial({ map: dtex, transparent: true, alphaTest: 0.3, toneMapped: false, color: 0x8a5a30 })); l.geometry.translate(dw / 2, dh / 2, 0); l.position.z = T / 2 - (i / 5) * T; door.add(l); }
   const lock = pl('cage_lock', 211, 289); lock.scale.setScalar(0.62); lock.position.set(hinge.position.x + dw - 0.1, hinge.position.y + dh * 0.45, 0.14); g.add(lock);
   g.userData = { body, hinge, door, lock, lock0: lock.position.clone() };
   return g;
