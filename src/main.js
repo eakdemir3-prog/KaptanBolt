@@ -809,6 +809,7 @@ function updateCamera(dt) {
   const dist = b && b.wallsUp ? 13.5 : 11.2;
   camera.position.set(cam.x + sx, cam.y + 0.1 + sy, dist); camera.lookAt(cam.x + sx, cam.y - 0.15 + sy, 0);
   sun.position.set(cam.x + 6, 18, 12); sun.target.position.set(cam.x, 0, 0);
+  if (BD && BD.ceil) BD.ceil.position.y = cam.y + sy;
   if (L.dark) { // karanlık: ışık halkası Bolt'un ekrandaki yerinde; ışık taşına dokununca genişler
     G.light = Math.max(0, (G.light || 0) - dt); const v = new THREE.Vector3(p.x, p.y + 0.7, 0).project(camera), el = $('dark');
     el.style.setProperty('--x', `${(v.x * 0.5 + 0.5) * 100}%`); el.style.setProperty('--y', `${(0.5 - v.y * 0.5) * 100}%`);

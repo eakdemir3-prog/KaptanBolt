@@ -308,11 +308,26 @@ export function backdrop(scene0, levelW) {
     return m;
   };
   const T = THEME;
-  const sky = layer(`bg/${T.bg}-gok.webp`, -120, 120, -20, { aspect: 1672 / 941 });
+  const sky = layer(`bg/${T.bg}-gok.webp`, -120, 120, -20, { aspect: 1672 / 941, tint: T.ceil ? 0x6a6298 : undefined });
   const far = T.far && layer(`bg/${T.bg}-uzak.webp`, -70, 46, -14, { alpha: true, aspect: 1532 / 941, order: 1, tint: T.far[0], fill: T.far[1] });
   const mid = T.mid && layer(`bg/${T.bg}-orta.webp`, -26, 21, -9, { alpha: true, aspect: 1532 / 941, order: 2, tint: T.mid[0], fill: T.mid[1] });
-  if (T.ceil) layer(`props/${T.ceil}.webp`, -12, 6, 8.2, { alpha: true, aspect: 1536 / 512, order: 3 }); // mağara tavanı
-  return { sky, far, mid, group: scene };
+  // mağara tavanı: kamerayla dikeyde birlikte gider, ekranın üstü hep kaya (gökyüzü görünmez)
+  let ceil = null;
+  if (T.ceil) {
+    ceil = new THREE.Group(); scene.add(ceil);
+    const band = (z, h, top, tint, order) => { // top: kameranın merkezine göre kaya bandının üst kenarı
+      const t = L.load(`props/${T.ceil}.webp`); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.anisotropy = 4;
+      const width = levelW + 400; t.repeat.set(width / (h * 3), 1);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(width, h), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, fog: false, toneMapped: false, color: tint }));
+      m.position.set(levelW / 2, top - h / 2, z); m.renderOrder = order; ceil.add(m);
+      const f = new THREE.Mesh(new THREE.PlaneGeometry(width, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(0x231a4a).multiply(new THREE.Color(tint)), fog: false, toneMapped: false, depthWrite: false }));
+      f.position.set(levelW / 2, top - h * 0.12 + 20, z - 0.01); f.renderOrder = order - 0.5; ceil.add(f);
+    };
+    band(-13, 9, 8.6, 0x8a82b8, -7);   // uzak tavan (soluk, derinlik)
+    band(-6, 6.6, 6.3, 0xffffff, -6);   // ana tavan: sarkıtlar ekranın üst üçte birine iner
+    band(-2.5, 3.6, 5.0, 0x5a4a90, -5); // yakın koyu sarkıt silüeti (oyuncunun arkasında, önünü kapatmaz)
+  }
+  return { sky, far, mid, ceil, group: scene };
 }
 
 export function buildWorld(scene, L) {
