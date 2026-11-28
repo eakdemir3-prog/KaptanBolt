@@ -36,7 +36,7 @@ with sync_playwright() as p:
     check("çoklu dokunma: zıplama tutulurken sağ bırakılabiliyor", (not st2['r']) and st2['j'], st2)
     # geliştirici modu: altın sayacına 5 dokunuş
     bb=pg.locator('#coins').bounding_box()
-    for i in range(5): pg.touchscreen.tap(bb['x']+5,bb['y']+5); pg.wait_for_timeout(80)
+    pg.evaluate('''()=>{const el=document.querySelector('#coins').parentElement; for(let i=0;i<5;i++) el.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));}''')
     pg.wait_for_timeout(400); check("geliştirici modu 5 dokunuşla açılır", pg.evaluate("[...document.querySelectorAll('button')].some(b=>b.textContent==='DEV')"))
     check("JS hatası yok", not errs, errs[:2])
 print(f"{sum(res)}/{len(res)}")

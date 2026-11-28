@@ -27,7 +27,7 @@ export function buildLevel(n) {
     /** gerçek zıplama eğrisi üzerinde para (koşarak, tuş basılı) */
     arc(dx, t, n, step = 0.9) {
       t = V(t); const RUN = P.RUN, GU = P.G_UP, GD = P.G_DOWN, H = P.JUMP_H, V0 = Math.sqrt(2 * GU * H), tu = V0 / GU; step *= RUN / 6.8;
-      for (let i = 1; i <= n; i++) { const tt = (i * step) / RUN; const y = tt <= tu ? V0 * tt - 0.5 * GU * tt * tt : H - 0.5 * GD * (tt - tu) ** 2; L.coins.push({ x: b.at + dx + i * step, y: t + y + 0.6 }); }
+      for (let i = 1; i <= n; i++) { const tt = (i * step) / RUN; const y = tt <= tu ? V0 * tt - 0.5 * GU * tt * tt : H - 0.5 * GD * (tt - tu) ** 2; L.coins.push({ x: b.at + dx + i * step, y: t + y + 0.6, arc: true }); }
       return b;
     },
     col(dx, t0, n) { const y0 = VF(t0); for (let i = 0; i < n; i++) L.coins.push({ x: b.at + dx + 0.5, y: y0 + 0.75 + i * 0.85 }); return b; },
@@ -60,11 +60,12 @@ export function buildLevel(n) {
   L.oneway = [...L.bridges.map((s) => ({ ...s })), ...L.plats.map((p) => ({ x0: p.x - 0.05, x1: p.x + p.w + 0.05, y: p.y + 1, plat: true }))];
   for (const r of L.rafts) { r.s = { x0: r.x, x1: r.x + r.w, y: r.t, dx: 0 }; r.ph = 0; L.oneway.push(r.s); }
   L.groundAt = (x) => cols[Math.floor(x)] || 0;
+  L.gaps = []; for (let x = 1; x < L.w; x++) if (!cols[x] && cols[x - 1]) { let e = x; while (e + 1 < L.w && !cols[e + 1]) e++; L.gaps.push({ s: x, e }); x = e; }
   // altın blok içinde ya da diken üstünde kalmasın
   const badCoin = (c) => L.solid(Math.floor(c.x), Math.floor(c.y)) || L.thorns.some((t) => c.x > t.x0 && c.x < t.x1 && c.y < t.y + 1.2);
   L.coins = L.coins.filter((c) => !badCoin(c));
   patrols(L);
-  liftCoinsOverPatrols(L);
+  groundGapCoins(L);
   fillCoins(L, def.coins || 50);
   return L;
 }
@@ -108,19 +109,30 @@ function patrols(L) {
     const plat = L.oneway.find((s) => e.x >= s.x0 && e.x <= s.x1 && Math.abs(s.y - y) < 0.05);
     if (plat) { a = plat.x0; b = plat.x1; }
     else { a = fx; while (a - 1 >= 0 && L.cols[a - 1] === y && !L.solid(a - 1, y)) a--; b = fx + 1; while (b < L.w && L.cols[b] === y && !L.solid(b, y)) b++; }
-    if (e.range) { a = Math.max(a, e.range[0]); b = Math.min(b, e.range[1]); }
-    else { a = Math.max(a, e.x - 3); b = Math.min(b, e.x + 3); }
+    // geniş zeminde uzun devriye: başlangıç etrafında en fazla 8 blok (tek yönde 6–8 blok yürür)
+    a = Math.max(a, e.x - 4); b = Math.min(b, e.x + 4);
     const avoid = [...L.cages.map((c) => c.x), ...L.checkpoints.map((c) => c.x), ...L.springs.map((c) => c.x), ...(L.end ? [L.end.x] : [])];
     for (const ox of avoid) { if (ox > e.x && ox - 1.6 < b) b = ox - 1.6; if (ox < e.x && ox + 1.6 > a) a = ox + 1.6; }
+    // boşluk sonrası güvenli iniş alanı (karşı kıyının ilk 2,5 bloğu) ve boşluk öncesi kalkış alanı (son 1,5 blok) boş kalsın
+    for (const LZ of [2.5, 1.6]) { // önce 2,5 blok güvenli iniş; dar zeminde 1,6'ya iner
+      let a2 = a, b2 = b;
+      for (const g of L.gaps) {
+        if (Math.abs(L.cols[g.e + 1] - y) < 0.05 && g.e + 1 <= e.x + 1 && g.e + 1 + LZ > a2) a2 = g.e + 1 + LZ;
+        if (Math.abs(L.cols[g.s - 1] - y) < 0.05 && g.s >= e.x - 1 && g.s - LZ * 0.6 < b2) b2 = g.s - LZ * 0.6;
+      }
+      if (b2 - a2 >= 2 * hw + 1 || LZ === 1.6) { a = a2; b = Math.max(a2 + 2 * hw + 0.3, b2); break; }
+    }
     e.x0 = a + hw; e.x1 = Math.max(a + hw, b - hw); e.x = Math.min(e.x1, Math.max(e.x0, e.x));
   }
   for (const e of L.enemies) for (const f of L.enemies) {
-    if (e === f || e.t !== f.t || f.x <= e.x || e.x1 + 1.5 <= f.x0) continue;
-    const mid = (e.x + f.x) / 2; e.x1 = Math.max(e.x0, Math.min(e.x1, mid - 0.75 - 0.53)); f.x0 = Math.min(f.x1, Math.max(f.x0, mid + 0.75 + 0.53));
+    if (e === f || e.t !== f.t || f.x <= e.x || e.x1 + 0.53 + 2.5 <= f.x0 - 0.53) continue; // arada en az 2,5 blok boş iniş yeri
+    const mid = (e.x + f.x) / 2; e.x1 = Math.max(e.x0, Math.min(e.x1, mid - 1.25 - 0.53)); f.x0 = Math.min(f.x1, Math.max(f.x0, mid + 1.25 + 0.53));
   }
+  // sıkışıp yürüyemeyen düşman (dar zemin + kafes + komşu düşman) kaldırılır: yerinde sayan düşman tuzak olur
+  L.enemies = L.enemies.filter((e) => e.x1 - e.x0 >= 0.6);
 }
 
-// Gerçek zıplama ölçümü: düz zeminde tam hızda, tuş basılı tam zıplama → rota (x,y) ve uzunluk
+// Gerçek zıplama ölçümü: düz zeminde tam hızda, tuş basılı tam zıplama → rota uzunluğu
 let JUMP = null;
 function jumpPath() {
   if (JUMP) return JUMP;
@@ -129,26 +141,29 @@ function jumpPath() {
   for (let t = 0; t < 3; t += 1 / 60) { stepPlayer(flat, p, inp, 1 / 60); pts.push({ x: p.x, y: p.y }); if (t > 0.1 && p.ground) break; }
   return (JUMP = { pts, len: pts[pts.length - 1].x });
 }
-/** Düşman üstünden geçen altınlar: aynı yükseklikte, eşit aralıklı düz bir sıra.
- *  Yükseklik ve uzunluk gerçek zıplamadan ölçülür: doğru zamanlanmış tek zıplama sıranın hepsini toplar,
- *  kalkış ve iniş devriyenin dışında kalır (gerekirse devriye daraltılır). Yerdeki altınlar devriyeden çıkarılır. */
-function liftCoinsOverPatrols(L) {
-  const HW = { bocek: 0.53, kirpi: 0.55 }, J = jumpPath(), H = 2.55; // altın merkezi zeminden 2,55 yukarıda: yürürken alınmaz
-  for (const e of L.enemies) {
-    const hw = HW[e.type] || 0.55, top = e.t;
-    const near = (c) => c.y >= top && c.y <= top + 1.3 && c.x > e.x0 - hw - 0.7 && c.x < e.x1 + hw + 0.7;
-    const group = L.coins.filter(near); if (!group.length) continue;
-    // devriye, tek zıplamanın kalkış ve iniş payına sığsın (her iki yanda 0,25 güvenlik)
-    const clear = J.len - P.PW - 2 * hw - 0.5, mid = (e.x0 + e.x1) / 2;
-    if (e.x1 - e.x0 > clear) { e.x0 = mid - clear / 2; e.x1 = mid + clear / 2; e.x = Math.min(e.x1, Math.max(e.x0, e.x)); }
-    // kalkış: rota devriyenin ortasında tepe yapacak şekilde
-    const apex = J.pts.reduce((a, q) => (q.y > a.y ? q : a)), T = mid - apex.x;
-    // sırayı toplayan rota bölümü (0,15 pay ile)
-    const inWin = J.pts.filter((q) => coinHit({ x: q.x, y: q.y - 0.15 }, { x: q.x, y: H }) && coinHit({ x: q.x, y: q.y + 0.15 }, { x: q.x, y: H }));
-    const wx0 = T + inWin[0].x, wx1 = T + inWin[inWin.length - 1].x;
-    const n = Math.max(2, Math.min(5, Math.floor((wx1 - wx0) / 0.85) + 1)), step = (wx1 - wx0) / (n - 1 || 1);
-    L.coins = L.coins.filter((c) => !group.includes(c));
-    for (let i = 0; i < n; i++) L.coins.push({ x: wx0 + i * step, y: top + H, row: true });
-    e.jumpRow = { takeoff: T, land: T + J.len, x0: wx0, x1: wx1, y: top + H };
+/** Boşluk geçişleri: zıplama yayı şeklindeki altınlar oyuncuyu erken zıplatıyordu.
+ *  Boşluk öncesi altınlar yere, boşluk üstündekiler karşı kıyının güvenli iniş alanına (yine yere) taşınır.
+ *  Aynı düzlükteki altınlar aynı yükseklikte ve eşit aralıklı dizilir. Güvenli kalkış noktasına tabela konur. */
+function groundGapCoins(L) {
+  const J = jumpPath(), cols = L.cols;
+  const onFlat = (x) => cols[Math.floor(x)] > 0;
+  const moved = [];
+  for (const g of L.gaps) {
+    const hb = cols[g.s - 1], ha = cols[g.e + 1]; if (!hb || !ha || ha > hb + 1) continue; // yalnızca düz/inişli boşluklar
+    const arcs = L.coins.filter((c) => c.arc && c.x > g.s - 4.5 && c.x < g.e + 1 + 4.5);
+    if (!arcs.length) continue;
+    const before = arcs.filter((c) => c.x < g.s - 0.2 && onFlat(c.x)), rest = arcs.filter((c) => !before.includes(c));
+    // kalkış önü: yere, kenardan 1,3 blok geride biten eşit aralıklı sıra
+    before.sort((a, b) => a.x - b.x).forEach((c, i, arr) => { c.x = g.s - 1.3 - (arr.length - 1 - i) * 0.9; c.y = hb + 0.75; c.arc = false; moved.push(c); });
+    // güvenli iniş alanı: kenardan 1,2 blok sonra başlar
+    const land0 = g.e + 1 + 1.2;
+    const thornAt = (x) => L.thorns.some((t) => x > t.x0 - 0.6 && x < t.x1 + 0.6);
+    let lx = land0;
+    rest.forEach((c, i) => { while (thornAt(lx) || L.solid(Math.floor(lx), Math.floor(ha + 0.75))) lx += 0.9; c.x = lx; lx += 0.9; c.y = cols[Math.floor(c.x)] ? cols[Math.floor(c.x)] + 0.75 : ha + 0.75; c.arc = false; moved.push(c); });
+    // güvenli kalkış noktası: tam zıplama karşı kıyıya kenardan ~1 blok sonra iner
+    const w = g.e - g.s + 1, take = g.s - Math.max(0.35, (J.len - w - 1.0) / 2) - 0.2;
+    L.signs.push({ x: take, y: hb, text: '', jump: true });
   }
+  // aynı yere düşen altınları ayıkla
+  L.coins = L.coins.filter((c, i) => !L.coins.some((d, j) => j < i && Math.abs(d.x - c.x) < 0.5 && Math.abs(d.y - c.y) < 0.5));
 }
