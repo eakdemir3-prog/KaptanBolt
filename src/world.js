@@ -59,6 +59,17 @@ THEMES[3] = { n: 3, name: 'Güneş Kanyonu', ground: 'props/w3/ground.webp', soi
 THEMES[4] = { n: 4, name: 'Buzul Dağları', ground: 'props/w4/ground.webp', soil: 'w4/soil', bg: 'buzul', top: ['#f2f8ff', 'rgba(190,215,240,0.45)', 'rgba(255,255,255,0.6)'],
   spr: { bush1: ['w4/bush', 269 / 187], bush2: ['w4/pine', 250 / 293], bush3: ['w4/crystal', 289 / 255], flower1: ['w4/frostgrass', 255 / 185], flower2: ['w4/frostgrass', 255 / 185], flower3: ['w4/crystal', 289 / 255], flower4: ['w4/frostgrass', 255 / 185], flower5: ['w4/bush', 269 / 187], flower6: ['w4/frostgrass', 255 / 185], stump: ['w4/snowman', 223 / 258], rocks: ['w4/rocks', 307 / 202], log: ['w4/sled', 380 / 170], mushrooms: ['w4/barrel', 184 / 223], vines: ['w4/vine', 114 / 422], sign: ['w4/sign', 264 / 219] },
   far: [0xffffff, 0x9aa8d8], mid: [0xffffff, 0xdfeaf6], enemy: { bocek: 'buzbocek', kirpi: 'yeti' }, animal: { kus: 'penguen', tilki: 'fok', maymun: 'kutuptilki' }, fog: 0xd6e6ff, hemi: [0xeaf4ff, 0x6a7a9a, 1.9], sun: [0xfff4e8, 2.1] };
+const S5 = { bush1: ['w5/firebush', 242 / 216], bush2: ['w5/fern', 312 / 193], bush3: ['w5/crystal', 232 / 227], flower1: ['w5/fern', 312 / 193], flower2: ['w5/firebush', 242 / 216], flower3: ['w5/vent', 197 / 250], flower4: ['w5/fern', 312 / 193], flower5: ['w5/crystal', 232 / 227], flower6: ['w5/firebush', 242 / 216], stump: ['w5/palm', 241 / 267], rocks: ['w5/rocks', 255 / 185], log: ['w5/tiki', 228 / 256], mushrooms: ['w5/pot', 187 / 179], vines: ['w5/vine', 98 / 329], sign: ['w5/sign', 255 / 192] };
+const S6 = { bush1: ['w6/mushroom', 198 / 205], bush2: ['w6/fern', 279 / 191], bush3: ['w6/pinkcrystal', 158 / 159], flower1: ['w6/fern', 279 / 191], flower2: ['w6/pinkcrystal', 158 / 159], flower3: ['w6/mushroom', 198 / 205], flower4: ['w6/gold', 221 / 113], flower5: ['w6/stalagmite', 169 / 194], flower6: ['w6/fern', 279 / 191], stump: ['w6/lantern', 185 / 233], rocks: ['w6/rocks', 248 / 166], log: ['w6/toolbox', 225 / 224], mushrooms: ['w6/pickaxe', 205 / 212], vines: ['w6/root', 104 / 306], sign: ['w6/sign', 215 / 178] };
+const S7 = { bush1: ['w7/flowerbush', 261 / 169], bush2: ['w7/dandelion', 250 / 176], bush3: ['w7/goldcrystal', 234 / 211], flower1: ['w7/dandelion', 250 / 176], flower2: ['w7/flowerbush', 261 / 169], flower3: ['w7/goldcrystal', 234 / 211], flower4: ['w7/dandelion', 250 / 176], flower5: ['w7/flowerbush', 261 / 169], flower6: ['w7/dandelion', 250 / 176], stump: ['w7/tree', 245 / 250], rocks: ['w7/birdbath', 181 / 212], log: ['w7/windmill', 235 / 290], mushrooms: ['w7/tree', 245 / 250], vines: ['w7/chain', 62 / 335], sign: ['w7/sign', 247 / 196] };
+const S8 = { bush1: ['w7/gears', 246 / 170], bush2: ['w7/barrel', 159 / 226], bush3: ['w7/dish', 175 / 229], flower1: ['w7/gears', 246 / 170], flower2: ['w7/barrel', 159 / 226], flower3: ['w7/gears', 246 / 170], flower4: ['w7/dish', 175 / 229], flower5: ['w7/gears', 246 / 170], flower6: ['w7/barrel', 159 / 226], stump: ['w7/dish', 175 / 229], rocks: ['w7/gears', 246 / 170], log: ['w7/barrel', 159 / 226], mushrooms: ['w7/gears', 246 / 170], vines: ['w7/chain', 62 / 335], sign: ['w7/sign', 247 / 196] };
+THEMES[5] = { n: 5, name: 'Volkan Adası', ground: 'props/w5/ground.webp', soil: 'w5/soil', bg: 'volkan', top: ['#4a4040', 'rgba(90,70,60,0.5)', 'rgba(70,90,50,0.35)'], spr: S5,
+  far: [0xffffff, 0x5a4458], mid: [0xffffff, 0x2a1c1c], fog: 0xd07a4a, enemy: { bocek: 'atesyarasa', kirpi: 'lavsalyangoz' }, animal: { kus: 'papagan', tilki: 'kaplumbaga', maymun: 'kirmizipanda' }, hemi: [0xffe0c8, 0x6a3a2a, 1.85], sun: [0xffc890, 2.1] };
+THEMES[6] = { n: 6, name: 'Kristal Mağaralar', ground: 'props/w6/ground.webp', soil: 'w6/soil', bg: 'magara', top: ['#1e2a6a', 'rgba(40,200,220,0.35)', 'rgba(60,40,140,0.4)'], spr: S6, ceil: 'w6/ceiling',
+  far: [0xffffff, 0x3a3a7a], mid: [0xffffff, 0x1a1a4a], fog: 0x3a3a7a, enemy: { bocek: 'kristalorumcek', kirpi: 'kostebek' }, animal: { kus: 'yarasayavru', tilki: 'aksolotl', maymun: 'armadillo' }, hemi: [0xc8d8ff, 0x2a2a5a, 1.6], sun: [0xd8e0ff, 1.6] };
+THEMES[7] = { n: 7, name: 'Bulut Kalesi', ground: 'props/w7/ground.webp', soil: 'w7/soil', bg: 'bulut', top: ['#7ac83a', 'rgba(60,150,30,0.35)', 'rgba(200,250,120,0.35)'], spr: S7,
+  far: [0xffffff, 0xd8d0f0], mid: [0xffffff, 0xf0d0e8], fog: 0xf8e0f0, enemy: { bocek: 'drone', kirpi: 'asker' }, animal: { kus: 'kartal', tilki: 'kugu', maymun: 'alpaka' }, hemi: [0xfff8ff, 0x8a7a9a, 1.95], sun: [0xfff0e0, 2.1] };
+THEMES[8] = { ...THEMES[7], n: 8, name: 'Amiral\'in Kalesi', ground: 'props/w8/ground.webp', soil: 'w8/soil', bg: 'kale', top: ['#6a6a78', 'rgba(40,40,50,0.4)', 'rgba(220,180,40,0.35)'], spr: S8, far: null, mid: null, fog: 0x3a3440, hemi: [0xffe8d8, 0x3a3040, 1.8], sun: [0xffd8b0, 1.9] };
 export let THEME = THEMES[1];
 /** Dünya değişince zemin dokuları yeniden yüklenir (süs resimleri adlarıyla önbellekte kalır). Değiştiyse true. */
 export function applyTheme(n) {
@@ -298,8 +309,9 @@ export function backdrop(scene0, levelW) {
   };
   const T = THEME;
   const sky = layer(`bg/${T.bg}-gok.webp`, -120, 120, -20, { aspect: 1672 / 941 });
-  const far = layer(`bg/${T.bg}-uzak.webp`, -70, 46, -14, { alpha: true, aspect: 1532 / 941, order: 1, tint: T.far[0], fill: T.far[1] });
-  const mid = layer(`bg/${T.bg}-orta.webp`, -26, 21, -9, { alpha: true, aspect: 1532 / 941, order: 2, tint: T.mid[0], fill: T.mid[1] });
+  const far = T.far && layer(`bg/${T.bg}-uzak.webp`, -70, 46, -14, { alpha: true, aspect: 1532 / 941, order: 1, tint: T.far[0], fill: T.far[1] });
+  const mid = T.mid && layer(`bg/${T.bg}-orta.webp`, -26, 21, -9, { alpha: true, aspect: 1532 / 941, order: 2, tint: T.mid[0], fill: T.mid[1] });
+  if (T.ceil) layer(`props/${T.ceil}.webp`, -12, 6, 8.2, { alpha: true, aspect: 1536 / 512, order: 3 }); // mağara tavanı
   return { sky, far, mid, group: scene };
 }
 
@@ -357,6 +369,12 @@ export function makeSpring(kind = null) {
 export function makeCrumble(w) {
   mats();
   const g = new THREE.Group(), W = w + 0.35, h1 = W * 218 / 819, h2 = W * 333 / 817;
+  const alt = { 5: ['w5/obsidian', 345 / 334, 0.55], 6: ['w6/cbridge', 468 / 122, 1], 7: ['w7/cloud', 624 / 168, 1], 8: ['w7/cloud', 624 / 168, 1] }[THEME.n];
+  if (alt) { // volkan: obsidyen, mağara: kristal köprü, bulut: kaybolan bulut — çatlayınca soluklaşır
+    const h = (W * alt[2]) / alt[1], a = sprite(alt[0], h, alt[1]); a.scale.x = alt[2] < 1 ? 1 / alt[2] : 1; a.position.set(w / 2, -Math.min(h, 1) * 0.8, 0.3); g.add(a);
+    const b = sprite(THEME.n === 6 ? 'w6/cbridge_off' : alt[0], h, THEME.n === 6 ? 483 / 132 : alt[1]); b.scale.x = a.scale.x; b.material = b.material.clone(); b.material.transparent = true; b.material.opacity = 0.55; b.material.color.setHex(THEME.n === 5 ? 0xff8a4a : 0xffffff); b.position.copy(a.position); b.visible = false; g.add(b);
+    g.userData = { a, b }; return g;
+  }
   if (THEME.n === 4) { // buzul: karlı kaya; çatlayınca soluk mavi
     const h = W * 218 / 481, a = sprite('w4/plat', h, 481 / 218); a.position.set(w / 2, -h * 0.82, 0.3); g.add(a);
     const b = sprite('w4/plat', h, 481 / 218); b.material = b.material.clone(); b.material.color.setHex(0x9ad8ff); b.position.copy(a.position); b.visible = false; g.add(b);
@@ -377,7 +395,7 @@ export function makeQuicksand(w) {
 export function makeStorm(w) {
   mats();
   const g = new THREE.Group(), clouds = [];
-  for (let i = 0; i < Math.max(2, Math.round(w / 3)); i++) { const c = sprite('w3/storm', 1.4 + R() * 0.8, 569 / 223); c.material = c.material.clone(); if (THEME.n === 4) c.material.color.setHex(0xeaf6ff); c.material.alphaTest = 0.02; c.material.depthWrite = false; c.material.transparent = true; c.position.set(R() * w, 0.2 + R() * 3.2, 0.8 + R() * 0.4); c.userData.v = 3 + R() * 2; g.add(c); clouds.push(c); }
+  for (let i = 0; i < Math.max(2, Math.round(w / 3)); i++) { const c = sprite('w3/storm', 1.4 + R() * 0.8, 569 / 223); c.material = c.material.clone(); if (THEME.n === 4 || THEME.n >= 7) c.material.color.setHex(0xeaf6ff); c.material.alphaTest = 0.02; c.material.depthWrite = false; c.material.transparent = true; c.position.set(R() * w, 0.2 + R() * 3.2, 0.8 + R() * 0.4); c.userData.v = 3 + R() * 2; g.add(c); clouds.push(c); }
   g.userData = { clouds, w }; return g;
 }
 /** Kaygan buz şeridi */
@@ -391,16 +409,35 @@ export function makeIce(w) {
 export function makeIcicle() {
   mats();
   const g = new THREE.Group();
-  const rock = sprite('w4/plat', 0.75, 481 / 218); rock.position.set(0, -0.15, -0.1); g.add(rock);
-  const ic = sprite('w4/icicle', 1.3, 444 / 356); ic.geometry = ic.geometry.clone(); ic.geometry.translate(0, -1.3, 0); ic.position.set(0, -0.05, 0.1); g.add(ic);
+  const cave = THEME.n === 6;
+  const rock = sprite(cave ? 'w6/stalactite' : 'w4/plat', cave ? 1.1 : 0.75, cave ? 330 / 243 : 481 / 218); rock.position.set(0, cave ? -0.6 : -0.15, -0.1); g.add(rock);
+  const ic = cave ? sprite('w6/boulder', 0.9, 176 / 233) : sprite('w4/icicle', 1.3, 444 / 356); ic.geometry = ic.geometry.clone(); ic.geometry.translate(0, -1.3, 0); ic.position.set(0, -0.05, 0.1); g.add(ic);
   g.userData = { ic }; return g;
+}
+/** Konveyör bant (kale): zemin üstünde ok işaretli bant; dir -1 ise ters */
+export function makeBelt(w, dir) {
+  mats(); const g = new THREE.Group(), segW = 3, n = Math.max(1, Math.round(w / segW)), step = w / n;
+  for (let i = 0; i < n; i++) { const s = sprite('w7/belt', step * 1.04 / (675 / 137), 675 / 137); s.scale.x = dir; s.position.set((i + 0.5) * step, -0.3, 0.95); g.add(s); }
+  return g;
+}
+/** Lazer kapısı: yerde ve yukarıda direk, arada dikey kırmızı ışın (açıkken) */
+export function makeLaser(h) {
+  mats(); const g = new THREE.Group();
+  const a = sprite('w7/laser_post', 0.75, 123 / 228); a.position.set(0, -0.05, 0.2); g.add(a);
+  const b = sprite('w7/laser_post', 0.75, 123 / 228); b.scale.y = -1; b.position.set(0, h + 0.05, 0.2); g.add(b);
+  const beam = new THREE.Mesh(new THREE.PlaneGeometry(0.16, h - 1.2), new THREE.MeshBasicMaterial({ color: 0xff2a2a, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  beam.position.set(0, h / 2, 0.25); g.add(beam);
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.7, h - 1.2), new THREE.MeshBasicMaterial({ map: glowTex(), color: 0xff3a3a, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); glow.position.copy(beam.position); g.add(glow);
+  g.userData = { beam, glow }; return g;
 }
 /** Spor bulutu: altta bulut resmi, üstünde yukarı akan parıltılı ışık sütunu */
 export function makeSpore(w, h) {
   mats();
   const g = new THREE.Group();
-  const cw = w * 1.25, cloud = sprite('w2/spore', cw * 473 / 768, 768 / 473); cloud.material = cloud.material.clone(); cloud.material.alphaTest = 0.02; cloud.material.depthWrite = false; cloud.material.opacity = 0.9;
-  cloud.position.set(w / 2, -0.55, 0.5); cloud.renderOrder = 2; g.add(cloud);
+  const sky = THEME.n >= 7;
+  const cw = w * 1.25, cloud = sky ? sprite('w7/wind', h * 0.9, 169 / 386) : sprite('w2/spore', cw * 473 / 768, 768 / 473);
+  if (sky) { cloud.scale.x = (w * 1.2) / (h * 0.9 * 169 / 386); } cloud.material = cloud.material.clone(); cloud.material.alphaTest = 0.02; cloud.material.depthWrite = false; cloud.material.opacity = 0.9;
+  cloud.position.set(w / 2, sky ? 0 : -0.55, 0.5); cloud.renderOrder = 2; g.add(cloud);
   const grad = canvasTex(16, 128, (c, W, H) => { const r = c.createLinearGradient(0, 0, 0, H); r.addColorStop(0, 'rgba(255,255,255,0)'); r.addColorStop(0.25, 'rgba(255,255,255,0.35)'); r.addColorStop(1, 'rgba(255,255,255,0.55)'); c.fillStyle = r; c.fillRect(0, 0, W, H); const s = c.createLinearGradient(0, 0, W, 0); s.addColorStop(0, 'rgba(0,0,0,1)'); s.addColorStop(0.5, 'rgba(0,0,0,0)'); s.addColorStop(1, 'rgba(0,0,0,1)'); c.globalCompositeOperation = 'destination-out'; c.fillStyle = s; c.fillRect(0, 0, W, H); }, false);
   const col = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: grad, color: 0x9afff0, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
   col.position.set(w / 2, h / 2, 0.45); g.add(col);
@@ -482,9 +519,21 @@ export function makeBridge(x0, x1, y) {
   for (let i = 0; i < n; i++) { const s = sprite('bridge', h, ASPECT.bridge); s.scale.x = (step * 1.06) / segW; s.position.set(x0 + (i + 0.5) * step, y - h * 0.62, 0.1); g.add(s); }
   return g;
 }
-export function makeRaft(w) { mats(); const g = new THREE.Group(); const h = w / ASPECT.raft; const s = sprite('raft', h, ASPECT.raft); s.position.set(w / 2, -h * 0.72, 0.1); g.add(s); return g; }
+export function makeRaft(w) {
+  mats(); const g = new THREE.Group();
+  const alt = { 5: ['w5/magma', 450 / 201, 0.62], 6: ['w6/cart', 286 / 248, 0.8], 7: ['w7/cloud', 624 / 168, 0.6], 8: ['w7/belt', 675 / 137, 0.45] }[THEME.n];
+  if (alt) { const W = w + 0.3, h = W / alt[1]; const s = sprite(alt[0], h, alt[1]); s.position.set(w / 2, -h * alt[2], 0.1); g.add(s); return g; }
+  const h = w / ASPECT.raft; const s = sprite('raft', h, ASPECT.raft); s.position.set(w / 2, -h * 0.72, 0.1); g.add(s); return g;
+}
 export function makeThorns(w) {
-  mats(); const g = new THREE.Group(); const segW = 1.5, n = Math.max(1, Math.round(w / segW)), step = w / n;
+  mats(); const g = new THREE.Group();
+  if (THEME.n === 5) { // volkan: dikenler yerine fokurdayan lav
+    const segW = 2.4, n = Math.max(1, Math.round(w / segW)), step = w / n;
+    for (let i = 0; i < n; i++) { const s = sprite('w5/lava', step * 1.12 / (440 / 80) * 1.4, 440 / 80 / 1.4); s.position.set((i + 0.5) * step, -0.18, 1.28); g.add(s); }
+    const gl = new THREE.Mesh(new THREE.PlaneGeometry(w, 1.2), new THREE.MeshBasicMaterial({ map: glowTex(), color: 0xff6a1a, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); gl.position.set(w / 2, 0.25, 1.3); g.add(gl);
+    return g;
+  }
+  const segW = 1.5, n = Math.max(1, Math.round(w / segW)), step = w / n;
   for (let i = 0; i < n; i++) { const s = sprite("thorns", segW / ASPECT.thorns * 1.35, ASPECT.thorns); s.scale.x = step / segW * 1.15; s.position.set((i + 0.5) * step, -0.06, 0.15 + (i % 2) * 0.05); g.add(s); }
   return g;
 }

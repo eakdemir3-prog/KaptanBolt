@@ -5,6 +5,7 @@
 import { LEVELS2 } from './levels2.js';
 import { LEVELS3 } from './levels3.js';
 import { LEVELS4 } from './levels4.js';
+import { LEVELS5 } from './levels5.js';
 const A = ['kus', 'tilki', 'maymun'];
 
 export const LEVELS = [
@@ -252,5 +253,5 @@ export const LEVELS = [
     b.ground(16, 2).end(9);
   } },
 ];
-LEVELS.push(...LEVELS2, ...LEVELS3, ...LEVELS4);
+LEVELS.push(...LEVELS2, ...LEVELS3, ...LEVELS4, ...LEVELS5);
 export const ANIMALS = A;

@@ -19,7 +19,7 @@ P.STOMP = Math.sqrt(2 * P.G_UP * P.STOMP_H);
 P.BOUNCE_H = { 1: 4.0, 2: 5.4, 3: 7.6 };
 P.springV = (kind) => Math.sqrt(2 * P.G_UP * (P.BOUNCE_H[kind] || P.SPRING_H));
 // spor bulutu: içindeyken yukarı süzülür (yerçekimini yener, hız sınırlı)
-P.SPORE_LIFT = 95; P.SPORE_MAX = 4.6; P.STORM = 2.0;
+P.SPORE_LIFT = 95; P.SPORE_MAX = 4.6; P.STORM = 2.0; P.BELT = 2.4;
 /** Yay/mantar ve spor bulutu etkileri (oyun ve test aynı kural). Basılan yayı döndürür. */
 export function applyFields(L, p, dt) {
   let hit = null;
@@ -31,6 +31,8 @@ export function applyFields(L, p, dt) {
   // kaygan buz: bir sonraki adımda ivme ve sürtünme azalır (kayarsın)
   p.onIce = false;
   if (L.ices) for (const z of L.ices) if (p.ground && Math.abs(p.y - z.y) < 0.05 && p.x > z.x0 && p.x < z.x1) { p.onIce = true; break; }
+  // konveyör bant: üstünde durana yön verir
+  if (L.belts) for (const z of L.belts) if (p.ground && Math.abs(p.y - z.y) < 0.05 && p.x > z.x0 && p.x < z.x1) { moveX(L, p, z.dir * P.BELT * dt, P.PW, P.PH); break; }
   // kum fırtınası: rüzgâr sola iter
   p.inStorm = false;
   if (L.storms) for (const z of L.storms) if (p.x > z.x0 && p.x < z.x1) { p.inStorm = true; moveX(L, p, -P.STORM * dt, P.PW, P.PH); break; }

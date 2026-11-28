@@ -57,6 +57,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d2a1a; fon
 .lv { touch-action: manipulation; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 16px; border: 2px solid rgba(255,255,255,.35); background: linear-gradient(#3a8a4a, #1f5a2c); color: #fff; font-family: Pop, sans-serif; box-shadow: 0 4px 0 #123a1c; }
 .lv b { font-size: 24px; line-height: 1; }
 .lv small { font-size: 9px; opacity: .85; line-height: 1.1; min-height: 20px; text-align: center; }
+#levels.w5 .lv:not(.boss):not(.lock) { background: linear-gradient(#d8452a, #6a1a10); box-shadow: 0 4px 0 #3a0a06; }
+#levels.w6 .lv:not(.boss):not(.lock) { background: linear-gradient(#4a5ad8, #1e1a6a); box-shadow: 0 4px 0 #100a3a; }
+#levels.w7 .lv:not(.boss):not(.lock) { background: linear-gradient(#f0b8e0, #8a6ad0); box-shadow: 0 4px 0 #4a3a8a; }
 #levels.w4 .lv:not(.boss):not(.lock) { background: linear-gradient(#5aa8e0, #2a5a9a); box-shadow: 0 4px 0 #163a6a; }
 #levels.w3 .lv:not(.boss):not(.lock) { background: linear-gradient(#d88a3a, #9a4a1c); box-shadow: 0 4px 0 #5a2a0c; }
 #levels.w2 .lv:not(.boss):not(.lock) { background: linear-gradient(#7a4ab0, #44236e); box-shadow: 0 4px 0 #2a1248; }
@@ -90,3 +93,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d2a1a; fon
 /* şimşek dolumu: düğmenin çevresinde dolan halka */
 #bF { --f: 1; }
 #bF::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; pointer-events: none; background: conic-gradient(#ffe066 calc(var(--f) * 360deg), transparent 0); -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%); mask: radial-gradient(circle, transparent 62%, #000 64%); opacity: .85; }
+
+/* karanlık mağara: Bolt'un çevresi aydınlık, kenarlar karanlık */
+#dark { position: fixed; inset: 0; pointer-events: none; z-index: 2; --x: 50%; --y: 60%; --r: 190px;
+  background: radial-gradient(circle var(--r) at var(--x) var(--y), rgba(0,0,10,0) 0%, rgba(0,0,10,0) 55%, rgba(2,2,14,0.93) 100%); transition: --r .4s; }
+#dark.hidden { display: none; }

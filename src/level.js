@@ -10,8 +10,8 @@ const VF = (t) => 2 + (t - 2) * 0.75;
 export function buildLevel(n) {
   const def = LEVELS[n - 1];
   const L = {
-    n, name: def.name, world: Math.ceil(n / 20), w: 0, cols: [], plats: [], crates: new Map(), bridges: [], rafts: [], coins: [], enemies: [], cages: [],
-    springs: [], spores: [], crumbles: [], sands: [], storms: [], ices: [], icicles: [], iceb: new Map(), thorns: [], hearts: [], star: null, signs: [], decos: [], vines: [], checkpoints: [], end: null, boss: null, start: { x: 2.5, y: 2 }, ship: false,
+    n, name: def.name, world: Math.ceil(n / 20), chase: !!def.chase, dark: !!def.dark, w: 0, cols: [], plats: [], crates: new Map(), bridges: [], rafts: [], coins: [], enemies: [], cages: [],
+    springs: [], spores: [], crumbles: [], sands: [], storms: [], ices: [], icicles: [], iceb: new Map(), belts: [], lasers: [], lights: [], thorns: [], hearts: [], star: null, signs: [], decos: [], vines: [], checkpoints: [], end: null, boss: null, start: { x: 2.5, y: 2 }, ship: false,
   };
   const b = {
     x: 0, at: 0, h: 2,
@@ -40,6 +40,12 @@ export function buildLevel(n) {
     sand(dx, w) { L.sands.push({ x0: b.at + dx, x1: b.at + dx + w, y: b.h }); return b; },
     /** kum fırtınası: dx'ten w kare boyunca rüzgâr sola iter */
     storm(dx, w) { L.storms.push({ x0: b.at + dx, x1: b.at + dx + w }); return b; },
+    /** konveyör bant: zeminde dx'ten w kare, dir 1 sağa / -1 sola taşır */
+    belt(dx, w, dir = 1) { L.belts.push({ x0: b.at + dx, x1: b.at + dx + w, y: b.h, dir }); return b; },
+    /** lazer kapısı: belli aralıklarla açılıp kapanır, açıkken değmek can götürür */
+    laser(dx, ph = 0) { L.lasers.push({ x: b.at + dx + 0.5, y: b.h, h: 3.2, ph }); return b; },
+    /** ışık taşı (karanlık mağara): dokununca etraf bir süre aydınlanır */
+    light(dx) { L.lights.push({ x: b.at + dx + 0.5, y: b.h }); return b; },
     /** kaygan buz: zeminde dx'ten w kare */
     ice(dx, w) { L.ices.push({ x0: b.at + dx, x1: b.at + dx + w, y: b.h }); return b; },
     /** buz sarkıtı: zeminin h kare yukarısında asılı; Bolt yaklaşınca titreyip düşer */

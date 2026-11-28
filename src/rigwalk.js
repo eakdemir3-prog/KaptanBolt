@@ -143,8 +143,8 @@ function arthropod(model) {
 }
 export function makeWalker(model, kind) {
   if (kind === 'akrep' || kind === 'devakrep') return arthropod(model);
-  if (kind === 'mantarcik' || kind === 'yeti') return hopper(model);
-  if (kind === 'salyangoz' || kind === 'buzbocek') return slider(model);
+  if (kind === 'mantarcik' || kind === 'yeti' || kind === 'asker') return hopper(model);
+  if (['salyangoz', 'buzbocek', 'lavsalyangoz', 'kristalorumcek', 'kostebek'].includes(kind)) return slider(model);
   const spec = RIGS[kind]; if (!spec) return null;
   const bones = {}; model.traverse((o) => { if (o.isBone) bones[o.name] = o; });
   const frame = Object.values(bones)[0]?.parent?.parent || model; // SmartRigArmature

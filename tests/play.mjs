@@ -35,7 +35,7 @@ for (let n = 1; n <= 5; n++) {
   }
 }
 // zıplama tabelası: tabeladan 0,5 önce, tabeladan ve 0,5 sonra basılı tutarak kalkınca karşıya ulaşılmalı (bütün bölümler)
-for (let n = 1; n <= 80; n++) {
+for (let n = 1; n <= 140; n++) {
   const L = buildLevel(n);
   for (const s of L.signs.filter((q) => q.jump)) {
     const g = L.gaps.find((q) => q.s > s.x && q.s - s.x < 3); if (!g) continue;
