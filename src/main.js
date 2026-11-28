@@ -10,7 +10,7 @@ import { P, stepPlayer, moveX, newPlayer, coinHit, applyFields } from './physics
 import { THEME, THEMES, applyTheme, makeSpore, buildWorld, backdrop, seed, makeCoin, makeSpring, makePost, setPost, makeBeam, makePortal, makeCage2D, makeSprite, ASPECT, makeBridge, makeRaft, makeThorns } from './world.js';
 import { sfx, unlockAudio } from './audio.js';
 import { clone as skClone } from 'three/addons/utils/SkeletonUtils.js';
-import { makeWalker } from './rigwalk.js';
+import { makeWalker, kralRig } from './rigwalk.js';
 import { makeTeleport, updateTeleport } from './teleport.js';
 const TPV = +((location.hash.match(/tp=(\d)/) || [])[1] || 0);
 
@@ -379,21 +379,14 @@ function setupKral() {
   const B = L.boss;
   const m = add(new THREE.Group()); const body = cloneM('kral'); m.add(body); toActor(m);
   body.traverse((o) => { if (o.isMesh && o.material) o.material = o.material.clone(); });
-  const mixer = new THREE.AnimationMixer(body), clips = MODELS.kral?.userData.clips || [], acts = {};
-  for (const c of clips) acts[c.name] = mixer.clipAction(c);
+  const rig = kralRig(body);
   const stars = add(new THREE.Group()); for (let i = 0; i < 4; i++) { const st = makeSprite('star', 0.4, ASPECT.star); st.position.set(Math.cos(i * 1.57) * 0.9, 0, Math.sin(i * 1.57) * 0.9); stars.add(st); } stars.visible = false;
   const walls = [B.x0 - 1, B.x1];
   const wallM = walls.map((wx) => { const g = add(new THREE.Group()); for (let i = 0; i < 6; i++) { const c = makeSprite('crate', 1.02, ASPECT.crate); c.position.set(0.5, i, 0.3); g.add(c); } g.position.set(wx, -8, 0); return g; });
   const ring = add(new THREE.Mesh(new THREE.RingGeometry(0.2, 0.45, 32), new THREE.MeshBasicMaterial({ color: 0xb8ff4a, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }))); ring.rotation.x = -Math.PI / 2; toActor(ring);
-  ents.boss = { ...B, kind: 'kral', m, body, mixer, acts, cur: null, stars, ring, x: B.x1 - 4, y: B.y, vx: 0, dir: -1, hp: 3, st: 'wait', t: 0, w: 2.3, h: 2.9, wallX: walls, wallM, wallsUp: false, flash: 0, dead: false, fired: 0, slammed: false, tipPunch: false };
-  kralAnim(ents.boss, 'Walking', 0.01); ents.boss.mixer.timeScale = 0;
+  ents.boss = { ...B, kind: 'kral', m, body, rig, stars, ring, x: B.x1 - 4, y: B.y, vx: 0, dir: -1, hp: 3, st: 'wait', t: 0, w: 2.3, h: 2.9, wallX: walls, wallM, wallsUp: false, flash: 0, dead: false, fired: 0, slammed: false, tipPunch: false };
   const base = L.solid;
   L.solid = (x, y) => (ents.boss && ents.boss.wallsUp && ents.boss.wallX.includes(x) && y < 14) || base(x, y);
-}
-function kralAnim(b, name, fade = 0.25, once = false) {
-  const a = b.acts[name]; if (!a || b.cur === name) return; const prev = b.acts[b.cur];
-  a.reset(); a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat); a.clampWhenFinished = once; a.play();
-  if (prev) prev.crossFadeTo(a, fade, false); b.cur = name;
 }
 function throwSpore(b) {
   const p = player, fromX = b.x + b.dir * 0.8, fromY = b.y + 2.4;
@@ -418,7 +411,6 @@ function updateKral(dt) {
   const b = ents.boss, p = player; b.t += dt;
   updateSballs(dt);
   for (const g of b.wallM) g.position.y += ((b.wallsUp ? b.y : b.y - 8) - g.position.y) * Math.min(1, dt * 6);
-  b.mixer.update(dt);
   if (b.dead) {
     b.m.rotation.z += dt * 2.5; b.m.position.y += dt * (3 - b.t * 6); b.m.scale.setScalar(Math.max(0.01, 1 - b.t * 0.6));
     if (b.t > 1.6 && b.m.visible) { b.m.visible = false; landShip(); }
@@ -426,11 +418,11 @@ function updateKral(dt) {
   }
   const toward = () => { b.dir = p.x < b.x ? -1 : 1; };
   const go = (st) => { b.st = st; b.t = 0; };
-  if (b.st === 'wait') { if (p.x > b.x0 + 2) { b.wallsUp = true; b.mixer.timeScale = 1; go('roar'); kralAnim(b, 'Shouting_Angrily', 0.2); sfx.bump(); toast('⚠️ Mantar Kral! Yumruktan sonra yorulur: kafasına zıpla!'); } }
+  if (b.st === 'wait') { if (p.x > b.x0 + 2) { b.wallsUp = true; go('roar'); sfx.bump(); toast('⚠️ Mantar Kral! Yumruktan sonra yorulur: kafasına zıpla!'); } }
   else if (b.st === 'roar') { toward(); b.vx = 0; if (b.t > 1.8) { go('walk'); } }
   else if (b.st === 'walk') {
-    toward(); kralAnim(b, 'Walking'); b.vx = b.dir * (1.3 + (3 - b.hp) * 0.35);
-    if (b.t > 2.4 - (3 - b.hp) * 0.4) { b.vx = 0; if (Math.abs(p.x - b.x) < 4.5) { go('punch'); kralAnim(b, 'Punch_Combo', 0.15, true); b.slammed = false; if (!b.tipPunch) { b.tipPunch = true; toast('👊 Yere vuracak: zıpla!'); } } else { go('shout'); kralAnim(b, 'Shouting_Angrily', 0.2); b.fired = 0; } }
+    toward(); b.vx = b.dir * (1.3 + (3 - b.hp) * 0.35);
+    if (b.t > 2.4 - (3 - b.hp) * 0.4) { b.vx = 0; if (Math.abs(p.x - b.x) < 4.5) { go('punch'); b.slammed = false; if (!b.tipPunch) { b.tipPunch = true; toast('👊 Yere vuracak: zıpla!'); } } else { go('shout'); b.fired = 0; } }
   } else if (b.st === 'shout') {
     b.vx = 0; toward();
     if (b.fired === 0 && b.t > 0.7) { b.fired = 1; throwSpore(b); sfx.shot(); }
@@ -441,22 +433,22 @@ function updateKral(dt) {
     const tSlam = 1.1; b.ring.material.opacity = b.t < tSlam ? 0.25 + Math.sin(b.t * 20) * 0.15 : Math.max(0, 0.8 - (b.t - tSlam) * 2);
     const rr = b.t < tSlam ? 1 : 1 + (b.t - tSlam) * 18; b.ring.scale.setScalar(rr); b.ring.position.set(b.x, b.y + 0.05, 0.6);
     if (!b.slammed && b.t > tSlam) { b.slammed = true; sfx.stomp(); vibrate(80); shake = 0.5; dust(b.x - 1, b.y, 10); dust(b.x + 1, b.y, 10); if (G.state === 'play' && p.ground && Math.abs(p.x - b.x) < 7) hurt(b.x); }
-    if (b.t > 2.2) { go('tired'); b.ring.material.opacity = 0; b.mixer.timeScale = 0.15; }
+    if (b.t > 2.2) { go('tired'); b.ring.material.opacity = 0; }
   } else if (b.st === 'tired') {
     b.vx = 0; b.stars.visible = true; b.stars.rotation.y += dt * 6;
-    if (b.t > 2.8) { b.stars.visible = false; b.mixer.timeScale = 1; go('walk'); }
-  } else if (b.st === 'hit') { b.vx = 0; if (b.t > 1.4) { b.mixer.timeScale = 1; go('walk'); } }
+    if (b.t > 2.8) { b.stars.visible = false; go('walk'); }
+  } else if (b.st === 'hit') { b.vx = 0; if (b.t > 1.4) { go('walk'); } }
   b.x = Math.max(b.x0 + b.w / 2, Math.min(b.x1 - b.w / 2, b.x + b.vx * dt));
   b.m.position.set(b.x, b.y, 0);
   const tr = (b.dir > 0 ? -0.5 : Math.PI + 0.5); b.m.rotation.y += (tr - b.m.rotation.y) * Math.min(1, dt * 6);
-  b.m.rotation.z = b.st === 'tired' ? Math.sin(b.t * 6) * 0.05 : 0;
+  b.m.rotation.z = 0; b.rig.update(dt, b.st, b.t, b.vx);
   b.stars.position.set(b.x, b.y + b.h + 0.5, 0);
   b.flash = Math.max(0, b.flash - dt); b.body.visible = b.flash <= 0 || Math.floor(b.flash * 20) % 2 === 0;
   if (G.state !== 'play' || b.st === 'wait') return;
   if (Math.abs(p.x - b.x) < (P.PW + b.w) / 2 - 0.1 && p.y < b.y + b.h && p.y + P.PH > b.y + 0.1) {
     const top = p.vy < -1 && p.y > b.y + b.h * 0.6;
     if (top && b.st === 'tired') {
-      b.hp--; b.flash = 0.8; b.stars.visible = false; go('hit'); b.mixer.timeScale = 1; kralAnim(b, 'Face_Punch_Reaction', 0.1, true);
+      b.hp--; b.flash = 0.8; b.stars.visible = false; go('hit');
       p.vy = P.STOMP_HOLD; p.noCut = true; p.vx = (p.x < b.x ? -1 : 1) * 5;
       sfx.stomp(); vibrate(70); burst(b.x, b.y + b.h, 0xb8ff4a, 18); updateHud();
       if (b.hp <= 0) { b.dead = true; b.t = 0; b.wallsUp = false; for (const s2 of ents.sballs) levelRoot.remove(s2.m); ents.sballs = []; sfx.cage(); toast('💥 Mantar Kral yenildi!'); shake = 0.6; }

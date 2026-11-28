@@ -39,6 +39,55 @@ function hopper(model) {
     },
   };
 }
+/** Mantar Kral: Meshy animasyonları gövdeyi çömeltip sarkıtıyor; dinlenme duruşu + kodla hareket.
+ *  durum: walk (yürür), shout (kollar yukarı titrer), punch (kollar başın üstüne kalkar, 1,1 sn'de yere iner),
+ *  tired (sendeler, kollar sarkar), hit (geriye savrulur). */
+export function kralRig(model) {
+  const bones = {}; model.traverse((o) => { if (o.isBone) bones[o.name.replace('mixamorig', '').replace(':', '')] = o; });
+  const scene = model.children[0]?.children[0] || model;
+  const rest = new Map(); for (const b of Object.values(bones)) rest.set(b, b.quaternion.clone());
+  const AX = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) };
+  const rot = (b, axis, ang) => { if (!b || !ang) return; scene.getWorldQuaternion(qa); ax.copy(AX[axis]).applyQuaternion(qa); b.parent.getWorldQuaternion(qb); ax.applyQuaternion(qb.invert()).normalize(); qa.setFromAxisAngle(ax, ang); b.quaternion.premultiply(qa); };
+  let ph = 0;
+  const B = bones, sm = (a, b, t) => a + (b - a) * Math.max(0, Math.min(1, t));
+  return {
+    update(dt, st, t, speed) {
+      for (const [b, q] of rest) b.quaternion.copy(q);
+      model.position.y = 0; model.updateMatrixWorld(true);
+      const k = Math.min(1, Math.abs(speed) / 0.8);
+      if (st === 'walk' || st === 'roar' || st === 'wait') {
+        ph += dt * (2 + 5.5 * k); const s = Math.sin(ph);
+        model.position.y = Math.abs(Math.cos(ph)) * 0.08 * k;
+        rot(B.LeftUpLeg, 'x', -s * 0.45 * k); rot(B.RightUpLeg, 'x', s * 0.45 * k);
+        rot(B.LeftLeg, 'x', Math.max(0, s) * 0.5 * k); rot(B.RightLeg, 'x', Math.max(0, -s) * 0.5 * k);
+        rot(B.LeftArm, 'x', s * 0.35 * k); rot(B.RightArm, 'x', -s * 0.35 * k);
+        rot(B.Spine, 'z', Math.sin(ph) * 0.04 * k + Math.sin(t * 1.5) * 0.02);
+      } else if (st === 'shout') {
+        const up = sm(0, 1, t / 0.4), sh = Math.sin(t * 28) * 0.08 * up;
+        rot(B.LeftArm, 'z', 1.1 * up + sh); rot(B.RightArm, 'z', -1.1 * up - sh);
+        rot(B.LeftForeArm, 'z', 0.6 * up); rot(B.RightForeArm, 'z', -0.6 * up);
+        rot(B.Spine, 'x', -0.12 * up); rot(B.Head, 'x', -0.15 * up + sh * 0.5);
+      } else if (st === 'punch') {
+        // 0–0,8 kalkış, 0,8–1,1 tepede titreme, 1,1–1,3 iniş, sonra yerde kalır
+        const lift = t < 1.1 ? sm(0, 1, t / 0.7) : sm(1, 0, (t - 1.1) / 0.15);
+        const slam = t >= 1.1 ? sm(0, 1, (t - 1.1) / 0.15) : 0, tr = t > 0.75 && t < 1.1 ? Math.sin(t * 50) * 0.05 : 0;
+        rot(B.LeftArm, 'x', -2.6 * lift - 0.9 * slam + tr); rot(B.RightArm, 'x', -2.6 * lift - 0.9 * slam - tr);
+        rot(B.LeftForeArm, 'x', -0.5 * lift); rot(B.RightForeArm, 'x', -0.5 * lift);
+        rot(B.Spine, 'x', 0.15 * lift - 0.3 * slam);
+        rot(B.LeftUpLeg, 'x', -0.35 * slam); rot(B.RightUpLeg, 'x', -0.35 * slam); rot(B.LeftLeg, 'x', 0.6 * slam); rot(B.RightLeg, 'x', 0.6 * slam);
+        model.position.y = -0.18 * slam + 0.1 * lift;
+      } else if (st === 'tired') {
+        const sw = Math.sin(t * 3);
+        rot(B.Spine, 'z', sw * 0.08); rot(B.Spine, 'x', 0.12); rot(B.Head, 'x', 0.18); rot(B.Head, 'z', sw * 0.1);
+        rot(B.LeftArm, 'z', -0.1 + sw * 0.08); rot(B.RightArm, 'z', 0.1 + sw * 0.08);
+      } else if (st === 'hit') {
+        const b2 = Math.sin(Math.min(1, t / 0.5) * Math.PI) ;
+        rot(B.Spine, 'x', -0.35 * b2); rot(B.Head, 'x', -0.3 * b2);
+        rot(B.LeftArm, 'z', 0.9 * b2 + Math.sin(t * 20) * 0.1 * b2); rot(B.RightArm, 'z', -0.9 * b2 - Math.sin(t * 20) * 0.1 * b2);
+      }
+    },
+  };
+}
 /** Salyangoz: iskelet yok; kayarken uzayıp kısalır, durunca yavaşça nefes alır */
 function slider(model) {
   let ph = 0;
