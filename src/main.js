@@ -722,7 +722,7 @@ function updateDev() {
   }
 }
 const PH_C = P.PH + 0.4;
-{ let taps = 0, tt = 0; document.getElementById('coins').parentElement.addEventListener('pointerdown', () => { const now = performance.now(); taps = now - tt < 600 ? taps + 1 : 1; tt = now; if (taps >= 5) { taps = 0; if (!DEV.on) { DEV.on = true; addDevBtn(); } else DEV.show = !DEV.show; toast(DEV.show ? 'Geliştirici modu açık' : 'Geliştirici modu kapalı'); } }); }
+{ let taps = 0, tt = 0; document.getElementById('coins').parentElement.addEventListener('pointerdown', () => { const now = performance.now(); taps = now - tt < 600 ? taps + 1 : 1; tt = now; if (taps >= 5) { taps = 0; if (!DEV.on) { DEV.on = true; addDevBtn(); save.unlocked = 40; store(); } else DEV.show = !DEV.show; toast(DEV.show ? 'Geliştirici modu açık' : 'Geliştirici modu kapalı'); } }); }
 function addDevBtn() { const b = document.createElement('button'); b.textContent = 'DEV'; b.style.cssText = 'position:fixed;top:60px;right:14px;z-index:9;padding:6px 10px;border-radius:10px;border:0;background:#ff0;font-weight:800'; b.onclick = () => { DEV.show = !DEV.show; }; DEV.show = true; document.body.appendChild(b); }
 if (DEV.on) addDevBtn();
 
