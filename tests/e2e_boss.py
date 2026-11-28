@@ -8,7 +8,7 @@ with sync_playwright() as p:
     pg=b.new_context(viewport={"width":915,"height":412},has_touch=True,is_mobile=True).new_page(); errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
     pg.goto("http://127.0.0.1:5180/"); pg.wait_for_function("KB2.G.state==='menu'",timeout=90000)
     ev=pg.evaluate
-    for lv,vul in ((20,'stun'),(40,'tired'),(60,'stun'),(80,'tired')):
+    for lv,vul in ((20,'stun'),(40,'tired'),(60,'stun'),(80,'tired'),(100,'tired'),(120,'tired'),(140,'tired')):
         ev(f"KB2.load({lv}); 0"); pg.wait_for_timeout(500)
         ev("(()=>{const b=KB2.ents.boss;KB2.tp(b.x0+3);})()"); pg.wait_for_timeout(1500)
         st=ev("(()=>{const b=KB2.ents.boss;return [b.st,b.hp,b.max,!document.getElementById('bossBar').classList.contains('hidden'),document.getElementById('bossName').textContent]})()")

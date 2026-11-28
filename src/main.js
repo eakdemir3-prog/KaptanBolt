@@ -113,7 +113,7 @@ const SPEC = {
   asker: { size: 1.55, fit: 'h', yaw: Math.PI / 2, skin: true, face: 0.55, matte: true, h: 1.4 },
   lavejderi: { size: 3.6, fit: 'h', yaw: Math.PI / 2, skin: true, face: 0.5, matte: true },
   kristaldev: { size: 3.5, fit: 'h', yaw: Math.PI / 2, skin: true, face: 0.5, matte: true },
-  amiral_rig: { size: 3.3, fit: 'h', yaw: Math.PI / 2, skin: true, face: 0.5, matte: true },
+  amiral_rig: { size: 3.7, fit: 'h', yaw: Math.PI / 2, skin: true, face: 0.5, matte: true },
   golem: { size: 3.4, fit: 'h', yaw: Math.PI / 2, skin: true, face: 0.5, matte: true },
   devakrep: { size: 1.3, fit: 'w', yaw: Math.PI / 2, skin: true, matte: true },
   cage: { size: 2.2, fit: 'w', yaw: 0 },
