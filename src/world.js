@@ -56,6 +56,9 @@ export const THEMES = {
 THEMES[3] = { n: 3, name: 'Güneş Kanyonu', ground: 'props/w3/ground.webp', soil: 'w3/soil', bg: 'kanyon', top: ['#e8b54a', 'rgba(200,130,40,0.35)', 'rgba(255,225,140,0.35)'],
   spr: { bush1: ['w3/tumble', 256 / 204], bush2: ['w3/cactus3', 236 / 181], bush3: ['w3/aloe', 257 / 182], flower1: ['w3/grass', 277 / 198], flower2: ['w3/cactus2', 264 / 239], flower3: ['w3/grass', 277 / 198], flower4: ['w3/aloe', 257 / 182], flower5: ['w3/cactus3', 236 / 181], flower6: ['w3/grass', 277 / 198], stump: ['w3/cactus1', 238 / 323], rocks: ['w3/rocks', 297 / 189], log: ['w3/skull', 276 / 194], mushrooms: ['w3/stump', 294 / 194], vines: ['w3/rope', 48 / 333], sign: ['w3/sign', 263 / 242] },
   far: [0xffffff, 0xc98a6a], mid: [0xffffff, 0xb8542a], enemy: { bocek: 'akrep', kirpi: 'yilan' }, animal: { kus: 'fennek', tilki: 'deve', maymun: 'kertenkele' }, fog: 0xf6d6a8, hemi: [0xfff2d8, 0x9a6a3a, 1.95], sun: [0xffe6c0, 2.2] };
+THEMES[4] = { n: 4, name: 'Buzul Dağları', ground: 'props/w4/ground.webp', soil: 'w4/soil', bg: 'buzul', top: ['#f2f8ff', 'rgba(190,215,240,0.45)', 'rgba(255,255,255,0.6)'],
+  spr: { bush1: ['w4/bush', 269 / 187], bush2: ['w4/pine', 250 / 293], bush3: ['w4/crystal', 289 / 255], flower1: ['w4/frostgrass', 255 / 185], flower2: ['w4/frostgrass', 255 / 185], flower3: ['w4/crystal', 289 / 255], flower4: ['w4/frostgrass', 255 / 185], flower5: ['w4/bush', 269 / 187], flower6: ['w4/frostgrass', 255 / 185], stump: ['w4/snowman', 223 / 258], rocks: ['w4/rocks', 307 / 202], log: ['w4/sled', 380 / 170], mushrooms: ['w4/barrel', 184 / 223], vines: ['w4/vine', 114 / 422], sign: ['w4/sign', 264 / 219] },
+  far: [0xffffff, 0x9aa8d8], mid: [0xffffff, 0xdfeaf6], fog: 0xd6e6ff, hemi: [0xeaf4ff, 0x6a7a9a, 1.9], sun: [0xfff4e8, 2.1] };
 export let THEME = THEMES[1];
 /** Dünya değişince zemin dokuları yeniden yüklenir (süs resimleri adlarıyla önbellekte kalır). Değiştiyse true. */
 export function applyTheme(n) {
