@@ -63,8 +63,9 @@ export function buildLevel(n) {
   // altın blok içinde ya da diken üstünde kalmasın
   const badCoin = (c) => L.solid(Math.floor(c.x), Math.floor(c.y)) || L.thorns.some((t) => c.x > t.x0 && c.x < t.x1 && c.y < t.y + 1.2);
   L.coins = L.coins.filter((c) => !badCoin(c));
-  fillCoins(L, def.coins || 50);
   patrols(L);
+  liftCoinsOverPatrols(L);
+  fillCoins(L, def.coins || 50);
   return L;
 }
 
@@ -88,7 +89,7 @@ function fillCoins(L, target) {
     if (near(cx, t + 0.75, p.w / 2 + 0.6)) continue;
     for (let i = 0; i < p.w; i++) L.coins.push({ x: p.x + i + 0.5, y: t + 0.75 });
   }
-  const busy = (x, h) => near(x, h + 0.75, 3) || L.enemies.some((e) => Math.abs(e.x - x) < 3) || L.springs.some((s) => Math.abs(s.x - x) < 2.5) || L.thorns.some((t) => x > t.x0 - 2 && x < t.x1 + 2) || L.checkpoints.some((c) => Math.abs(c.x - x) < 2) || (L.end && x > L.end.x - 4) || [...L.crates.values()].some((c) => Math.abs(c.x - x) < 2) || L.plats.some((p) => x > p.x - 1 && x < p.x + p.w + 1 && p.y - L.cols[Math.floor(x)] < 3);
+  const busy = (x, h) => near(x, h + 0.75, 3) || L.enemies.some((e) => x + 1.5 > e.x0 - 1.2 && x - 1.5 < e.x1 + 1.2 && Math.abs(e.t - h) < 0.5) || L.springs.some((s) => Math.abs(s.x - x) < 2.5) || L.thorns.some((t) => x > t.x0 - 2 && x < t.x1 + 2) || L.checkpoints.some((c) => Math.abs(c.x - x) < 2) || (L.end && x > L.end.x - 4) || [...L.crates.values()].some((c) => Math.abs(c.x - x) < 2) || L.plats.some((p) => x > p.x - 1 && x < p.x + p.w + 1 && p.y - L.cols[Math.floor(x)] < 3);
   for (let x = 6; x < L.w - 4 && L.coins.length < target; x++) {
     const h = L.cols[x]; if (!h || L.cols[x + 1] !== h || L.cols[x + 2] !== h || L.cols[x - 1] !== h) continue;
     if (busy(x + 1.5, h)) continue;
@@ -116,5 +117,19 @@ function patrols(L) {
   for (const e of L.enemies) for (const f of L.enemies) {
     if (e === f || e.t !== f.t || f.x <= e.x || e.x1 + 1.5 <= f.x0) continue;
     const mid = (e.x + f.x) / 2; e.x1 = Math.max(e.x0, Math.min(e.x1, mid - 0.75 - 0.53)); f.x0 = Math.min(f.x1, Math.max(f.x0, mid + 0.75 + 0.53));
+  }
+}
+
+/** Yerde duran altın bir düşmanın devriye alanına (temas genişliği dahil) giriyorsa, düşmanın üstünden geçen
+ *  okunaklı bir zıplama yayına kaldırılır: oyuncu ya üstünden atlar ya da böceği ezerken toplar. */
+function liftCoinsOverPatrols(L) {
+  const HW = { bocek: 0.53, kirpi: 0.55 };
+  for (const e of L.enemies) {
+    const a = e.x0 - (HW[e.type] || 0.55) - 0.7, b = e.x1 + (HW[e.type] || 0.55) + 0.7, top = e.t;
+    for (const c of L.coins) {
+      if (c.x < a || c.x > b || c.y < top || c.y > top + 1.3) continue; // yalnızca bu yüzeyin yer altınları
+      const k = Math.min(1, Math.max(0, (c.x - a) / (b - a)));
+      c.y = top + 1.0 + Math.sin(k * Math.PI) * 1.35; c.lifted = true;
+    }
   }
 }

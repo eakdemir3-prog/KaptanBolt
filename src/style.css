@@ -66,3 +66,4 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d2a1a; fon
 #bF .ch i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.25); }
 #bF .ch i.on { background: #8af0ff; box-shadow: 0 0 6px #8af0ff; }
 #bF.empty { opacity: .55; }
+#hud .pill:has(#coins) { pointer-events: auto; }

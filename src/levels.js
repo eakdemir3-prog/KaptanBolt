@@ -27,8 +27,8 @@ export const LEVELS = [
     b.gap(2);
     b.ground(8, 3).crate(3, 3).crate(4, 3).row(2, 5, 4);
     b.ground(10, 2).cage(6, 2, 'kus').plat(2, 5, 2).row(2, 5, 2);
-    b.gap(3);
-    b.ground(14, 2).arc(-3.2, 2, 5).e('bocek', 9).cp(2).row(5, 2, 3);
+    b.gap(2);
+    b.ground(14, 2).arc(-2.9, 2, 5).e('bocek', 9).cp(2).row(5, 2, 3);
     b.ground(4, 3).ground(4, 4).ground(6, 5).row(1, 5, 4).crate(4, 8);
     b.ground(6, 3).plat(0, 7, 3).star(1, 7).row(0, 7, 1).row(2, 7, 1);
     b.ground(14, 2).e('bocek', 4, null, [1, 7]).e('bocek', 8, null, [7.5, 10]).cage(12, 2, 'tilki').row(5, 2, 4);
@@ -42,9 +42,9 @@ export const LEVELS = [
     b.gap(2);
     b.ground(16, 2).e('kirpi', 6).e('bocek', 12).arc(3.5, 2, 5).cage(14, 2, 'kus');
     b.ground(6, 3).crate(2, 3).row(2, 5, 2);
-    b.ground(14, 2).plat(3, 5, 3).plat(8, 6, 3).row(8, 6, 1).row(10, 6, 1).cage(9, 6, 'tilki').cp(1);
-    b.gap(3);
-    b.ground(16, 2).arc(-3.2, 2, 5).e('kirpi', 6, null, [5, 8]).e('kirpi', 13, null, [12, 15]).row(1, 2, 3);
+    b.ground(14, 2).plat(3, 5, 3).plat(8, 6, 3).row(3, 5, 2).arc(5.4, 5, 3, 0.75).row(10, 6, 1).cage(9, 6, 'tilki').cp(1);
+    b.gap(2);
+    b.ground(16, 2).arc(-2.9, 2, 5).e('kirpi', 6, null, [5, 8]).e('kirpi', 13, null, [12, 15]).row(1, 2, 3).row(9, 2, 2);
     b.ground(8, 4).row(1, 4, 4).star(6, 4);
     b.ground(14, 2).e('bocek', 6).cage(11, 2, 'maymun').row(2, 2, 3);
     b.ground(12, 2).row(1, 2, 4).end(7);
@@ -54,11 +54,11 @@ export const LEVELS = [
     b.ground(10, 2).cage(3, 2, 'kus').spring(8).col(8, 4.5, 3);
     b.ground(4, 6).row(0, 6, 4);
     b.ground(10, 2).spring(5).col(5, 4, 3).plat(7, 9, 3).cage(8, 9, 'tilki').row(7, 9, 1);
-    b.gap(3);
-    b.ground(12, 2).arc(-3.2, 2, 5).e('bocek', 7).cp(1).row(4, 2, 3);
+    b.gap(2);
+    b.ground(12, 2).arc(-2.9, 2, 5).e('bocek', 7).cp(1).row(4, 2, 3);
     b.ground(14, 2).spring(3).plat(6, 8, 3).plat(11, 8, 3).row(6, 8, 3).row(11, 8, 3).star(12, 8).e('kirpi', 9);
-    b.gap(3);
-    b.ground(14, 2).arc(-3.2, 2, 5).cage(8, 2, 'maymun').e('bocek', 11).row(2, 2, 4);
+    b.gap(2);
+    b.ground(14, 2).arc(-2.9, 2, 5).cage(8, 2, 'maymun').e('bocek', 11).row(2, 2, 4);
     b.ground(12, 2).row(1, 2, 4).end(7);
   } },
   { name: 'Dikenli Çalılar', build(b) {
@@ -68,8 +68,8 @@ export const LEVELS = [
     b.ground(12, 2).thorns(3, 2).thorns(8, 2).arc(1.6, 2, 4).arc(6.6, 2, 4).heart(11);
     b.ground(6, 3).plat(1, 6, 3).cage(2, 6, 'tilki').row(4, 3, 2);
     b.ground(16, 2).cp(1).e('bocek', 6).thorns(10, 3).arc(8.4, 2, 5);
-    b.gap(3);
-    b.ground(18, 2).arc(-3.2, 2, 5).spring(3).plat(5, 8, 3).star(6, 8).thorns(11, 2).arc(9.6, 2, 4).e('kirpi', 15, null, [14, 18]);
+    b.gap(2);
+    b.ground(20, 2).arc(-2.9, 2, 5).spring(3).plat(5, 8, 3).star(6, 8).row(10, 2, 1).thorns(13, 2).arc(11.6, 2, 4).e('kirpi', 17, null, [16, 20]);
     b.ground(14, 2).cage(6, 2, 'maymun').row(1, 2, 4).e('bocek', 10);
     b.ground(10, 2).row(1, 2, 3).end(6);
   } },

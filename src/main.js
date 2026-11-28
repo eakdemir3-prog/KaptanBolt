@@ -97,7 +97,7 @@ function loadLevel(n) {
   G.coinsTotal = L.coins.length + L.crates.size * 3;
   for (const e of L.enemies) {
     const holder = add(new THREE.Group()); const em = cloneM(e.type); holder.add(em); toActor(holder);
-    let ball = null; if (e.type === 'kirpi') { ball = new THREE.Mesh(new THREE.SphereGeometry(0.62, 20, 14), new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.7 })); ball.position.y = 0.55; ball.scale.set(1.15, 0.95, 1); ball.visible = false; ball.castShadow = true; holder.add(ball); toActor(ball); }
+    let ball = null; if (e.type === 'kirpi') { ball = new THREE.Mesh(new THREE.SphereGeometry(0.62, 20, 14), new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.7 })); ball.position.y = 0.55; ball.scale.set(1.15, 0.95, 1); ball.visible = false; ball.castShadow = true; holder.add(ball); toActor(ball); const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.06, 8, 32), new THREE.MeshBasicMaterial({ color: 0xffd23a, toneMapped: false })); ring.position.y = 0.55; ball.add(ring); ball.userData.ring = ring; }
     ents.enemies.push({ ball, walker: makeWalker(em, e.type), type: e.type, x0: e.x0, x1: e.x1, x: e.x, y: e.t, vx: e.type === 'kirpi' ? -0.75 : -1.05, w: e.type === 'kirpi' ? 1.1 : 1.05, h: e.type === 'kirpi' ? 0.95 : 0.8, m: holder, alive: true, squash: 0, ph: Math.random() * 6 });
   }
   for (const c of L.cages) {
@@ -159,6 +159,7 @@ function dust(x, y, n) { for (let i = 0; i < n; i++) { const m = add(new THREE.M
 
 function updatePlayer(dt) {
   const p = player, ev = [];
+  p.prevY = p.y;
   stepPlayer(L, p, input, dt, ev);
   for (const e of ev) {
     if (e === 'jump') { sfx.jump(); dust(p.x, p.y, 4); p.squash = -0.16; }
@@ -211,7 +212,7 @@ function updateEnemies(dt) {
     if (!e.alive) { e.squash += dt; e.m.scale.y = Math.max(0.05, 1 - e.squash * 6); e.m.position.y -= dt * (e.squash > 0.3 ? 4 : 0); if (e.squash > 1) e.m.visible = false; continue; }
     const nx = e.x + e.vx * dt, front = nx + Math.sign(e.vx) * e.w / 2;
     let moving = 0;
-    if (e.curled > 0) { e.curled -= dt; e.m.scale.set(0.82, 0.62, 0.82); e.m.rotation.z = Math.sin(G.t * 20) * 0.04; if (e.ball) e.ball.visible = true; if (e.curled <= 0) { e.m.scale.set(1, 1, 1); e.m.rotation.z = 0; if (e.ball) e.ball.visible = false; } }
+    if (e.curled > 0) { e.curled -= dt; e.m.scale.set(0.82, 0.62, 0.82); e.m.rotation.z = Math.sin(G.t * 20) * 0.04; if (e.ball) { e.ball.visible = true; e.ball.material.color.setHex(0xb87a4a); e.ball.userData.ring.scale.setScalar(1 + Math.sin(G.t * 10) * 0.1); } if (e.curled <= 0) { e.m.scale.set(1, 1, 1); e.m.rotation.z = 0; if (e.ball) e.ball.visible = false; } }
     else if (e.wait > 0) { e.wait -= dt; if (e.wait <= 0) e.vx = -e.vx; } // kenarda kısa durup döner
     else if ((e.vx < 0 && nx <= e.x0) || (e.vx > 0 && nx >= e.x1) || L.solid(Math.floor(front), Math.floor(e.y + 0.3)) || !groundUnder(front, e.y)) e.wait = 0.35;
     else { e.x = nx; moving = e.vx; }
@@ -220,8 +221,9 @@ function updateEnemies(dt) {
     const dirN = e.wait > 0 ? -e.vx : e.vx; e.m.rotation.y += ((dirN > 0 ? 0 : Math.PI) - e.m.rotation.y) * Math.min(1, dt * (e.wait > 0 ? 7 : 12));
     if (e.walker) e.walker.update(dt, moving, G.t);
     const p = player;
-    if (G.state !== 'play' || Math.abs(p.x - e.x) > (P.PW + e.w) / 2 - 0.08 || p.y > e.y + e.h || p.y + P.PH < e.y + 0.1) continue;
-    const stomp = p.vy < -1 && p.y > e.y + e.h * 0.45;
+    if (G.state !== 'play' || Math.abs(p.x - e.x) > (P.PW + e.w) / 2 - 0.08 || Math.min(p.y, p.prevY ?? p.y) > e.y + e.h || p.y + P.PH < e.y + 0.1) continue;
+    // ezme: önceki adımda ayaklar böceğin üst çizgisinde/üstündeyken bu adımda aşağı doğru geçtiyse
+    const topY = e.y + e.h, stomp = p.vy < 0 && (p.prevY ?? p.y) >= topY - 0.12 && p.y < (p.prevY ?? p.y);
     if (stomp && (e.type === 'bocek' || e.curled > 0)) { e.alive = false; p.vy = input.jump ? P.STOMP_HOLD : P.STOMP; p.noCut = true; sfx.stomp(); vibrate(30); burst(e.x, e.y + 0.5, 0xffa040, 10); dropCoins(e.x, e.y + 0.6, 2); }
     else hurt(e.x);
   }
@@ -587,7 +589,9 @@ function updateDev() {
   }
 }
 const PH_C = P.PH + 0.4;
-if (DEV.on) { const b = document.createElement('button'); b.textContent = 'DEV'; b.style.cssText = 'position:fixed;top:60px;right:14px;z-index:9;padding:6px 10px;border-radius:10px;border:0;background:#ff0;font-weight:800'; b.onclick = () => { DEV.show = !DEV.show; }; DEV.show = true; document.body.appendChild(b); }
+{ let taps = 0, tt = 0; document.getElementById('coins').parentElement.addEventListener('pointerdown', () => { const now = performance.now(); taps = now - tt < 600 ? taps + 1 : 1; tt = now; if (taps >= 5) { taps = 0; if (!DEV.on) { DEV.on = true; addDevBtn(); } else DEV.show = !DEV.show; toast(DEV.show ? 'Geliştirici modu açık' : 'Geliştirici modu kapalı'); } }); }
+function addDevBtn() { const b = document.createElement('button'); b.textContent = 'DEV'; b.style.cssText = 'position:fixed;top:60px;right:14px;z-index:9;padding:6px 10px;border-radius:10px;border:0;background:#ff0;font-weight:800'; b.onclick = () => { DEV.show = !DEV.show; }; DEV.show = true; document.body.appendChild(b); }
+if (DEV.on) addDevBtn();
 
 // ---------- Döngü ----------
 const clock = new THREE.Clock();

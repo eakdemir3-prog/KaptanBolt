@@ -6,6 +6,7 @@ export const P = {
   JUMP_H: 2.5, SPRING_H: 5.4, STOMP_H: 1.6, STOMP_HOLD_H: 2.8,
   PW: 0.62, PH: 1.22,
   COYOTE: 0.1, BUFFER: 0.13,
+  MIN_JUMP: 0.05, CUT: 0.42,
 };
 P.JUMP = Math.sqrt(2 * P.G_UP * P.JUMP_H);
 P.SPRING = Math.sqrt(2 * P.G_UP * P.SPRING_H);
@@ -49,8 +50,10 @@ export function stepPlayer(L, p, inp, dt, ev = []) {
   } else { const f = (p.ground ? P.FRICT : P.FRICT * 0.3) * dt; p.vx = Math.abs(p.vx) <= f ? 0 : p.vx - Math.sign(p.vx) * f; }
   p.coyote = p.ground ? P.COYOTE : p.coyote - dt;
   p.buffer = inp.jumpPressed ? P.BUFFER : p.buffer - dt; inp.jumpPressed = false;
-  if (p.buffer > 0 && p.coyote > 0) { p.vy = P.JUMP; p.ground = false; p.surf = null; p.coyote = 0; p.buffer = 0; p.cut = false; ev.push('jump'); }
-  if (!inp.jump && !p.noCut && !p.cut && p.vy > 0) { p.vy *= 0.38; p.cut = true; }
+  if (p.buffer > 0 && p.coyote > 0) { p.vy = P.JUMP; p.ground = false; p.surf = null; p.coyote = 0; p.buffer = 0; p.cut = false; p.jt = 0; ev.push('jump'); }
+  // kısa dokunuşta bile en az MIN_JUMP sn tam güçle yükselir (telefonda 1 karelik dokunuş da okunaklı zıplasın)
+  p.jt = (p.jt || 0) + dt;
+  if (!inp.jump && !p.noCut && !p.cut && p.vy > 0 && p.jt >= P.MIN_JUMP) { p.vy *= P.CUT; p.cut = true; }
   if (p.vy <= 0) p.noCut = false;
   let g = p.vy > 0 ? P.G_UP : P.G_DOWN;
   if (Math.abs(p.vy) < 2 && inp.jump && !p.ground) g *= P.G_APEX;
