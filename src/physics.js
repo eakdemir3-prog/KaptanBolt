@@ -7,7 +7,11 @@ export const P = {
   PW: 0.62, PH: 1.22,
   COYOTE: 0.1, BUFFER: 0.13,
   MIN_JUMP: 0.05, CUT: 0.42,
+  // altın toplama alanı (Bolt'un kutusuna göre): yanlardan 0,38, ayak altı 0,4, kafa+şapka üstü 0,6
+  COIN_X: 0.38, COIN_DOWN: 0.4, COIN_UP: 0.6,
 };
+/** Altın, Bolt'un toplama alanında mı? (oyun, simülasyon ve geliştirici modu aynı kuralı kullanır) */
+export const coinHit = (p, c) => Math.abs(p.x - c.x) < P.PW / 2 + P.COIN_X && c.y > p.y - P.COIN_DOWN && c.y < p.y + P.PH + P.COIN_UP;
 P.JUMP = Math.sqrt(2 * P.G_UP * P.JUMP_H);
 P.SPRING = Math.sqrt(2 * P.G_UP * P.SPRING_H);
 P.STOMP = Math.sqrt(2 * P.G_UP * P.STOMP_H);

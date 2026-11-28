@@ -1,7 +1,7 @@
 // Bölüm kurucu: levels.js'deki tarifleri oyunun kullandığı ızgaraya çevirir.
 // Koordinatlar: 1 birim = 1 kare, y=0 en alt. "t" = üstünde durulan yüzeyin yüksekliği.
 import { LEVELS } from './levels.js';
-import { P } from './physics.js';
+import { P, stepPlayer, newPlayer, coinHit } from './physics.js';
 
 // Bölüm tarifleri eski (3,3 kare) zıplamaya göre yazıldı: yükseklikler 2,5 kareye göre sıkıştırılır
 const V = (t) => 2 + Math.round((t - 2) * 0.75);
@@ -120,16 +120,35 @@ function patrols(L) {
   }
 }
 
-/** Yerde duran altın bir düşmanın devriye alanına (temas genişliği dahil) giriyorsa, düşmanın üstünden geçen
- *  okunaklı bir zıplama yayına kaldırılır: oyuncu ya üstünden atlar ya da böceği ezerken toplar. */
+// Gerçek zıplama ölçümü: düz zeminde tam hızda, tuş basılı tam zıplama → rota (x,y) ve uzunluk
+let JUMP = null;
+function jumpPath() {
+  if (JUMP) return JUMP;
+  const flat = { solid: (x, y) => y < 0, oneway: [] }, p = newPlayer(0, 0); p.ground = true; p.vx = P.RUN;
+  const inp = { right: true, jump: true, jumpPressed: true }, pts = [];
+  for (let t = 0; t < 3; t += 1 / 60) { stepPlayer(flat, p, inp, 1 / 60); pts.push({ x: p.x, y: p.y }); if (t > 0.1 && p.ground) break; }
+  return (JUMP = { pts, len: pts[pts.length - 1].x });
+}
+/** Düşman üstünden geçen altınlar: aynı yükseklikte, eşit aralıklı düz bir sıra.
+ *  Yükseklik ve uzunluk gerçek zıplamadan ölçülür: doğru zamanlanmış tek zıplama sıranın hepsini toplar,
+ *  kalkış ve iniş devriyenin dışında kalır (gerekirse devriye daraltılır). Yerdeki altınlar devriyeden çıkarılır. */
 function liftCoinsOverPatrols(L) {
-  const HW = { bocek: 0.53, kirpi: 0.55 };
+  const HW = { bocek: 0.53, kirpi: 0.55 }, J = jumpPath(), H = 2.55; // altın merkezi zeminden 2,55 yukarıda: yürürken alınmaz
   for (const e of L.enemies) {
-    const a = e.x0 - (HW[e.type] || 0.55) - 0.7, b = e.x1 + (HW[e.type] || 0.55) + 0.7, top = e.t;
-    for (const c of L.coins) {
-      if (c.x < a || c.x > b || c.y < top || c.y > top + 1.3) continue; // yalnızca bu yüzeyin yer altınları
-      const k = Math.min(1, Math.max(0, (c.x - a) / (b - a)));
-      c.y = top + 1.0 + Math.sin(k * Math.PI) * 1.35; c.lifted = true;
-    }
+    const hw = HW[e.type] || 0.55, top = e.t;
+    const near = (c) => c.y >= top && c.y <= top + 1.3 && c.x > e.x0 - hw - 0.7 && c.x < e.x1 + hw + 0.7;
+    const group = L.coins.filter(near); if (!group.length) continue;
+    // devriye, tek zıplamanın kalkış ve iniş payına sığsın (her iki yanda 0,25 güvenlik)
+    const clear = J.len - P.PW - 2 * hw - 0.5, mid = (e.x0 + e.x1) / 2;
+    if (e.x1 - e.x0 > clear) { e.x0 = mid - clear / 2; e.x1 = mid + clear / 2; e.x = Math.min(e.x1, Math.max(e.x0, e.x)); }
+    // kalkış: rota devriyenin ortasında tepe yapacak şekilde
+    const apex = J.pts.reduce((a, q) => (q.y > a.y ? q : a)), T = mid - apex.x;
+    // sırayı toplayan rota bölümü (0,15 pay ile)
+    const inWin = J.pts.filter((q) => coinHit({ x: q.x, y: q.y - 0.15 }, { x: q.x, y: H }) && coinHit({ x: q.x, y: q.y + 0.15 }, { x: q.x, y: H }));
+    const wx0 = T + inWin[0].x, wx1 = T + inWin[inWin.length - 1].x;
+    const n = Math.max(2, Math.min(5, Math.floor((wx1 - wx0) / 0.85) + 1)), step = (wx1 - wx0) / (n - 1 || 1);
+    L.coins = L.coins.filter((c) => !group.includes(c));
+    for (let i = 0; i < n; i++) L.coins.push({ x: wx0 + i * step, y: top + H, row: true });
+    e.jumpRow = { takeoff: T, land: T + J.len, x0: wx0, x1: wx1, y: top + H };
   }
 }

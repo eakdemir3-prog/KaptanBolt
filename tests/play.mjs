@@ -1,6 +1,6 @@
 // Ek oynanış testleri: (1) boşluk kalkış pencereleri, (2) altın–devriye çakışması, (3) ölçümler
 import { buildLevel } from '../src/level.js';
-import { P, stepPlayer, newPlayer } from '../src/physics.js';
+import { P, stepPlayer, newPlayer, coinHit } from '../src/physics.js';
 const DT = 1 / 60;
 function runJump(L, x, y, hold, tap = true) {
   const p = newPlayer(x, y); p.ground = true; p.vx = P.RUN; const inp = { right: true, jump: true, jumpPressed: true };
@@ -25,6 +25,21 @@ for (let n = 1; n <= 5; n++) {
     if (!ok) bad++;
     console.log(`${n} boşluk X${x}-${e} (${w} blok, ${h}→${L.cols[e + 1]}): kısa dokunuş penceresi ${win.short.toFixed(2)} blok, uzun ${win.long.toFixed(2)} blok ${ok ? '✔' : '✘'}`);
     x = e;
+  }
+  // düşman üstü altın sıraları: kalkış penceresi (sırayı tamamen toplayıp devriye dışına inen kalkış noktaları)
+  for (const e of L.enemies) {
+    if (!e.jumpRow) continue;
+    const row = L.coins.filter((c) => c.row && c.x >= e.jumpRow.x0 - 0.01 && c.x <= e.jumpRow.x1 + 0.01);
+    let win = 0, walk = 0;
+    for (let d = -0.6; d <= 0.6; d += 0.02) {
+      const p = newPlayer(e.jumpRow.takeoff + d, e.t); p.ground = true; p.vx = P.RUN; const inp = { right: true, jump: true, jumpPressed: true }; const got = new Set(); let air = false, safe = true;
+      for (let t = 0; t < 3; t += DT) { stepPlayer(L, p, inp, DT); row.forEach((c, i) => coinHit(p, c) && got.add(i)); if (!p.ground) air = true; if (p.ground && Math.abs(p.y - e.t) < 0.05 && p.x + P.PW / 2 > e.x0 - 0.53 && p.x - P.PW / 2 < e.x1 + 0.53) safe = false; if (air && p.ground) break; }
+      if (got.size === row.length && safe) win += 0.02;
+    }
+    // düz koşuda bu sıra alınmamalı (yer altını değil)
+    const q = newPlayer(e.jumpRow.takeoff - 1, e.t); q.ground = true; for (let t = 0; t < 1.2; t += DT) { stepPlayer(L, q, { right: true }, DT); row.forEach((c) => coinHit(q, c) && walk++); }
+    const ok = win >= 0.15 && walk === 0; if (!ok) bad++;
+    console.log(`${n} ${e.type} sırası X${e.jumpRow.x0.toFixed(2)}–${e.jumpRow.x1.toFixed(2)} Y${e.jumpRow.y.toFixed(2)} (${row.length} altın), devriye ${e.x0.toFixed(2)}–${e.x1.toFixed(2)}: ideal kalkış X${e.jumpRow.takeoff.toFixed(2)}, hepsini toplayıp güvenle inen kalkış penceresi ${win.toFixed(2)} blok ${ok ? '✔' : '✘'}`);
   }
   const HW = { bocek: 0.53, kirpi: 0.55 };
   for (const e of L.enemies) for (const c of L.coins) {

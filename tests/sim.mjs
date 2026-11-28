@@ -1,7 +1,7 @@
 // Erişilebilirlik testi: her bölümde kafeslere, kristal yıldıza, bitişe ve altınlara gerçek fizikle gidilebiliyor mu?
 import { buildLevel } from '../src/level.js';
 import { LEVELS } from '../src/levels.js';
-import { P, stepPlayer, newPlayer } from '../src/physics.js';
+import { P, stepPlayer, newPlayer, coinHit } from '../src/physics.js';
 
 const DT = 1 / 60;
 function simLevel(n) {
@@ -19,7 +19,7 @@ function simLevel(n) {
     L.cages.forEach((c, i) => { if (Math.abs(p.x - c.x) < 1.0 && p.y > c.y - 1.2 && p.y < c.y + 3.2) got.cages.add(i); });
     if (L.star && Math.abs(p.x - L.star.x) < P.PW / 2 + 0.45 && L.star.y > p.y - 0.5 && L.star.y < p.y + P.PH + 0.5) got.star = true;
     if (L.end && p.x > L.end.x - 0.3 && Math.abs(p.y - L.end.y) < 2) got.end = true;
-    L.coins.forEach((c, i) => { if (Math.abs(p.x - c.x) < P.PW / 2 + 0.38 && c.y > p.y - 0.4 && c.y < p.y + P.PH + 0.4) got.coins.add(i); });
+    L.coins.forEach((c, i) => { if (coinHit(p, c)) got.coins.add(i); });
     L.hearts.forEach(() => {});
   };
   const thorn = (p) => L.thorns.some((t) => p.x + P.PW / 2 > t.x0 + 0.15 && p.x - P.PW / 2 < t.x1 - 0.15 && p.y < t.y + 0.55 && p.y + P.PH > t.y);

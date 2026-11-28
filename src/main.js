@@ -6,7 +6,7 @@ import { loadRobotModel } from './game/robotModel.js';
 import { makeRobot, SKINS } from './game/robot.js';
 import { buildLevel, updateRafts } from './level.js';
 import { LEVELS } from './levels.js';
-import { P, stepPlayer, moveX, newPlayer } from './physics.js';
+import { P, stepPlayer, moveX, newPlayer, coinHit } from './physics.js';
 import { buildWorld, backdrop, seed, makeCoin, makeSpring, makePost, setPost, makeBeam, makePortal, makeCage2D, makeSprite, ASPECT, makeBridge, makeRaft, makeThorns } from './world.js';
 import { sfx, unlockAudio } from './audio.js';
 import { clone as skClone } from 'three/addons/utils/SkeletonUtils.js';
@@ -365,7 +365,7 @@ function updateItems(dt) {
   for (const c of ents.coins) {
     if (c.taken) { if (c.m.visible) { c.k += dt; c.m.position.y += dt * 5; c.m.scale.setScalar(Math.max(0, 1 - c.k * 3)); if (c.k > 0.35) c.m.visible = false; } continue; }
     c.m.userData.face.scale.x = Math.max(0.1, Math.abs(Math.cos(G.t * 2.6 + c.ph))); c.m.position.y = c.y + Math.sin(G.t * 3 + c.ph) * 0.05;
-    if (Math.abs(p.x - c.x) < P.PW / 2 + 0.38 && c.y > p.y - 0.4 && c.y < p.y + P.PH + 0.4) { c.taken = true; c.k = 0; G.coins++; sfx.coin(); updateHud(); }
+    if (coinHit(p, c)) { c.taken = true; c.k = 0; G.coins++; sfx.coin(); updateHud(); }
   }
   for (let i = ents.flying.length - 1; i >= 0; i--) { const f = ents.flying[i]; f.t += dt; if (f.t < 0) continue; f.v.y -= 22 * dt; f.m.position.addScaledVector(f.v, dt); f.m.userData.face.scale.x = Math.abs(Math.cos(f.t * 12)); if (f.t > 0.55) { levelRoot.remove(f.m); ents.flying.splice(i, 1); G.coins++; sfx.coin(); updateHud(); } }
   for (const s of ents.springs) {
@@ -579,7 +579,7 @@ function updateDev() {
   const g = DEV.g = new THREE.Group(); toActor(g); scene.add(g); const p = player;
   devBox(g, p.x - P.PW / 2, p.y, p.x + P.PW / 2, p.y + P.PH, 0x00ff66);
   for (const e of ents.enemies) if (e.alive) { devBox(g, e.x - e.w / 2, e.y, e.x + e.w / 2, e.y + e.h, 0xff3333); devLine(g, [[e.x0, e.y + 0.05], [e.x1, e.y + 0.05]], 0xffaa00); }
-  for (const c of ents.coins) if (!c.taken && Math.abs(c.x - p.x) < 12) devBox(g, c.x - 0.38, c.y - PH_C, c.x + 0.38, c.y + 0.4, 0xffee00);
+  for (const c of ents.coins) if (!c.taken && Math.abs(c.x - p.x) < 12) devBox(g, c.x - P.COIN_X - P.PW / 2, c.y - P.PH - P.COIN_UP, c.x + P.COIN_X + P.PW / 2, c.y + P.COIN_DOWN, 0xffee00);
   for (const t of L.thorns) devBox(g, t.x0 + 0.15, t.y, t.x1 - 0.15, t.y + 0.55, 0xff00ff);
   // zıplama rotası: kısa ve uzun zıplama (şu anki konum ve yönden)
   for (const [hold, col] of [[0.05, 0x66ccff], [9, 0x0066ff]]) {
