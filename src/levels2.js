@@ -9,8 +9,9 @@ export const LEVELS2 = [
     b.ground(6, 2).row(2, 2, 3);
     b.gap(2);
     b.ground(14, 2).arc(-2.9, 2, 5).e('bocek', 7, null, [4, 10]).row(11, 2, 2);
-    b.ground(12, 2).spring(3, 2, 2).col(3, 4.5, 4).plat(5, 8, 3).star(6, 8).row(5, 8, 1).row(7, 8, 1);
+    b.ground(12, 2).spring(3, 2, 2).col(3, 4.5, 4).plat(5, 8, 3).row(5, 8, 3);
     b.ground(14, 2).cage(5, 2, 'tilki').cp(1).row(8, 2, 4);
+    b.ground(10, 2).spring(3, 2, 3).col(3, 5, 4).plat(5, 11, 3).star(6, 11).row(5, 11, 1).row(7, 11, 1);
     b.gap(3);
     b.ground(14, 2).arc(-3.6, 2, 5).e('bocek', 7, null, [4, 11]).cage(12, 2, 'maymun');
     b.ground(12, 2).row(1, 2, 4).end(7);
@@ -41,11 +42,11 @@ export const LEVELS2 = [
     b.ground(12, 2).row(1, 2, 4).end(7);
   } },
   { name: 'Spor Bulutu', build(b) {
-    b.ground(14, 2).sign(3, 'spore').row(5, 2, 3).cage(9, 2, 'kus');
+    b.ground(14, 2).row(1, 2, 3).cage(5, 2, 'kus').sign(9, 'spore');
+    b.ground(10, 2).spore(3, 2, 3, 7.6).plat(5, 10, 3).row(5, 10, 3).star(6, 10).cage(1, 2, 'tilki');
+    b.ground(8, 2).cp(2).row(4, 2, 3);
     b.gap(6).spore(0.5, 2, 5, 4).row(1, 6, 4);
     b.ground(14, 2).row(2, 2, 3).e('bocek', 9, null, [6, 12]);
-    b.ground(10, 2).spore(3, 2, 3, 7.6).plat(5, 10, 3).row(5, 10, 3).star(6, 10).cage(1, 2, 'tilki');
-    b.ground(10, 2).cp(2).row(4, 2, 3);
     b.gap(7).spore(0.5, 2, 6, 4.5).row(1, 6, 5);
     b.ground(14, 2).e('kirpi', 6, null, [3, 9]).cage(12, 2, 'maymun').row(1, 2, 2);
     b.ground(12, 2).row(1, 2, 4).end(7);
@@ -137,12 +138,12 @@ export const LEVELS2 = [
   } },
   { name: 'Sal ve Spor', build(b) {
     b.ground(12, 2).row(2, 2, 4).cage(9, 2, 'kus');
-    b.gap(10).raft(0.5, 2, 2.4, 'x', 4, 1.8).thorns(0, 10, -3).row(2, 4, 3);
+    b.gap(10).raft(0.5, 2, 2.4, 'x', 5.6, 1.8).thorns(0, 10, -3).row(2, 4, 3);
     b.ground(12, 2).cp(2).e('bocek', 7, null, [5, 10]);
     b.gap(6).spore(0.5, 2, 5, 4).row(1, 6, 4);
     b.ground(14, 2).spring(3, 2, 3).plat(5, 11, 3).star(6, 11).row(5, 11, 1).e('kirpi', 10, null, [8, 13]);
     b.ground(10, 2).cage(4, 2, 'tilki');
-    b.gap(8).raft(0.5, 2, 2.4, 'x', 3, 1.6).thorns(0, 8, -3).row(2, 4, 3);
+    b.gap(8).raft(0.5, 2, 2.4, 'x', 4.2, 1.6).thorns(0, 8, -3).row(2, 4, 3);
     b.ground(14, 2).e('bocek', 5, null, [3, 8]).cage(12, 2, 'maymun');
     b.ground(12, 2).row(1, 2, 4).end(7);
   } },
@@ -221,7 +222,7 @@ export const LEVELS2 = [
     b.gap(6).spore(0.5, 2, 5, 4).thorns(0, 6, -3).row(1, 6, 4);
     b.ground(14, 2).spring(3, 2, 2).plat(5, 8, 3).row(5, 8, 3).e('bocek', 10, null, [8, 13]);
     b.ground(10, 2).cp(2).heart(5);
-    b.gap(10).raft(0.5, 2, 2.4, 'x', 4, 2.0).thorns(0, 10, -3).row(2, 4, 3);
+    b.gap(10).raft(0.5, 2, 2.4, 'x', 5.6, 2.0).thorns(0, 10, -3).row(2, 4, 3);
     b.ground(14, 2).e('bocek', 5, null, [3, 7]).e('kirpi', 10, null, [9, 13]).cage(13, 2, 'tilki');
     b.ground(10, 2).spring(3, 2, 3).plat(5, 11, 3).star(6, 11).row(5, 11, 1);
     b.gap(3);

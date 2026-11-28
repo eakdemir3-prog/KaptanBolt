@@ -72,3 +72,19 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d2a1a; fon
 #bF .ch i.on { background: #8af0ff; box-shadow: 0 0 6px #8af0ff; }
 #bF.empty { opacity: .55; }
 #hud .pill:has(#coins) { pointer-events: auto; }
+
+/* boss can barı (üst orta) */
+#bossBar { position: fixed; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(40vw, 420px); z-index: 4; pointer-events: none; text-align: center; }
+#bossBar .bn { font-family: Pop, sans-serif; font-weight: 800; font-size: 14px; color: #fff; letter-spacing: .5px; text-shadow: 0 2px 3px rgba(0,0,0,.7); margin-bottom: 3px; }
+#bossBar .bb { position: relative; height: 16px; border-radius: 10px; background: rgba(20,10,40,.75); border: 2px solid #ffd23a; box-shadow: 0 3px 0 rgba(0,0,0,.35), inset 0 0 6px rgba(0,0,0,.6); overflow: hidden; }
+#bossBar .bb i { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; border-radius: 8px; }
+#bossTrail { background: #fff3b0; opacity: .85; }
+#bossFill { background: linear-gradient(#ffe066, #ff9a1a 60%, #e0560c); transition: width .12s; }
+#bossBar.rage .bb { border-color: #ff3a2a; box-shadow: 0 0 12px #ff3a2a, 0 3px 0 rgba(0,0,0,.35); animation: rageP .5s infinite alternate; }
+#bossBar.rage #bossFill { background: linear-gradient(#ff7a6a, #e0160c); }
+#bossBar.rage .bn { color: #ffb0a8; }
+@keyframes rageP { from { box-shadow: 0 0 6px #ff3a2a; } to { box-shadow: 0 0 18px #ff3a2a; } }
+#bossBar.hidden { display: none; }
+/* şimşek dolumu: düğmenin çevresinde dolan halka */
+#bF { --f: 1; }
+#bF::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; pointer-events: none; background: conic-gradient(#ffe066 calc(var(--f) * 360deg), transparent 0); -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%); mask: radial-gradient(circle, transparent 62%, #000 64%); opacity: .85; }

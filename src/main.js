@@ -109,6 +109,7 @@ function clearLevel() {
   if (levelRoot) { scene.remove(levelRoot); levelRoot.traverse((o) => { if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose?.(); }); }
   for (const k of Object.keys(ents)) ents[k] = Array.isArray(ents[k]) ? [] : null;
   levelRoot = new THREE.Group(); scene.add(levelRoot);
+  bossBar(null);
 }
 const add = (o) => { levelRoot.add(o); return o; };
 
@@ -122,7 +123,8 @@ function loadLevel(n) {
   for (const e of L.enemies) {
     const holder = add(new THREE.Group()); const look = THEME.enemy?.[e.type] || e.type, em = cloneM(look); holder.add(em); toActor(holder);
     let ball = null;
-    if (e.type === 'kirpi' && look !== 'kirpi') { ball = new THREE.Group(); ball.position.y = 0.5; ball.visible = false; holder.add(ball); const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.06, 8, 32), new THREE.MeshBasicMaterial({ color: 0xffd23a, toneMapped: false })); ball.add(ring); toActor(ring); ball.userData.ring = ring; }
+    if (e.type === 'kirpi' && look !== 'kirpi') { ball = new THREE.Group(); ball.position.y = 0.5; ball.visible = false; holder.add(ball); const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.06, 8, 32), new THREE.MeshBasicMaterial({ color: 0xffd23a, toneMapped: false })); ball.add(ring); toActor(ring); ball.userData.ring = ring;
+      const st = new THREE.Group(); for (let i = 0; i < 3; i++) { const s2 = makeSprite('star', 0.32, ASPECT.star); s2.position.set(Math.cos(i * 2.1) * 0.55, 0, Math.sin(i * 2.1) * 0.55); st.add(s2); } st.position.y = 0.7; ball.add(st); toActor(st); ball.userData.stars = st; }
     if (e.type === 'kirpi' && look === 'kirpi') { ball = new THREE.Mesh(new THREE.SphereGeometry(0.62, 20, 14), new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.7 })); ball.position.y = 0.55; ball.scale.set(1.15, 0.95, 1); ball.visible = false; ball.castShadow = true; holder.add(ball); toActor(ball); const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.06, 8, 32), new THREE.MeshBasicMaterial({ color: 0xffd23a, toneMapped: false })); ring.position.y = 0.55; ball.add(ring); ball.userData.ring = ring; }
     ents.enemies.push({ ball, look, face: SPEC[look]?.face || 0, walker: makeWalker(em, look), type: e.type, x0: e.x0, x1: e.x1, x: e.x, y: e.t, vx: e.type === 'kirpi' ? -0.75 : -1.05, w: e.type === 'kirpi' ? 1.1 : 1.05, h: SPEC[look]?.h || (e.type === 'kirpi' ? 0.95 : 0.8), m: holder, alive: true, squash: 0, ph: Math.random() * 6 });
   }
@@ -241,7 +243,7 @@ function updateEnemies(dt) {
     if (!e.alive) { e.squash += dt; e.m.scale.y = Math.max(0.05, 1 - e.squash * 6); e.m.position.y -= dt * (e.squash > 0.3 ? 4 : 0); if (e.squash > 1) e.m.visible = false; continue; }
     const nx = e.x + e.vx * dt, front = nx + Math.sign(e.vx) * e.w / 2;
     let moving = 0;
-    if (e.curled > 0) { e.curled -= dt; e.m.scale.set(0.82, 0.62, 0.82); e.m.rotation.z = Math.sin(G.t * 20) * 0.04; if (e.ball) { e.ball.visible = true; if (e.ball.material) e.ball.material.color.setHex(0xb87a4a); e.ball.userData.ring.scale.setScalar(1 + Math.sin(G.t * 10) * 0.1); } if (e.curled <= 0) { e.m.scale.set(1, 1, 1); e.m.rotation.z = 0; if (e.ball) e.ball.visible = false; } }
+    if (e.curled > 0) { e.curled -= dt; e.m.scale.set(0.82, 0.62, 0.82); e.m.rotation.z = Math.sin(G.t * 20) * 0.04; if (e.ball) { e.ball.visible = true; if (e.ball.userData.stars) e.ball.userData.stars.rotation.y += dt * 7; if (e.ball.material) e.ball.material.color.setHex(0xb87a4a); e.ball.userData.ring.scale.setScalar(1 + Math.sin(G.t * 10) * 0.1); } if (e.curled <= 0) { e.m.scale.set(1, 1, 1); e.m.rotation.z = 0; if (e.ball) e.ball.visible = false; } }
     else if (e.wait > 0) { e.wait -= dt; if (e.wait <= 0) e.vx = -e.vx; } // kenarda kısa durup döner
     else if ((e.vx < 0 && nx <= e.x0) || (e.vx > 0 && nx >= e.x1) || L.solid(Math.floor(front), Math.floor(e.y + 0.3)) || !groundUnder(front, e.y)) e.wait = 0.35;
     else { e.x = nx; moving = e.vx; }
@@ -253,6 +255,7 @@ function updateEnemies(dt) {
     if (G.state !== 'play' || Math.abs(p.x - e.x) > (P.PW + e.w) / 2 - 0.08 || Math.min(p.y, p.prevY ?? p.y) > e.y + e.h || p.y + P.PH < e.y + 0.1) continue;
     // ezme: önceki adımda ayaklar böceğin üst çizgisinde/üstündeyken bu adımda aşağı doğru geçtiyse
     const topY = e.y + e.h, stomp = p.vy < 0 && (p.prevY ?? p.y) >= topY - 0.12 && p.y < (p.prevY ?? p.y);
+    if (stomp && e.look === 'salyangoz' && !(e.curled > 0)) { p.vy = P.STOMP; p.noCut = true; sfx.bump(); continue; } // kabuk sert: üstünden sekersin
     if (stomp && (e.type === 'bocek' || e.curled > 0)) { e.alive = false; p.vy = input.jump ? P.STOMP_HOLD : P.STOMP; p.noCut = true; sfx.stomp(); vibrate(30); burst(e.x, e.y + 0.5, 0xffa040, 10); dropCoins(e.x, e.y + 0.6, 2); }
     else hurt(e.x);
   }
@@ -286,7 +289,7 @@ function updateGun(dt) {
   }
   if (!G.gun) { input.fire = false; return; }
   const before = Math.floor(G.ch);
-  G.ch = Math.min(3, G.ch + dt * 0.5); G.cd = Math.max(0, G.cd - dt);
+  G.ch = Math.min(3, G.ch + dt * (ents.boss && ents.boss.wallsUp ? 1.1 : 0.5)); $('bF').style.setProperty('--f', G.ch >= 3 ? 1 : G.ch % 1); G.cd = Math.max(0, G.cd - dt);
   if (input.fire) {
     input.fire = false;
     if (G.state === 'play' && G.cd <= 0 && G.ch < 1) { // şarj yok: kol uzanır, sönük kıvılcım
@@ -308,12 +311,12 @@ function updateGun(dt) {
     if (!hit) for (const e of ents.enemies) {
       if (!e.alive || Math.abs(e.x - s.x) > e.w / 2 + 0.15 || s.y < e.y - 0.1 || s.y > e.y + e.h + 0.35) continue;
       hit = true;
-      if (e.type === 'kirpi' && !(e.curled > 0)) { e.curled = 2.2; sfx.bump(); burst(e.x, e.y + 0.5, 0x8af0ff, 8); toast(e.look === 'salyangoz' ? 'Kabuk çatladı! Üstüne zıpla' : 'Kirpi top oldu! Bir daha vur'); }
+      if (e.type === 'kirpi' && !(e.curled > 0)) { e.curled = e.look === 'salyangoz' ? 3 : 2.2; sfx.bump(); burst(e.x, e.y + 0.5, 0x8af0ff, 8); if (e.look === 'salyangoz') burst(e.x, e.y + 0.7, 0xd0702a, 12); toast(e.look === 'salyangoz' ? '💥 Kabuk çatladı, salyangoz sersemledi! Şimdi üstüne zıpla' : 'Kirpi top oldu! Bir daha vur'); }
       else { e.alive = false; sfx.stomp(); vibrate(25); burst(e.x, e.y + 0.5, 0x8af0ff, 14); dropCoins(e.x, e.y + 0.6, 1); }
       break;
     }
     const b = ents.boss;
-    if (!hit && b && !b.dead && b.st !== 'wait' && Math.abs(b.x - s.x) < b.w / 2 && s.y > b.y && s.y < b.y + b.h) { hit = true; if (!G.bossTip) { G.bossTip = true; toast(b.kind === 'kral' ? 'Şimşek krala işlemiyor! Spor toplarını vur, yorulunca kafasına zıpla' : 'Şimşek işlemiyor! Duvara çarptırıp üstüne zıpla'); } }
+    if (!hit && b && !b.dead && b.st !== 'wait' && Math.abs(b.x - s.x) < b.w / 2 + 0.2 && s.y > b.y - 0.2 && s.y < b.y + b.h + 0.2) { hit = true; bossShot(b, s); }
     if (hit) { for (let k = 0; k < 14; k++) spark(s.x, s.y, 1.1); burst(s.x, s.y, 0x7ae8ff, 8); levelRoot.remove(s.m); ents.shots.splice(i, 1); }
   }
 }
@@ -327,7 +330,7 @@ function setupBoss() {
   const stars = add(new THREE.Group()); for (let i = 0; i < 4; i++) { const s = makeSprite('star', 0.4, ASPECT.star); s.position.set(Math.cos(i * 1.57) * 0.8, 0, Math.sin(i * 1.57) * 0.8); stars.add(s); } stars.visible = false;
   const walls = [B.x0 - 1, B.x1];
   const wallM = walls.map((wx) => { const g = add(new THREE.Group()); for (let i = 0; i < 6; i++) { const c = makeSprite('crate', 1.02, ASPECT.crate); c.position.set(0.5, i, 0.3); g.add(c); } g.position.set(wx, -8, 0); return g; });
-  ents.boss = { ...B, m, body, walker, stars, x: B.x1 - 4, y: B.y, vx: 0, dir: -1, hp: 3, st: 'wait', t: 0, w: 3.4, h: 1.9, wallX: walls, wallM, wallsUp: false, flash: 0, dead: false };
+  ents.boss = { ...B, name: 'Dev Paslı Böcek', m, body, walker, stars, x: B.x1 - 4, y: B.y, vx: 0, dir: -1, hp: BOSS_HP, max: BOSS_HP, rage: false, mats: bossMats(body), dbl: false, st: 'wait', t: 0, w: 3.4, h: 1.9, wallX: walls, wallM, wallsUp: false, flash: 0, dead: false };
   const base = L.solid;
   L.solid = (x, y) => (ents.boss && ents.boss.wallsUp && ents.boss.wallX.includes(x) && y < 14) || base(x, y);
 }
@@ -341,36 +344,69 @@ function updateBoss(dt) {
     if (b.t > 1.6 && b.m.visible) { b.m.visible = false; landShip(); }
     return;
   }
-  if (b.st === 'wait') { if (p.x > b.x0 + 2) { b.wallsUp = true; b.st = 'roar'; b.t = 0; sfx.bump(); toast('⚠️ Dev Paslı Böcek! Duvara çarpınca sersemler, üstüne zıpla!'); } }
-  else if (b.st === 'roar') { b.m.position.y = b.y + Math.abs(Math.sin(b.t * 20)) * 0.15; if (b.t > 1.2) { b.st = 'walk'; b.t = 0; } }
+  const fr = b.hp / b.max;
+  if (b.st === 'wait') { if (p.x > b.x0 + 2) { b.wallsUp = true; b.st = 'roar'; b.t = 0; sfx.bump(); G.ch = Math.max(G.ch, 3); updateCharges(); toast('⚠️ Dev Paslı Böcek! Duvara çarpıp sersemleyince ateş et!'); } }
+  else if (b.st === 'roar' || b.st === 'rage') { b.vx = 0; b.m.position.y = b.y + Math.abs(Math.sin(b.t * 20)) * 0.15; if (b.t > (b.st === 'rage' ? 1.4 : 1.2)) { b.st = 'walk'; b.t = 0; } }
   else if (b.st === 'walk') {
-    b.dir = p.x < b.x ? -1 : 1; b.vx = b.dir * (1.25 + (3 - b.hp) * 0.4);
-    if (b.t > 2.2 - (3 - b.hp) * 0.4) { b.st = 'prep'; b.t = 0; }
-  } else if (b.st === 'prep') { b.vx = 0; b.m.position.x = b.x + Math.sin(b.t * 60) * 0.06; if (b.t > 0.65) { b.st = 'charge'; b.t = 0; b.vx = b.dir * (6.5 + (3 - b.hp) * 0.8); sfx.spring(); } }
+    b.dir = p.x < b.x ? -1 : 1; b.vx = b.dir * (1.25 + (1 - fr) * 1.2);
+    if (b.t > (b.rage ? 1.0 : fr <= 0.5 ? 1.4 : 2.2)) { b.st = 'prep'; b.t = 0; }
+  } else if (b.st === 'prep') { b.vx = 0; b.m.position.x = b.x + Math.sin(b.t * 60) * 0.06; if (b.t > (b.dbl ? 0.45 : 0.65)) { b.st = 'charge'; b.t = 0; b.vx = b.dir * (6.5 + (1 - fr) * 2.4); sfx.spring(); } }
   else if (b.st === 'charge') {
     const front = b.x + b.dir * b.w / 2;
-    if ((b.dir < 0 && front <= b.x0 + 0.05) || (b.dir > 0 && front >= b.x1 - 0.05)) { b.st = 'stun'; b.t = 0; b.vx = 0; sfx.stomp(); vibrate(60); burst(front, b.y + 1, 0xd8b070, 16); shake = 0.4; }
-  } else if (b.st === 'stun') { b.stars.visible = true; b.stars.rotation.y += dt * 6; if (b.t > 2.6) { b.st = 'walk'; b.t = 0; b.stars.visible = false; } }
-  else if (b.st === 'hit') { b.vx = 0; if (b.t > 0.8) { b.st = 'walk'; b.t = 0; } }
+    if ((b.dir < 0 && front <= b.x0 + 0.05) || (b.dir > 0 && front >= b.x1 - 0.05)) {
+      sfx.stomp(); vibrate(60); burst(front, b.y + 1, 0xd8b070, 16); shake = 0.4; b.vx = 0;
+      if (b.rage && !b.dbl) { b.dbl = true; b.dir = -b.dir; b.st = 'prep'; b.t = 0; } // öfke: peş peşe ikinci hücum
+      else { b.dbl = false; b.st = 'stun'; b.t = 0; toast('⚡ Şimdi ateş et!'); }
+    }
+  } else if (b.st === 'stun') { b.vx = 0; b.stars.visible = true; b.stars.rotation.y += dt * 6; if (b.t > (b.rage ? 2.3 : 2.8)) { b.st = 'walk'; b.t = 0; b.stars.visible = false; } }
   b.x = Math.max(b.x0 + b.w / 2, Math.min(b.x1 - b.w / 2, b.x + b.vx * dt));
   if (b.st !== 'prep') b.m.position.x = b.x;
-  b.m.position.set(b.m.position.x, b.st === 'roar' ? b.m.position.y : b.y, 0);
+  b.m.position.set(b.m.position.x, b.st === 'roar' || b.st === 'rage' ? b.m.position.y : b.y, 0);
   b.m.rotation.y = b.dir > 0 ? 0 : Math.PI; b.m.rotation.z = b.st === 'stun' ? Math.sin(b.t * 8) * 0.06 : 0;
   b.stars.position.set(b.x, b.y + b.h + 0.4, 0);
   if (b.walker) b.walker.update(dt, b.st === 'stun' ? 0 : b.st === 'prep' ? 3 : b.vx * 0.6, G.t);
-  b.flash = Math.max(0, b.flash - dt); b.body.visible = b.flash <= 0 || Math.floor(b.flash * 20) % 2 === 0;
-  // temas
-  if (G.state !== 'play' || b.st === 'wait') return;
+  bossGlow(b, dt);
+  bossContact(b);
+}
+// ---------- Boss ortak: can, isabet, öfke, temas, can barı ----------
+const BOSS_HP = 9;
+function bossMats(root) { const r = []; root.traverse((o) => { if (o.isMesh && o.material) { o.material = o.material.clone(); r.push({ m: o.material, e: o.material.emissive ? o.material.emissive.clone() : new THREE.Color(0) }); } }); return r; }
+const _red = new THREE.Color(0xff1a10), _wh = new THREE.Color(0xffffff);
+function bossGlow(b, dt) {
+  b.flash = Math.max(0, (b.flash || 0) - dt);
+  const k = b.rage ? 0.65 + Math.sin(G.t * 9) * 0.25 : 0;
+  for (const q of b.mats) { if (!q.m.emissive) continue; q.m.emissive.copy(q.e).lerp(_red, k); if (b.flash > 0) q.m.emissive.lerp(_wh, Math.min(1, b.flash * 5)); }
+}
+function bossVulnerable(b) { return b.kind === 'kral' ? b.st === 'tired' : b.st === 'stun'; }
+function bossShot(b, s) {
+  if (!bossVulnerable(b)) { sfx.bump(); for (let k = 0; k < 6; k++) spark(s.x, s.y, 0.6); if (!G.bossTip) { G.bossTip = true; toast(b.kind === 'kral' ? 'Zırhı sert! Yumruktan sonra yorulunca ateş et' : 'Zırhı sert! Duvara çarpıp sersemleyince ateş et'); } return; }
+  b.hp = Math.max(0, b.hp - 1); b.flash = 0.25; sfx.stomp(); vibrate(40); burst(s.x, s.y, b.kind === 'kral' ? 0xb8ff4a : 0xffa040, 14); shake = Math.max(shake, 0.2);
+  if (b.hp <= 0) {
+    b.dead = true; b.t = 0; b.wallsUp = false; b.stars.visible = false; if (b.ring) b.ring.material.opacity = 0;
+    for (const s2 of ents.sballs) levelRoot.remove(s2.m); ents.sballs = [];
+    sfx.cage(); toast(`💥 ${b.name} yenildi!`); shake = 0.6; return;
+  }
+  if (!b.rage && b.hp <= b.max * 0.25) { b.rage = true; b.st = 'rage'; b.t = 0; b.stars.visible = false; b.vx = 0; sfx.bump(); shake = 0.5; toast(`🔥 ${b.name} öfkelendi!`); }
+}
+/** Temas: üstten değmek kimseye zarar vermez (sekersin), yandan değmek can götürür */
+function bossContact(b) {
+  const p = player;
+  if (G.state !== 'play' || b.st === 'wait' || b.dead) return;
   if (Math.abs(p.x - b.x) < (P.PW + b.w) / 2 - 0.1 && p.y < b.y + b.h && p.y + P.PH > b.y + 0.1) {
-    const top = p.vy < -1 && p.y > b.y + b.h * 0.55;
-    if (top && b.st === 'stun') {
-      b.hp--; b.flash = 0.8; b.st = 'hit'; b.t = 0; b.stars.visible = false; p.vy = P.STOMP_HOLD; p.noCut = true; p.vx = (p.x < b.x ? -1 : 1) * 5;
-      sfx.stomp(); vibrate(70); burst(b.x, b.y + b.h, 0xffa040, 18); updateHud();
-      if (b.hp <= 0) { b.dead = true; b.t = 0; b.wallsUp = false; sfx.cage(); toast('💥 Dev Paslı Böcek yenildi!'); shake = 0.6; }
-      else toast(`💥 Kalan: ${'❤'.repeat(b.hp)}`);
-    } else if (top) { p.vy = P.STOMP; p.noCut = true; hurt(b.x); }
+    const top = p.vy < -1 && (p.prevY ?? p.y) > b.y + b.h * 0.55;
+    if (top) { p.vy = P.STOMP; p.noCut = true; p.vx = (p.x < b.x ? -1 : 1) * 4; sfx.bump(); }
     else hurt(b.x);
   }
+}
+let barTrail = 1, barHold = 0, barShown = null;
+function bossBar(b, dt = 0) {
+  const el = $('bossBar');
+  if (!b || (b.dead && b.t > 1.2) || b.st === 'wait') { if (barShown !== false) { el.classList.add('hidden'); barShown = false; barTrail = 1; } return; }
+  if (!barShown) { el.classList.remove('hidden'); barShown = true; $('bossName').textContent = b.name; barTrail = b.hp / b.max; }
+  const f = b.hp / b.max;
+  if (barTrail > f) { barHold += dt; if (barHold > 0.45) barTrail = Math.max(f, barTrail - dt * 0.6); } else { barTrail = f; barHold = 0; }
+  $('bossFill').style.width = `${f * 100}%`; $('bossTrail').style.width = `${barTrail * 100}%`;
+  el.classList.toggle('rage', !!b.rage);
 }
 // ---------- Boss: Mantar Kral ----------
 // Yürür; uzaktaysa bağırıp spor topları atar (şimşek topları patlatır); yakındaysa yumruk kombosuyla yere vurur
@@ -383,8 +419,8 @@ function setupKral() {
   const stars = add(new THREE.Group()); for (let i = 0; i < 4; i++) { const st = makeSprite('star', 0.4, ASPECT.star); st.position.set(Math.cos(i * 1.57) * 0.9, 0, Math.sin(i * 1.57) * 0.9); stars.add(st); } stars.visible = false;
   const walls = [B.x0 - 1, B.x1];
   const wallM = walls.map((wx) => { const g = add(new THREE.Group()); for (let i = 0; i < 6; i++) { const c = makeSprite('crate', 1.02, ASPECT.crate); c.position.set(0.5, i, 0.3); g.add(c); } g.position.set(wx, -8, 0); return g; });
-  const ring = add(new THREE.Mesh(new THREE.RingGeometry(0.2, 0.45, 32), new THREE.MeshBasicMaterial({ color: 0xb8ff4a, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }))); ring.rotation.x = -Math.PI / 2; toActor(ring);
-  ents.boss = { ...B, kind: 'kral', m, body, rig, stars, ring, x: B.x1 - 4, y: B.y, vx: 0, dir: -1, hp: 3, st: 'wait', t: 0, w: 2.3, h: 2.9, wallX: walls, wallM, wallsUp: false, flash: 0, dead: false, fired: 0, slammed: false, tipPunch: false };
+  const ring = add(new THREE.Mesh(new THREE.RingGeometry(0.36, 0.45, 48), new THREE.MeshBasicMaterial({ color: 0xb8ff4a, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }))); ring.rotation.x = -Math.PI / 2; toActor(ring);
+  ents.boss = { ...B, kind: 'kral', name: 'Mantar Kral', mats: bossMats(body), rage: false, max: BOSS_HP, waveHit: false, m, body, rig, stars, ring, x: B.x1 - 4, y: B.y, vx: 0, dir: -1, hp: BOSS_HP, st: 'wait', t: 0, w: 2.3, h: 2.9, wallX: walls, wallM, wallsUp: false, flash: 0, dead: false, fired: 0, slammed: false, tipPunch: false };
   const base = L.solid;
   L.solid = (x, y) => (ents.boss && ents.boss.wallsUp && ents.boss.wallX.includes(x) && y < 14) || base(x, y);
 }
@@ -418,44 +454,38 @@ function updateKral(dt) {
   }
   const toward = () => { b.dir = p.x < b.x ? -1 : 1; };
   const go = (st) => { b.st = st; b.t = 0; };
-  if (b.st === 'wait') { if (p.x > b.x0 + 2) { b.wallsUp = true; go('roar'); sfx.bump(); toast('⚠️ Mantar Kral! Yumruktan sonra yorulur: kafasına zıpla!'); } }
-  else if (b.st === 'roar') { toward(); b.vx = 0; if (b.t > 1.8) { go('walk'); } }
+  const fr = b.hp / b.max;
+  if (b.st === 'wait') { if (p.x > b.x0 + 2) { b.wallsUp = true; go('roar'); sfx.bump(); G.ch = Math.max(G.ch, 3); updateCharges(); toast('⚠️ Mantar Kral! Yumruktan sonra yorulunca ateş et!'); } }
+  else if (b.st === 'roar' || b.st === 'rage') { toward(); b.vx = 0; if (b.t > (b.st === 'rage' ? 1.5 : 1.8)) { go('walk'); } }
   else if (b.st === 'walk') {
-    toward(); b.vx = b.dir * (1.3 + (3 - b.hp) * 0.35);
-    if (b.t > 2.4 - (3 - b.hp) * 0.4) { b.vx = 0; if (Math.abs(p.x - b.x) < 4.5) { go('punch'); b.slammed = false; if (!b.tipPunch) { b.tipPunch = true; toast('👊 Yere vuracak: zıpla!'); } } else { go('shout'); b.fired = 0; } }
+    toward(); b.vx = b.dir * (1.3 + (1 - fr) * 1.0);
+    if (b.t > (b.rage ? 1.1 : fr <= 0.5 ? 1.6 : 2.4)) { b.vx = 0; if (Math.abs(p.x - b.x) < 4.5) { go('punch'); b.slammed = false; b.waveHit = false; if (!b.tipPunch) { b.tipPunch = true; toast('👊 Yere vuracak: halka gelince zıpla!'); } } else { go('shout'); b.fired = 0; } }
   } else if (b.st === 'shout') {
     b.vx = 0; toward();
-    if (b.fired === 0 && b.t > 0.7) { b.fired = 1; throwSpore(b); sfx.shot(); }
-    if (b.hp < 3 && b.fired === 1 && b.t > 1.5) { b.fired = 2; throwSpore(b); sfx.shot(); }
-    if (b.t > (b.hp < 3 ? 2.3 : 1.7)) go('walk');
+    const vol = b.rage ? 3 : fr <= 0.5 ? 2 : 1, gap = b.rage ? 0.55 : 0.8; // öfke: art arda üç yaylım
+    if (b.fired < vol && b.t > 0.7 + b.fired * gap) { b.fired++; throwSpore(b); sfx.shot(); }
+    if (b.t > 0.9 + vol * gap) go('walk');
   } else if (b.st === 'punch') {
     b.vx = 0;
-    const tSlam = 1.1; b.ring.material.opacity = b.t < tSlam ? 0.25 + Math.sin(b.t * 20) * 0.15 : Math.max(0, 0.8 - (b.t - tSlam) * 2);
-    const rr = b.t < tSlam ? 1 : 1 + (b.t - tSlam) * 18; b.ring.scale.setScalar(rr); b.ring.position.set(b.x, b.y + 0.05, 0.6);
-    if (!b.slammed && b.t > tSlam) { b.slammed = true; sfx.stomp(); vibrate(80); shake = 0.5; dust(b.x - 1, b.y, 10); dust(b.x + 1, b.y, 10); if (G.state === 'play' && p.ground && Math.abs(p.x - b.x) < 7) hurt(b.x); }
-    if (b.t > 2.2) { go('tired'); b.ring.material.opacity = 0; }
+    // yer dalgası: halkanın yarıçapı = hasar mesafesi; halka Bolt'un altından geçerken yerdeysen can gider
+    const tSlam = 1.1, R0 = 0.45, rr = b.t < tSlam ? 1 : 1 + (b.t - tSlam) * 16, rad = R0 * rr;
+    b.ring.material.opacity = b.t < tSlam ? 0.3 + Math.sin(b.t * 20) * 0.15 : rad < 7.5 ? 0.85 : Math.max(0, 0.85 - (rad - 7.5) * 0.5);
+    b.ring.scale.setScalar(rr); b.ring.position.set(b.x, b.y + 0.06, 0);
+    if (!b.slammed && b.t > tSlam) { b.slammed = true; sfx.stomp(); vibrate(80); shake = 0.5; dust(b.x - 1, b.y, 10); dust(b.x + 1, b.y, 10); }
+    if (b.slammed && rad < 7.5) { if (Math.random() < 0.6) { dust(b.x - rad, b.y, 1); dust(b.x + rad, b.y, 1); }
+      const d = Math.abs(p.x - b.x); if (!b.waveHit && G.state === 'play' && p.ground && d > rad - 0.7 && d < rad + 0.25) { b.waveHit = true; hurt(b.x); } }
+    if (b.t > 2.0) { go('tired'); b.ring.material.opacity = 0; toast('⚡ Şimdi ateş et!'); }
   } else if (b.st === 'tired') {
     b.vx = 0; b.stars.visible = true; b.stars.rotation.y += dt * 6;
-    if (b.t > 2.8) { b.stars.visible = false; go('walk'); }
-  } else if (b.st === 'hit') { b.vx = 0; if (b.t > 1.4) { go('walk'); } }
+    if (b.t > (b.rage ? 2.1 : 2.8)) { b.stars.visible = false; go('walk'); }
+  }
   b.x = Math.max(b.x0 + b.w / 2, Math.min(b.x1 - b.w / 2, b.x + b.vx * dt));
   b.m.position.set(b.x, b.y, 0);
   const tr = (b.dir > 0 ? -0.5 : Math.PI + 0.5); b.m.rotation.y += (tr - b.m.rotation.y) * Math.min(1, dt * 6);
-  b.m.rotation.z = 0; b.rig.update(dt, b.st, b.t, b.vx);
+  b.m.rotation.z = 0; b.rig.update(dt, b.st === 'rage' ? 'shout' : b.flash > 0 ? 'hit' : b.st, b.flash > 0 ? 0.25 - b.flash : b.t, b.vx);
   b.stars.position.set(b.x, b.y + b.h + 0.5, 0);
-  b.flash = Math.max(0, b.flash - dt); b.body.visible = b.flash <= 0 || Math.floor(b.flash * 20) % 2 === 0;
-  if (G.state !== 'play' || b.st === 'wait') return;
-  if (Math.abs(p.x - b.x) < (P.PW + b.w) / 2 - 0.1 && p.y < b.y + b.h && p.y + P.PH > b.y + 0.1) {
-    const top = p.vy < -1 && p.y > b.y + b.h * 0.6;
-    if (top && b.st === 'tired') {
-      b.hp--; b.flash = 0.8; b.stars.visible = false; go('hit');
-      p.vy = P.STOMP_HOLD; p.noCut = true; p.vx = (p.x < b.x ? -1 : 1) * 5;
-      sfx.stomp(); vibrate(70); burst(b.x, b.y + b.h, 0xb8ff4a, 18); updateHud();
-      if (b.hp <= 0) { b.dead = true; b.t = 0; b.wallsUp = false; for (const s2 of ents.sballs) levelRoot.remove(s2.m); ents.sballs = []; sfx.cage(); toast('💥 Mantar Kral yenildi!'); shake = 0.6; }
-      else toast(`💥 Kalan: ${'❤'.repeat(b.hp)}`);
-    } else if (top) { p.vy = P.STOMP; p.noCut = true; hurt(b.x); }
-    else hurt(b.x);
-  }
+  bossGlow(b, dt);
+  bossContact(b);
 }
 // gemi iner (20. bölüm sonu)
 function landShip() {
@@ -731,7 +761,7 @@ function frame() {
     if (G.state === 'play') updatePlayer(dt);
     else if (G.state === 'win') G.end += dt;
     if (DEV.on) { const sh = DEV.show; DEV.on = sh; updateDev(); DEV.on = true; if (!sh && DEV.g) { scene.remove(DEV.g); DEV.g = null; } }
-    updateGun(dt); updateEnemies(dt); updateBoss(dt); updateShip(dt); updateItems(dt); updateParts(dt); updateCamera(dt);
+    updateGun(dt); updateEnemies(dt); updateBoss(dt); bossBar(ents.boss, dt); updateShip(dt); updateItems(dt); updateParts(dt); updateCamera(dt);
     anim.update(dt);
   } else if (G.state === 'menu') { menuCam(dt); }
   renderer.clear();

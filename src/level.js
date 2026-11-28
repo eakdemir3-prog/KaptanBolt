@@ -157,7 +157,13 @@ function groundGapCoins(L) {
     if (L.bridges.some((br) => br.x0 < g.s + 0.5 && br.x1 > g.e + 0.5)) continue; // köprülü boşluk
     if (L.rafts.some((r) => r.x < g.e + 1 && r.x + r.w + (r.axis === 'x' ? r.range : 0) > g.s)) continue;
     const mine = L.coins.filter((c) => c.x > g.s - 4.5 && c.x < g.e + 1 + 4.5 && (c.arc || c.y > Math.max(hb, ha) + 0.9 || !cols[Math.floor(c.x)]));
-    const take = g.s - Math.max(0.35, (J.len - w - 1.0) / 2) - 0.2;
+    // kalkış tabelası: tam zıplamayla karşıya geçilen kalkış aralığının ORTASI (önünden ve arkasından da geçilir)
+    const lands = (d) => { const q = newPlayer(g.s - d, hb); q.ground = true; q.vx = P.RUN; const ii = { right: true, jump: true, jumpPressed: true }; let a = false;
+      for (let t = 0; t < 3; t += DT) { stepPlayer(L, q, ii, DT); if (!q.ground) a = true; if (a && q.ground) return q.x > g.e + 1; if (q.y < -2) return false; } return false; };
+    let best = null, cur = null;
+    for (let d = -0.3; d <= 3.0001; d += 0.05) { if (lands(d)) { if (!cur) cur = [d, d]; else cur[1] = d; if (!best || cur[1] - cur[0] > best[1] - best[0]) best = [...cur]; } else cur = null; }
+    if (!best) continue;
+    const take = g.s - (best[0] + best[1]) / 2;
     // bu bölümün kendi zemininde gerçek zıplama
     const p = newPlayer(take, hb); p.ground = true; p.vx = P.RUN; const inp = { right: true, jump: true, jumpPressed: true }, path = [];
     let air = false;

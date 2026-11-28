@@ -41,7 +41,7 @@ export const LEVELS = [
     b.ground(14, 2).sign(5, 'spike').row(1, 2, 3).e('kirpi', 10);
     b.ground(12, 2).arc(-4.5, 2, 5).heart(8).row(9, 2, 2);
     b.gap(2);
-    b.ground(16, 2).e('kirpi', 6).e('bocek', 12).arc(3.5, 2, 5).cage(14, 2, 'kus');
+    b.ground(20, 2).cage(2, 2, 'kus').e('kirpi', 8, null, [5, 11]).e('bocek', 15, null, [13, 19]).arc(5.5, 2, 5);
     b.ground(6, 3).crate(2, 3).row(2, 5, 2);
     b.ground(14, 2).plat(3, 5, 3).plat(8, 6, 3).row(3, 5, 2).arc(5.4, 5, 3, 0.75).row(10, 6, 1).cage(9, 6, 'tilki').cp(1);
     b.gap(2);
