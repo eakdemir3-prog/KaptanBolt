@@ -19,11 +19,18 @@ P.STOMP = Math.sqrt(2 * P.G_UP * P.STOMP_H);
 P.BOUNCE_H = { 1: 4.0, 2: 5.4, 3: 7.6 };
 P.springV = (kind) => Math.sqrt(2 * P.G_UP * (P.BOUNCE_H[kind] || P.SPRING_H));
 // spor bulutu: içindeyken yukarı süzülür (yerçekimini yener, hız sınırlı)
-P.SPORE_LIFT = 95; P.SPORE_MAX = 4.6;
+P.SPORE_LIFT = 95; P.SPORE_MAX = 4.6; P.STORM = 2.0;
 /** Yay/mantar ve spor bulutu etkileri (oyun ve test aynı kural). Basılan yayı döndürür. */
 export function applyFields(L, p, dt) {
   let hit = null;
   for (const s of L.springs) if (p.vy <= 0 && Math.abs(p.x - s.x) < 0.75 && p.y >= s.y - 0.05 && p.y < s.y + 0.9) { p.vy = P.springV(s.kind); p.noCut = true; p.ground = false; p.surf = null; hit = s; break; }
+  // bataklık kumu: yavaşlatır, zıplamayı kısaltır
+  if (p.sandT > 0 && p.vy > P.JUMP * 0.76) p.vy = P.JUMP * 0.76;
+  p.sandT = Math.max(0, (p.sandT || 0) - dt); p.inSand = false;
+  if (L.sands) for (const z of L.sands) if (p.ground && Math.abs(p.y - z.y) < 0.05 && p.x > z.x0 && p.x < z.x1) { p.inSand = true; p.sandT = 0.09; p.vx = Math.max(-P.RUN * 0.45, Math.min(P.RUN * 0.45, p.vx)); break; }
+  // kum fırtınası: rüzgâr sola iter
+  p.inStorm = false;
+  if (L.storms) for (const z of L.storms) if (p.x > z.x0 && p.x < z.x1) { p.inStorm = true; moveX(L, p, -P.STORM * dt, P.PW, P.PH); break; }
   p.inSpore = false;
   if (L.spores) for (const z of L.spores) if (p.x > z.x0 && p.x < z.x1 && p.y + P.PH * 0.5 > z.y0 && p.y < z.y1) {
     p.inSpore = true; p.noCut = true; p.vy = Math.min(Math.max(p.vy, -6) + P.SPORE_LIFT * dt, P.SPORE_MAX); if (p.vy > 0) { p.ground = false; p.surf = null; }

@@ -10,8 +10,8 @@ const VF = (t) => 2 + (t - 2) * 0.75;
 export function buildLevel(n) {
   const def = LEVELS[n - 1];
   const L = {
-    n, name: def.name, world: n > 20 ? 2 : 1, w: 0, cols: [], plats: [], crates: new Map(), bridges: [], rafts: [], coins: [], enemies: [], cages: [],
-    springs: [], spores: [], thorns: [], hearts: [], star: null, signs: [], decos: [], vines: [], checkpoints: [], end: null, boss: null, start: { x: 2.5, y: 2 }, ship: false,
+    n, name: def.name, world: n > 40 ? 3 : n > 20 ? 2 : 1, w: 0, cols: [], plats: [], crates: new Map(), bridges: [], rafts: [], coins: [], enemies: [], cages: [],
+    springs: [], spores: [], crumbles: [], sands: [], storms: [], thorns: [], hearts: [], star: null, signs: [], decos: [], vines: [], checkpoints: [], end: null, boss: null, start: { x: 2.5, y: 2 }, ship: false,
   };
   const b = {
     x: 0, at: 0, h: 2,
@@ -34,6 +34,12 @@ export function buildLevel(n) {
     e(type, dx, t = null, range = null) { L.enemies.push({ type, x: b.at + dx + 0.5, t: t == null ? b.h : V(t), range: range && [b.at + range[0], b.at + range[1]] }); return b; },
     cage(dx, t = null, animal = null) { L.cages.push({ x: b.at + dx + 0.5, y: t == null ? b.h : V(t), animal }); return b; },
     spring(dx, t = null, kind = null) { L.springs.push({ x: b.at + dx + 0.5, y: t == null ? b.h : V(t), kind }); return b; },
+    /** çöken kum platformu: üst yüzey t, w kare (basınca 0,6 sn sonra çatlar, 1 sn'de düşer, 3,5 sn sonra geri gelir) */
+    crumble(dx, t, w) { L.crumbles.push({ x: b.at + dx, y: V(t), w }); return b; },
+    /** bataklık kumu: zeminde dx'ten w kare (yavaşlatır, zıplamayı kısaltır) */
+    sand(dx, w) { L.sands.push({ x0: b.at + dx, x1: b.at + dx + w, y: b.h }); return b; },
+    /** kum fırtınası: dx'ten w kare boyunca rüzgâr sola iter */
+    storm(dx, w) { L.storms.push({ x0: b.at + dx, x1: b.at + dx + w }); return b; },
     /** spor bulutu: dx'ten w kare genişlik, t yüzeyinden h kare yukarı (içinde süzülürsün) */
     spore(dx, t, w, h) { const y0 = V(t); L.spores.push({ x0: b.at + dx, x1: b.at + dx + w, y0, y1: y0 + h }); return b; },
     crate(dx, t = null) { const y = t == null ? b.h : V(t); L.crates.set(`${b.at + dx},${y}`, { x: b.at + dx, y }); return b; },
@@ -61,6 +67,7 @@ export function buildLevel(n) {
   // yüzen kayalar tek yönlü: alttan geçilir, üstüne basılır
   L.oneway = [...L.bridges.map((s) => ({ ...s })), ...L.plats.map((p) => ({ x0: p.x - 0.05, x1: p.x + p.w + 0.05, y: p.y + 1, plat: true }))];
   for (const r of L.rafts) { r.s = { x0: r.x, x1: r.x + r.w, y: r.t, dx: 0 }; r.ph = 0; L.oneway.push(r.s); }
+  for (const c of L.crumbles) { c.s = { x0: c.x - 0.05, x1: c.x + c.w + 0.05, y: c.y, crumble: true }; L.oneway.push(c.s); }
   L.groundAt = (x) => cols[Math.floor(x)] || 0;
   L.gaps = []; for (let x = 1; x < L.w; x++) if (!cols[x] && cols[x - 1]) { let e = x; while (e + 1 < L.w && !cols[e + 1]) e++; L.gaps.push({ s: x, e }); x = e; }
   // altın blok içinde ya da diken üstünde kalmasın

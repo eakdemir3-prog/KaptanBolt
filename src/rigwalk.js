@@ -107,7 +107,42 @@ function slider(model) {
     },
   };
 }
+/** Akrepler (Meshy Smart Rig, kemik adları rastgele): bacak zincirleri kendiliğinden bulunur.
+ *  Kuyruk = ucu en yüksekte olan zincir; kıskaçlar = en önde (z) iki zincir; gerisi bacak (çapraz adım). */
+function arthropod(model) {
+  const bones = []; model.traverse((o) => { if (o.isBone) bones.push(o); });
+  if (!bones.length) return null;
+  const frame = bones[0].parent || model; model.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(frame.matrixWorld).invert(), loc = (b) => new THREE.Vector3().setFromMatrixPosition(b.matrixWorld).applyMatrix4(inv);
+  const kids = (b) => b.children.filter((c) => c.isBone);
+  const chains = [];
+  for (const j of bones) { const ks = kids(j); if (ks.length < 2) continue;
+    for (const c of ks) { let n = 1, e = c; while (kids(e).length === 1) { e = kids(e)[0]; n++; } if (n >= 3 && kids(e).length === 0) chains.push({ root: c, tip: e, n }); } }
+  if (!chains.length) return null;
+  for (const c of chains) { c.r = loc(c.root); c.t = loc(c.tip); }
+  const tail = chains.reduce((a, b) => (b.t.y > a.t.y ? b : a));
+  const rest = chains.filter((c) => c !== tail).sort((a, b) => b.t.z - a.t.z);
+  const claws = rest.slice(0, 2), legs = rest.slice(2).sort((a, b) => a.r.z - b.r.z);
+  legs.forEach((l, i) => { l.side = Math.sign(l.r.x) || 1; l.ph = ((Math.floor(i / 2) + (l.side > 0 ? 1 : 0)) % 2) * Math.PI; });
+  const tailBones = []; { let e = tail.root; tailBones.push(e); while (kids(e).length === 1) { e = kids(e)[0]; tailBones.push(e); } }
+  const restQ = new Map(bones.map((b) => [b, b.quaternion.clone()]));
+  const Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1), X = new THREE.Vector3(1, 0, 0);
+  const rot = (b, axisModel, ang) => { if (!b || !ang) return; frame.getWorldQuaternion(qa); ax.copy(axisModel).applyQuaternion(qa); b.parent.getWorldQuaternion(qb); ax.applyQuaternion(qb.invert()).normalize(); qa.setFromAxisAngle(ax, ang); b.quaternion.premultiply(qa); };
+  let ph = 0;
+  return {
+    sting: 0, // 0..1: kuyruk öne doğru vurur
+    update(dt, speed, t) {
+      for (const [b, q] of restQ) b.quaternion.copy(q);
+      const k = Math.min(1, Math.abs(speed) / 1.0); ph += dt * (2 + 9 * k);
+      model.updateMatrixWorld(true);
+      for (const l of legs) { const p = ph + l.ph; rot(l.root, Y, l.side * Math.sin(p) * 0.35 * k); rot(l.root, Z, -l.side * Math.max(0, Math.cos(p)) * 0.3 * k); }
+      claws.forEach((c, i) => rot(c.root, Y, (i ? 1 : -1) * (Math.sin(t * 4 + i) * 0.12 + 0.05)));
+      const st = this.sting; tailBones.forEach((b, i) => { if (i > 4) return; rot(b, X, Math.sin(t * 2.2 - i * 0.5) * 0.06 + st * 0.22); });
+    },
+  };
+}
 export function makeWalker(model, kind) {
+  if (kind === 'akrep' || kind === 'devakrep') return arthropod(model);
   if (kind === 'mantarcik') return hopper(model);
   if (kind === 'salyangoz') return slider(model);
   const spec = RIGS[kind]; if (!spec) return null;

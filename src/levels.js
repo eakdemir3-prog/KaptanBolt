@@ -3,6 +3,7 @@
 // Sınırlar (fizik): zıplama 3,3 kare yükselir, düz koşuda ~4 kare boşluk geçilir; mantar 6,4 kare atar.
 
 import { LEVELS2 } from './levels2.js';
+import { LEVELS3 } from './levels3.js';
 const A = ['kus', 'tilki', 'maymun'];
 
 export const LEVELS = [
@@ -250,5 +251,5 @@ export const LEVELS = [
     b.ground(16, 2).end(9);
   } },
 ];
-LEVELS.push(...LEVELS2);
+LEVELS.push(...LEVELS2, ...LEVELS3);
 export const ANIMALS = A;

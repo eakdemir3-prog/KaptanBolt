@@ -2,7 +2,7 @@
 import { buildLevel } from '../src/level.js';
 const near = (a, b, d) => Math.abs(a.x - b.x) < d && Math.abs(a.y - b.y) < d;
 let bad = 0; const rep = [];
-for (let n = 1; n <= 40; n++) {
+for (let n = 1; n <= 60; n++) {
   const L = buildLevel(n), out = [];
   const items = [...L.hearts.map((h) => ({ k: 'kalp', x: h.x, y: h.y, r: 0.36 })), ...(L.star ? [{ k: 'kristal', x: L.star.x, y: L.star.y, r: 0.42 }] : []), ...L.coins.map((c) => ({ k: 'altın', x: c.x, y: c.y, r: 0.37 }))];
   for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {

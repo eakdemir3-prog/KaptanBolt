@@ -55,7 +55,7 @@ export const THEMES = {
 };
 THEMES[3] = { n: 3, name: 'Güneş Kanyonu', ground: 'props/w3/ground.webp', soil: 'w3/soil', bg: 'kanyon', top: ['#e8b54a', 'rgba(200,130,40,0.35)', 'rgba(255,225,140,0.35)'],
   spr: { bush1: ['w3/tumble', 256 / 204], bush2: ['w3/cactus3', 236 / 181], bush3: ['w3/aloe', 257 / 182], flower1: ['w3/grass', 277 / 198], flower2: ['w3/cactus2', 264 / 239], flower3: ['w3/grass', 277 / 198], flower4: ['w3/aloe', 257 / 182], flower5: ['w3/cactus3', 236 / 181], flower6: ['w3/grass', 277 / 198], stump: ['w3/cactus1', 238 / 323], rocks: ['w3/rocks', 297 / 189], log: ['w3/skull', 276 / 194], mushrooms: ['w3/stump', 294 / 194], vines: ['w3/rope', 48 / 333], sign: ['w3/sign', 263 / 242] },
-  far: [0xffffff, 0xc98a6a], mid: [0xffffff, 0xb8542a], fog: 0xf6d6a8, hemi: [0xfff2d8, 0x9a6a3a, 1.95], sun: [0xffe6c0, 2.2] };
+  far: [0xffffff, 0xc98a6a], mid: [0xffffff, 0xb8542a], enemy: { bocek: 'akrep', kirpi: 'yilan' }, animal: { kus: 'fennek', tilki: 'deve', maymun: 'kertenkele' }, fog: 0xf6d6a8, hemi: [0xfff2d8, 0x9a6a3a, 1.95], sun: [0xffe6c0, 2.2] };
 export let THEME = THEMES[1];
 /** Dünya değişince zemin dokuları yeniden yüklenir (süs resimleri adlarıyla önbellekte kalır). Değiştiyse true. */
 export function applyTheme(n) {
@@ -349,6 +349,28 @@ export function makeSpring(kind = null) {
   const g = new THREE.Group();
   const sp = THEME.n === 2 ? sprite(`w2/bounce${kind || 2}`, 0.95 + (kind === 3 ? 0.12 : 0), BOUNCE_A[kind || 2]) : sprite('spring', 1.05, 400 / 345);
   sp.position.z = 0.3; g.add(sp); g.userData.spr = sp; return g;
+}
+/** Çöken kum platformu (resim): sağlam / çatlak hâller */
+export function makeCrumble(w) {
+  mats();
+  const g = new THREE.Group(), W = w + 0.35, h1 = W * 218 / 819, h2 = W * 333 / 817;
+  const a = sprite('w3/plat', h1, 819 / 218); a.position.set(w / 2, -h1 * 0.9, 0.3); g.add(a);
+  const b = sprite('w3/plat_crack', h2, 817 / 333); b.position.set(w / 2, -h2 * 0.94, 0.3); b.visible = false; g.add(b);
+  g.userData = { a, b }; return g;
+}
+/** Bataklık kumu: zemin üstünde ince, dalgalı kum şeridi */
+export function makeQuicksand(w) {
+  mats();
+  const g = new THREE.Group(), segW = 2.6, n = Math.max(1, Math.round(w / segW)), step = w / n;
+  for (let i = 0; i < n; i++) { const s = sprite('w3/quicksand', step * 1.1 * 101 / 721 * 1.4, 721 / 101 / 1.4); s.position.set((i + 0.5) * step, -0.12, 0.9); g.add(s); }
+  return g;
+}
+/** Kum fırtınası: bölge boyunca sola akan toz bulutları */
+export function makeStorm(w) {
+  mats();
+  const g = new THREE.Group(), clouds = [];
+  for (let i = 0; i < Math.max(2, Math.round(w / 3)); i++) { const c = sprite('w3/storm', 1.4 + R() * 0.8, 569 / 223); c.material = c.material.clone(); c.material.alphaTest = 0.02; c.material.depthWrite = false; c.material.transparent = true; c.position.set(R() * w, 0.2 + R() * 3.2, 0.8 + R() * 0.4); c.userData.v = 3 + R() * 2; g.add(c); clouds.push(c); }
+  g.userData = { clouds, w }; return g;
 }
 /** Spor bulutu: altta bulut resmi, üstünde yukarı akan parıltılı ışık sütunu */
 export function makeSpore(w, h) {
