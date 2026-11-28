@@ -141,28 +141,43 @@ function jumpPath() {
   for (let t = 0; t < 3; t += 1 / 60) { stepPlayer(flat, p, inp, 1 / 60); pts.push({ x: p.x, y: p.y }); if (t > 0.1 && p.ground) break; }
   return (JUMP = { pts, len: pts[pts.length - 1].x });
 }
-/** Boşluk geçişleri: zıplama yayı şeklindeki altınlar oyuncuyu erken zıplatıyordu.
- *  Boşluk öncesi altınlar yere, boşluk üstündekiler karşı kıyının güvenli iniş alanına (yine yere) taşınır.
- *  Aynı düzlükteki altınlar aynı yükseklikte ve eşit aralıklı dizilir. Güvenli kalkış noktasına tabela konur. */
+/** Boşluk geçişleri: altınlar doğru zıplamayı gösterir.
+ *  - Güvenli kalkış noktası hesaplanır (tam zıplama karşı kıyıya kenardan ~1 blok sonra iner) ve oraya tabela konur.
+ *  - Kalkıştan önceki altınlar yerde, kalkış noktasına doğru eşit aralıklı.
+ *  - Boşluk üstündeki altınlar, o kalkıştan yapılan GERÇEK zıplamanın rotası üzerinde (Bolt'un gövde hizasında):
+ *    ilk altın kalkıştan hemen sonra, son altın inişten hemen önce. Erken zıplatan yay kalmaz.
+ *  - Fazla altınlar karşı kıyıda, iniş noktasının ötesinde yerde. */
 function groundGapCoins(L) {
-  const J = jumpPath(), cols = L.cols;
-  const onFlat = (x) => cols[Math.floor(x)] > 0;
-  const moved = [];
+  const J = jumpPath(), cols = L.cols, DT = 1 / 60;
   for (const g of L.gaps) {
-    const hb = cols[g.s - 1], ha = cols[g.e + 1]; if (!hb || !ha || ha > hb + 1) continue; // yalnızca düz/inişli boşluklar
-    const arcs = L.coins.filter((c) => c.arc && c.x > g.s - 4.5 && c.x < g.e + 1 + 4.5);
-    if (!arcs.length) continue;
-    const before = arcs.filter((c) => c.x < g.s - 0.2 && onFlat(c.x)), rest = arcs.filter((c) => !before.includes(c));
-    // kalkış önü: yere, kenardan 1,3 blok geride biten eşit aralıklı sıra
-    before.sort((a, b) => a.x - b.x).forEach((c, i, arr) => { c.x = g.s - 1.3 - (arr.length - 1 - i) * 0.9; c.y = hb + 0.75; c.arc = false; moved.push(c); });
-    // güvenli iniş alanı: kenardan 1,2 blok sonra başlar
-    const land0 = g.e + 1 + 1.2;
-    const thornAt = (x) => L.thorns.some((t) => x > t.x0 - 0.6 && x < t.x1 + 0.6);
-    let lx = land0;
-    rest.forEach((c, i) => { while (thornAt(lx) || L.solid(Math.floor(lx), Math.floor(ha + 0.75))) lx += 0.9; c.x = lx; lx += 0.9; c.y = cols[Math.floor(c.x)] ? cols[Math.floor(c.x)] + 0.75 : ha + 0.75; c.arc = false; moved.push(c); });
-    // güvenli kalkış noktası: tam zıplama karşı kıyıya kenardan ~1 blok sonra iner
-    const w = g.e - g.s + 1, take = g.s - Math.max(0.35, (J.len - w - 1.0) / 2) - 0.2;
+    const hb = cols[g.s - 1], ha = cols[g.e + 1], w = g.e - g.s + 1;
+    if (!hb || !ha || ha > hb + 1 || w > 3) continue;                       // yalnızca tek zıplamalık boşluklar
+    if (L.bridges.some((br) => br.x0 < g.s + 0.5 && br.x1 > g.e + 0.5)) continue; // köprülü boşluk
+    if (L.rafts.some((r) => r.x < g.e + 1 && r.x + r.w + (r.axis === 'x' ? r.range : 0) > g.s)) continue;
+    const mine = L.coins.filter((c) => c.x > g.s - 4.5 && c.x < g.e + 1 + 4.5 && (c.arc || c.y > Math.max(hb, ha) + 0.9 || !cols[Math.floor(c.x)]));
+    const take = g.s - Math.max(0.35, (J.len - w - 1.0) / 2) - 0.2;
+    // bu bölümün kendi zemininde gerçek zıplama
+    const p = newPlayer(take, hb); p.ground = true; p.vx = P.RUN; const inp = { right: true, jump: true, jumpPressed: true }, path = [];
+    let air = false;
+    for (let t = 0; t < 3; t += DT) { stepPlayer(L, p, inp, DT); path.push({ x: p.x, y: p.y }); if (!p.ground) air = true; if (air && p.ground) break; if (p.y < -2) break; }
+    if (!(p.ground && p.x > g.e + 1)) continue;                              // güvenli değilse dokunma
+    const landX = p.x;
     L.signs.push({ x: take, y: hb, text: '', jump: true });
+    // rota üstünde eşit aralıklı altınlar (yatayda 0,85)
+    const arc = []; const x0 = take + 0.55, x1 = landX - 0.45, n = Math.max(3, Math.round((x1 - x0) / 0.85) + 1);
+    for (let i = 0; i < n; i++) {
+      const x = x0 + ((x1 - x0) * i) / (n - 1); const q = path.find((pt) => pt.x >= x) || path[path.length - 1];
+      arc.push({ x, y: q.y + 0.72, gapArc: true });
+    }
+    // eski altınlar: kalkış öncesindekiler yere (kalkışa doğru), diğerleri iniş sonrasına (yere)
+    const before = mine.filter((c) => c.x < take - 0.3).sort((a, b2) => a.x - b2.x);
+    before.forEach((c, i, arr) => { c.x = take - 0.9 - (arr.length - 1 - i) * 0.9; c.y = hb + 0.75; c.arc = false; });
+    const rest = mine.filter((c) => !before.includes(c)); const extra = Math.max(0, rest.length - arc.length);
+    const thornAt = (x) => L.thorns.some((t) => x > t.x0 - 0.6 && x < t.x1 + 0.6);
+    let lx = landX + 0.9;
+    L.coins = L.coins.filter((c) => !rest.includes(c));
+    for (let i = 0; i < extra; i++) { while (thornAt(lx) || L.solid(Math.floor(lx), Math.floor(ha + 0.75))) lx += 0.9; L.coins.push({ x: lx, y: (cols[Math.floor(lx)] || ha) + 0.75 }); lx += 0.9; }
+    L.coins.push(...arc);
   }
   // aynı yere düşen altınları ayıkla
   L.coins = L.coins.filter((c, i) => !L.coins.some((d, j) => j < i && Math.abs(d.x - c.x) < 0.5 && Math.abs(d.y - c.y) < 0.5));
